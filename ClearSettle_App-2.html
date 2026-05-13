@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ClearSettle — Unified eCommerce Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#F7F8FA;--sf:#FFF;--sf2:#F1F5F9;--sf3:#E8EFF7;
+--nv:#0D1F35;--nv2:#162840;--nv3:#1E3550;
+--tl:#0ABFCA;--tl2:#088F99;--tl-bg:#E6F8F9;
+--gn:#0DB07A;--gn-bg:#E6F7F2;
+--rd:#E8344A;--rd-bg:#FDEDF0;
+--am:#E9930D;--am-bg:#FEF3E2;
+--pu:#7B52E8;--pu-bg:#EEE9FD;
+--bl:#2563EB;--bl-bg:#EFF4FF;
+--tx:#0D1F35;--tx2:#4B6080;--tx3:#8FA5BD;
+--br:#E2EBF3;--br2:#C8D8E8;
+--sh1:0 1px 3px rgba(13,31,53,.06),0 1px 2px rgba(13,31,53,.04);
+--sh2:0 4px 16px rgba(13,31,53,.08),0 2px 6px rgba(13,31,53,.05);
+--sh3:0 8px 32px rgba(13,31,53,.12);
+--sh4:0 20px 60px rgba(13,31,53,.18);
+--r:10px;--r2:14px;--r3:18px;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--tx);overflow:hidden;height:100vh;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit}
+button{cursor:pointer;border:none;background:none}
+input,select,textarea{outline:none;border:none}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--br2);border-radius:4px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes bounceIn{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+.pa{animation:fadeUp .35s cubic-bezier(.22,1,.36,1) both}
+/* LOGIN */
+#login-screen{position:fixed;inset:0;z-index:1000;background:linear-gradient(150deg,#0A1929 0%,#0D2B42 50%,#0B2035 100%);display:flex;align-items:center;justify-content:center;transition:opacity .5s,transform .5s}
+#login-screen.exit{opacity:0;transform:scale(1.04);pointer-events:none}
+.lb{position:absolute;inset:0;overflow:hidden}
+.lo{position:absolute;border-radius:50%;filter:blur(80px)}
+.lo1{width:500px;height:500px;background:radial-gradient(circle,rgba(10,191,202,.18),transparent 70%);top:-120px;left:-120px;animation:pulse 4s infinite}
+.lo2{width:400px;height:400px;background:radial-gradient(circle,rgba(123,82,232,.12),transparent 70%);bottom:-80px;right:-80px;animation:pulse 4s 2s infinite}
+.lo3{width:300px;height:300px;background:radial-gradient(circle,rgba(14,176,122,.1),transparent 70%);top:40%;right:20%;animation:pulse 4s 1s infinite}
+.lgrid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:60px 60px}
+.lwrap{position:relative;display:flex;align-items:center;gap:80px;max-width:960px;width:100%;padding:0 24px}
+.lleft{flex:1}
+.lbrand{font-size:13px;font-weight:700;color:var(--tl);letter-spacing:2px;text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.lbrand-dot{width:8px;height:8px;border-radius:50%;background:var(--tl);animation:pulse 2s infinite}
+.lhead{font-size:40px;font-weight:800;color:#fff;line-height:1.15;letter-spacing:-.8px;margin-bottom:16px}
+.lhead span{background:linear-gradient(135deg,var(--tl),#7FE4EC);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.ldesc{font-size:15px;color:rgba(255,255,255,.5);line-height:1.7;margin-bottom:26px;max-width:420px}
+.lfeat{display:flex;align-items:center;gap:10px;font-size:13px;color:rgba(255,255,255,.55);margin-bottom:8px}
+.lfeat-ico{width:26px;height:26px;border-radius:7px;background:rgba(10,191,202,.15);border:1px solid rgba(10,191,202,.25);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.lcard{width:400px;flex-shrink:0;background:rgba(255,255,255,.07);backdrop-filter:blur(32px);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:38px;box-shadow:var(--sh4);animation:scaleIn .4s ease}
+.lcard-title{font-size:22px;font-weight:800;color:#fff;margin-bottom:6px}
+.lcard-sub{font-size:13px;color:rgba(255,255,255,.45);margin-bottom:26px}
+.lf-lbl{font-size:12px;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.6px;margin-bottom:7px}
+.lf-inp{width:100%;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:12px 16px;font-size:14px;color:#fff;transition:border-color .2s;margin-bottom:14px}
+.lf-inp::placeholder{color:rgba(255,255,255,.25)}
+.lf-inp:focus{border-color:var(--tl);background:rgba(10,191,202,.08)}
+.lf-err{background:rgba(232,52,74,.15);border:1px solid rgba(232,52,74,.3);color:#FCA5A5;border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:14px;display:none}
+.lsub{width:100%;background:linear-gradient(135deg,var(--tl),#06A0A8);color:#fff;font-size:14px;font-weight:700;padding:13px;border-radius:10px;transition:all .2s}
+.lsub:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(10,191,202,.4)}
+.lhint{text-align:center;margin-top:12px;font-size:12px;color:rgba(255,255,255,.3)}
+.lhint span{color:var(--tl);cursor:pointer;font-weight:600}
+/* ONBOARDING */
+#ob-screen{position:fixed;inset:0;z-index:900;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .4s}
+#ob-screen.hidden{opacity:0;pointer-events:none}
+.ob-wrap{width:700px;max-width:96vw}
+.ob-logo{font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--tl),var(--tl2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:8px}
+.ob-steps{display:flex;align-items:flex-start;justify-content:center;margin:18px 0 28px}
+.ob-circle{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;transition:all .3s;flex-shrink:0}
+.ob-done{background:var(--gn);color:#fff}
+.ob-active{background:var(--tl);color:#fff;box-shadow:0 0 0 4px var(--tl-bg)}
+.ob-todo{background:var(--sf2);color:var(--tx3);border:2px solid var(--br)}
+.ob-line{width:70px;height:2px;background:var(--br);margin-top:15px;transition:background .3s}
+.ob-line-done{background:var(--gn)}
+.ob-slabel{font-size:10px;color:var(--tx3);text-align:center;margin-top:5px;font-weight:500;width:80px}
+.ob-card{background:var(--sf);border:1px solid var(--br);border-radius:var(--r3);padding:36px;box-shadow:var(--sh3)}
+.ob-title{font-size:22px;font-weight:800;color:var(--tx);margin-bottom:6px}
+.ob-sub{font-size:14px;color:var(--tx2);margin-bottom:26px}
+/* APP */
+#app{display:flex;height:100vh;overflow:hidden}
+#app.hidden{display:none}
+/* SIDEBAR */
+.sb{width:244px;flex-shrink:0;background:var(--nv);display:flex;flex-direction:column;overflow:hidden}
+.sb-top{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sb-logo{font-size:20px;font-weight:800;background:linear-gradient(135deg,#0ABFCA,#7FE4EC);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sb-tag{font-size:10px;color:rgba(255,255,255,.3);margin-top:2px}
+.sb-co{display:flex;align-items:center;gap:9px;margin-top:12px;background:rgba(255,255,255,.05);border-radius:9px;padding:9px 12px}
+.sb-co-av{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--tl),#06A0A8);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
+.sb-co-nm{font-size:12px;font-weight:600;color:rgba(255,255,255,.85);line-height:1.3}
+.sb-co-rl{font-size:10px;color:rgba(255,255,255,.35)}
+.sb-nav{flex:1;overflow-y:auto;padding:8px 10px}
+.sb-sec{font-size:9px;font-weight:700;color:rgba(255,255,255,.22);text-transform:uppercase;letter-spacing:1.4px;padding:12px 10px 5px}
+.sb-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px;font-weight:500;color:rgba(255,255,255,.5);cursor:pointer;transition:all .15s;margin-bottom:1px;position:relative}
+.sb-item:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.85)}
+.sb-item.active{background:rgba(10,191,202,.14);color:#fff}
+.sb-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;border-radius:0 3px 3px 0;background:var(--tl)}
+.sb-ico{width:18px;text-align:center;font-size:14px;flex-shrink:0}
+.sb-badge{margin-left:auto;background:var(--rd);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;min-width:18px;text-align:center}
+.sb-badge.w{background:var(--am)}
+.sb-bot{padding:12px 14px;border-top:1px solid rgba(255,255,255,.06)}
+.sb-user{display:flex;align-items:center;gap:10px}
+.sb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1E3550,#2A4B72);border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.8);flex-shrink:0}
+.sb-unm{font-size:12px;font-weight:600;color:rgba(255,255,255,.8)}
+.sb-uem{font-size:10px;color:rgba(255,255,255,.3)}
+.sb-out{margin-left:auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:rgba(255,255,255,.4);padding:5px 8px;font-size:12px;transition:all .15s}
+.sb-out:hover{background:rgba(232,52,74,.2);color:#FCA5A5}
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tb{display:flex;align-items:center;gap:14px;padding:0 28px;height:60px;background:var(--sf);border-bottom:1px solid var(--br);flex-shrink:0;box-shadow:var(--sh1)}
+.tb-tit{font-size:17px;font-weight:800;color:var(--tx);letter-spacing:-.3px}
+.tb-sub{font-size:12px;color:var(--tx3);margin-top:1px}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px}
+.tb-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--sf2);border:1px solid var(--br);border-radius:8px;font-size:12px;font-weight:600;color:var(--tx2);transition:all .15s}
+.tb-btn:hover{background:var(--tl-bg);border-color:var(--tl);color:var(--tl2)}
+.tb-pri{background:linear-gradient(135deg,var(--tl),var(--tl2));color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(10,191,202,.25)}
+.tb-pri:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(10,191,202,.35)}
+.nb-dot{position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--rd);border:2px solid var(--sf)}
+.pc{flex:1;overflow-y:auto;padding:28px}
+/* GLOBAL COMPONENTS */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.chip::before{content:"●";font-size:7px}
+.cg{background:var(--gn-bg);color:#067A57}
+.cr{background:var(--rd-bg);color:#B91C2C}
+.ca{background:var(--am-bg);color:#B45309}
+.ct{background:var(--tl-bg);color:var(--tl2)}
+.cp{background:var(--pu-bg);color:#6135C4}
+.cb{background:var(--bl-bg);color:var(--bl)}
+.cgr{background:var(--sf2);color:var(--tx2)}
+.card{background:var(--sf);border:1px solid var(--br);border-radius:var(--r2);box-shadow:var(--sh1)}
+.ch{padding:18px 22px 14px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ct2{font-size:14px;font-weight:700;color:var(--tx)}
+.cs{font-size:11px;color:var(--tx3);margin-top:2px}
+.cb2{padding:18px 22px}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:700;transition:all .18s;cursor:pointer}
+.btn-p{background:linear-gradient(135deg,var(--tl),var(--tl2));color:#fff;box-shadow:0 2px 8px rgba(10,191,202,.25)}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(10,191,202,.35)}
+.btn-s{background:var(--sf2);border:1px solid var(--br);color:var(--tx2)}
+.btn-s:hover{background:var(--tl-bg);border-color:var(--tl);color:var(--tl2)}
+.btn-d{background:var(--rd-bg);border:1px solid rgba(232,52,74,.25);color:var(--rd)}
+.btn-d:hover{background:var(--rd);color:#fff}
+.btn-g{color:var(--tx2);padding:7px 14px}
+.btn-g:hover{background:var(--sf2);color:var(--tx)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:7px}
+input[type=text],input[type=email],input[type=password],select,textarea{background:var(--sf);border:1.5px solid var(--br);border-radius:9px;padding:10px 14px;font-size:14px;color:var(--tx);width:100%;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--tl);box-shadow:0 0 0 3px rgba(10,191,202,.12)}
+input::placeholder,textarea::placeholder{color:var(--tx3)}
+label{font-size:12px;font-weight:600;color:var(--tx2);display:block;margin-bottom:6px}
+.fg{margin-bottom:16px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fhint{font-size:11px;color:var(--tx3);margin-top:5px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;background:var(--sf2);border-bottom:1px solid var(--br);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--br);color:var(--tx);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(10,191,202,.03)}
+.tw{overflow-x:auto;border-radius:var(--r2);border:1px solid var(--br);background:var(--sf)}
+.ab{display:flex;align-items:flex-start;gap:12px;padding:13px 16px;border-radius:10px;font-size:13px;margin-bottom:16px}
+.ab.warn{background:var(--am-bg);border:1px solid rgba(233,147,13,.25);color:#7A4E09}
+.ab.err{background:var(--rd-bg);border:1px solid rgba(232,52,74,.25);color:#8B1A28}
+.ab.ok{background:var(--gn-bg);border:1px solid rgba(13,176,122,.25);color:#065F46}
+.ab.inf{background:var(--tl-bg);border:1px solid rgba(10,191,202,.25);color:var(--tl2)}
+.ab-ico{font-size:16px;flex-shrink:0;margin-top:1px}
+.ab-body{flex:1}
+.ab-title{font-weight:700;margin-bottom:2px}
+.ab-sub{font-size:12px;opacity:.8}
+.ab-act{margin-left:auto;flex-shrink:0}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.kpi{background:var(--sf);border:1px solid var(--br);border-radius:var(--r2);padding:20px 22px;box-shadow:var(--sh1);transition:all .2s;position:relative;overflow:hidden}
+.kpi:hover{box-shadow:var(--sh2);transform:translateY(-2px)}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r2) var(--r2) 0 0}
+.kt::after{background:linear-gradient(90deg,var(--tl),#7FE4EC)}
+.kg::after{background:linear-gradient(90deg,var(--gn),#34D399)}
+.ka::after{background:linear-gradient(90deg,var(--am),#FCD34D)}
+.kre::after{background:linear-gradient(90deg,var(--rd),#F87171)}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
+.kpi-val{font-size:26px;font-weight:800;color:var(--tx);letter-spacing:-.6px;line-height:1;margin-bottom:7px}
+.kpi-ch{font-size:12px;font-weight:600}
+.kup{color:var(--gn)}.kdn{color:var(--rd)}.kfl{color:var(--tx3)}
+.kpi-ico{position:absolute;top:18px;right:18px;font-size:20px;opacity:.2}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px}
+.stit{font-size:17px;font-weight:800;color:var(--tx);letter-spacing:-.3px}
+.ssub{font-size:12px;color:var(--tx3);margin-top:2px}
+.fp{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.fpill{padding:6px 14px;background:var(--sf2);border:1px solid var(--br);border-radius:20px;font-size:12px;font-weight:600;color:var(--tx2);cursor:pointer;transition:all .15s}
+.fpill:hover,.fpill.active{background:var(--tl-bg);border-color:var(--tl);color:var(--tl2)}
+/* MODAL */
+.mbg{position:fixed;inset:0;background:rgba(13,31,53,.45);backdrop-filter:blur(6px);z-index:800;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.mbg.open{opacity:1;pointer-events:all}
+.mbox{background:var(--sf);border-radius:var(--r3);box-shadow:var(--sh4);width:700px;max-width:96vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;transform:scale(.96) translateY(10px);transition:transform .25s cubic-bezier(.22,1,.36,1)}
+.mbg.open .mbox{transform:none}
+.mbox.sm{width:460px}.mbox.lg{width:860px}
+.mhd{padding:22px 26px 18px;border-bottom:1px solid var(--br);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}
+.mtit{font-size:17px;font-weight:800;color:var(--tx)}
+.msub{font-size:12px;color:var(--tx3);margin-top:3px}
+.mcls{width:30px;height:30px;border-radius:8px;background:var(--sf2);border:1px solid var(--br);display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:14px;transition:all .15s;flex-shrink:0}
+.mcls:hover{background:var(--rd-bg);color:var(--rd)}
+.mbdy{padding:24px 26px;overflow-y:auto;flex:1}
+.mft{padding:16px 26px;border-top:1px solid var(--br);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0}
+/* TOAST */
+#toasts{position:fixed;top:22px;right:22px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--nv);color:#fff;border-radius:11px;padding:12px 18px 12px 14px;font-size:13px;font-weight:500;box-shadow:var(--sh4);border-left:3px solid var(--tl);min-width:280px;display:flex;align-items:flex-start;gap:10px;pointer-events:all;animation:slideDown .3s cubic-bezier(.22,1,.36,1) both}
+.toast.ts{border-left-color:var(--gn)}.toast.te{border-left-color:var(--rd)}.toast.tw{border-left-color:var(--am)}
+.t-ico{font-size:16px;flex-shrink:0}
+.t-tit{font-weight:700;margin-bottom:2px}
+.t-sub{font-size:11px;opacity:.7}
+.t-exit{opacity:0;transform:translateX(20px);transition:all .25s}
+.prog{height:7px;background:var(--sf2);border-radius:10px;overflow:hidden}
+.prog-bar{height:100%;border-radius:10px;transition:width .6s}
+.plat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.pc2{background:var(--sf);border:1px solid var(--br);border-radius:var(--r2);padding:18px 20px;cursor:pointer;transition:all .2s;position:relative}
+.pc2:hover{box-shadow:var(--sh2);transform:translateY(-2px);border-color:var(--tl)}
+.pc2.conn{border-top:3px solid var(--gn)}.pc2.pend{border-top:3px solid var(--am)}.pc2.disc{border-top:3px solid var(--br2);opacity:.75}
+.pch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.pc-iw{width:42px;height:42px;border-radius:11px;background:var(--sf2);display:flex;align-items:center;justify-content:center;font-size:22px}
+.pc-nm{font-size:14px;font-weight:700;color:var(--tx);margin-top:10px}
+.pc-ph{font-size:10px;color:var(--tx3)}
+.pc-gmv{font-size:22px;font-weight:800;color:var(--tx);margin-top:10px;letter-spacing:-.4px}
+.pc-gl{font-size:11px;color:var(--tx3)}
+.pc-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--br)}
+.psl{font-size:10px;color:var(--tx3)}
+.psv{font-size:13px;font-weight:700;color:var(--tx);margin-top:2px}
+.sd{width:8px;height:8px;border-radius:50%;display:inline-block}
+.sdg{background:var(--gn);animation:pulse 2s infinite}.sda{background:var(--am);animation:pulse 2s infinite}.sdgr{background:var(--tx3)}
+.ibt{width:100%;border-collapse:collapse;font-size:13px}
+.ibt td{padding:9px 0;border-bottom:1px solid var(--br)}
+.ibt tr:last-child td{border-bottom:none;font-weight:800;font-size:14px}
+.ibt .ttr td{border-top:2px solid var(--br2);padding-top:12px}
+.rmatch{display:flex;align-items:center;gap:10px;padding:13px 16px;border-radius:10px;margin-bottom:8px;border:1px solid var(--br);transition:all .2s;cursor:pointer}
+.rmatch:hover{box-shadow:var(--sh2)}
+.rmatch.matched{background:var(--gn-bg);border-color:rgba(13,176,122,.2)}
+.rmatch.unmatched{background:var(--rd-bg);border-color:rgba(232,52,74,.2)}
+.rmatch.partial{background:var(--am-bg);border-color:rgba(233,147,13,.2)}
+.rml,.rmr{flex:1;min-width:0}
+.rmlbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.rmamt{font-size:16px;font-weight:800;letter-spacing:-.3px}
+.rmref{font-size:11px;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc{background:var(--sf);border:1px solid var(--br);border-radius:var(--r2);padding:18px 20px;margin-bottom:10px;transition:all .2s}
+.dc:hover{box-shadow:var(--sh2)}
+.dc.open{border-left:3px solid var(--am)}.dc.won{border-left:3px solid var(--gn)}.dc.pending{border-left:3px solid var(--bl)}.dc.lost{border-left:3px solid var(--rd)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dh{font-size:10px;font-weight:700;color:var(--tx3);text-align:center;padding:6px 0;text-transform:uppercase;letter-spacing:.5px}
+.cal-d{min-height:68px;border-radius:9px;background:var(--sf2);border:1px solid var(--br);padding:7px;transition:all .15s;cursor:pointer}
+.cal-d:hover,.cal-d.today{border-color:var(--tl);background:var(--tl-bg)}
+.cal-dt{font-size:12px;font-weight:700;color:var(--tx);margin-bottom:3px}
+.cal-tn{background:var(--tl);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-bottom:3px}
+.ce{font-size:9px;font-weight:600;padding:2px 5px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ce-g{background:var(--gn-bg);color:#067A57}.ce-a{background:var(--am-bg);color:#B45309}.ce-b{background:var(--bl-bg);color:var(--bl)}
+.ibr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--br)}
+.ibr:last-child{border-bottom:none}
+.ibl{font-size:12px;font-weight:600;color:var(--tx);width:160px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibw{flex:1;height:8px;background:var(--sf2);border-radius:4px;overflow:hidden}
+.ibf{height:100%;border-radius:4px}
+.ibc{font-size:12px;font-weight:700;width:40px;text-align:right;flex-shrink:0}
+.prow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--br)}
+.prow:last-child{border-bottom:none}
+.prnk{width:24px;height:24px;border-radius:50%;background:var(--nv);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pinf{flex:1;min-width:0}
+.pnm{font-size:13px;font-weight:700;color:var(--tx);margin-bottom:2px}
+.psk{font-size:11px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
+.pbw{width:120px;height:8px;background:var(--sf2);border-radius:4px;overflow:hidden}
+.pbf{height:100%;border-radius:4px}
+.pmrg{font-size:14px;font-weight:800;width:60px;text-align:right;flex-shrink:0}
+.cc{background:var(--sf);border:1px solid var(--br);border-radius:var(--r2);padding:18px 22px;display:flex;align-items:center;gap:14px;margin-bottom:10px;transition:all .2s}
+.cc:hover{box-shadow:var(--sh2)}
+.cc-ico{width:44px;height:44px;border-radius:11px;background:var(--sf2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.cc-inf{flex:1}
+.cc-nm{font-size:14px;font-weight:700;color:var(--tx);margin-bottom:2px}
+.cc-ds{font-size:12px;color:var(--tx3)}
+.cc-r{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.tabs{display:flex;gap:2px;background:var(--sf2);border-radius:10px;padding:3px;width:fit-content;margin-bottom:20px}
+.tab{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--tx2);cursor:pointer;transition:all .15s}
+.tab.active{background:var(--sf);color:var(--tx);box-shadow:0 1px 4px rgba(13,31,53,.1)}
+.toggle{width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--tl)}.toggle.off{background:var(--br2)}
+.toggle::after{content:'';position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:3px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.toggle.on::after{left:23px}.toggle.off::after{left:3px}
+.empty{text-align:center;padding:50px 20px}
+.empty-ico{font-size:44px;margin-bottom:12px;opacity:.4}
+.empty-tit{font-size:16px;font-weight:700;color:var(--tx2);margin-bottom:7px}
+.empty-sub{font-size:13px;color:var(--tx3);margin-bottom:18px}
+@media(max-width:1200px){.kpi-grid,.plat-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){
+  .sb{width:58px}
+  .sb-top,.sb-logo,.sb-tag,.sb-co,.sb-item span,.sb-sec,.sb-bot .sb-unm,.sb-bot .sb-uem{display:none}
+  .sb-item{justify-content:center;padding:10px}.sb-ico{width:auto;margin:0}
+  .pc{padding:14px}.kpi-grid,.plat-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+<div id="login-screen">
+  <div class="lb"><div class="lo lo1"></div><div class="lo lo2"></div><div class="lo lo3"></div><div class="lgrid"></div></div>
+  <div class="lwrap">
+    <div class="lleft">
+      <div class="lbrand"><div class="lbrand-dot"></div>ClearSettle Platform</div>
+      <div class="lhead">One dashboard for<br>every <span>marketplace</span><br>you sell on.</div>
+      <div class="ldesc">Reconcile settlements, detect overcharges, match bank statements, file disputes, and forecast cash flow across 8 Indian marketplaces.</div>
+      <div class="lfeat"><div class="lfeat-ico">💳</div>Automated invoice reconciliation</div>
+      <div class="lfeat"><div class="lfeat-ico">🔍</div>Commission overcharge detection</div>
+      <div class="lfeat"><div class="lfeat-ico">🏦</div>Bank statement matching</div>
+      <div class="lfeat"><div class="lfeat-ico">⚖️</div>One-click dispute filing</div>
+      <div class="lfeat"><div class="lfeat-ico">📊</div>SKU-level profitability analytics</div>
+      <div class="lfeat"><div class="lfeat-ico">📅</div>Cash flow forecast calendar</div>
+    </div>
+    <div class="lcard">
+      <div class="lcard-title">Welcome back</div>
+      <div class="lcard-sub">Sign in to your ClearSettle account</div>
+      <div class="lf-err" id="lf-err">Invalid credentials. Use demo@clearsettle.in / demo123</div>
+      <div class="lf-lbl">Email Address</div>
+      <input class="lf-inp" type="email" id="lf-email" value="demo@clearsettle.in"/>
+      <div class="lf-lbl">Password</div>
+      <input class="lf-inp" type="password" id="lf-pwd" value="demo123"/>
+      <button class="lsub" onclick="doLogin()">Sign In to ClearSettle &rarr;</button>
+      <div class="lhint">Demo: <span onclick="fillDemo()">demo@clearsettle.in / demo123</span></div>
+    </div>
+  </div>
+</div>
+<div id="ob-screen" class="hidden">
+  <div class="ob-wrap">
+    <div class="ob-logo">ClearSettle</div>
+    <div style="text-align:center;font-size:14px;color:var(--tx2);font-weight:500">Set up your account in 4 steps</div>
+    <div class="ob-steps" id="ob-steps"></div>
+    <div class="ob-card pa" id="ob-card"></div>
+  </div>
+</div>
+<div id="app" class="hidden">
+  <div class="sb">
+    <div class="sb-top">
+      <div class="sb-logo">ClearSettle</div>
+      <div class="sb-tag">Unified eCommerce Intelligence</div>
+      <div class="sb-co">
+        <div class="sb-co-av">TE</div>
+        <div><div class="sb-co-nm">Tirupur Exports</div><div class="sb-co-rl">Admin Account</div></div>
+      </div>
+    </div>
+    <div class="sb-nav">
+      <div class="sb-sec">Overview</div>
+      <div class="sb-item active" onclick="nav('dashboard')" id="n-dashboard"><span class="sb-ico">&#128202;</span><span>Dashboard</span></div>
+      <div class="sb-sec">Finance</div>
+      <div class="sb-item" onclick="nav('settlements')" id="n-settlements"><span class="sb-ico">&#128179;</span><span>Settlements</span><span class="sb-badge">3</span></div>
+      <div class="sb-item" onclick="nav('bank')" id="n-bank"><span class="sb-ico">&#127970;</span><span>Bank Reconciliation</span><span class="sb-badge w">2</span></div>
+      <div class="sb-item" onclick="nav('disputes')" id="n-disputes"><span class="sb-ico">&#9878;&#65039;</span><span>Disputes</span><span class="sb-badge w">1</span></div>
+      <div class="sb-item" onclick="nav('returns')" id="n-returns"><span class="sb-ico">&#8617;&#65039;</span><span>Returns &amp; Deductions</span></div>
+      <div class="sb-item" onclick="nav('commission')" id="n-commission"><span class="sb-ico">&#128269;</span><span>Commission Audit</span><span class="sb-badge w">2</span></div>
+      <div class="sb-item" onclick="nav('gst')" id="n-gst"><span class="sb-ico">&#128196;</span><span>GST / TCS</span></div>
+      <div class="sb-sec">Operations</div>
+      <div class="sb-item" onclick="nav('inventory')" id="n-inventory"><span class="sb-ico">&#128230;</span><span>Inventory Sync</span><span class="sb-badge w">3</span></div>
+      <div class="sb-item" onclick="nav('cashflow')" id="n-cashflow"><span class="sb-ico">&#128197;</span><span>Cash Flow Forecast</span></div>
+      <div class="sb-item" onclick="nav('analytics')" id="n-analytics"><span class="sb-ico">&#128200;</span><span>Profitability</span></div>
+      <div class="sb-sec">Account</div>
+      <div class="sb-item" onclick="nav('platforms')" id="n-platforms"><span class="sb-ico">&#128279;</span><span>Platform Settings</span></div>
+      <div class="sb-item" onclick="nav('reports')" id="n-reports"><span class="sb-ico">&#128209;</span><span>Reports</span></div>
+      <div class="sb-sec">Intelligence</div>
+      <div class="sb-item" onclick="nav('dispute-engine')" id="n-dispute-engine"><span class="sb-ico">&#9881;</span><span>Dispute Rule Engine</span><span class="sb-badge w">8</span></div>
+      <div class="sb-item" onclick="nav('recovery')" id="n-recovery"><span class="sb-ico">&#128176;</span><span>Recovery Tracker</span><span class="sb-badge">3</span></div>
+      <div class="sb-item" onclick="nav('competitors')" id="n-competitors"><span class="sb-ico">&#128202;</span><span>Market Intelligence</span></div>
+    </div>
+    <div class="sb-bot">
+      <div class="sb-user">
+        <div class="sb-av">RK</div>
+        <div><div class="sb-unm">Ranjith Kumar</div><div class="sb-uem">demo@clearsettle.in</div></div>
+        <button class="sb-out" onclick="doLogout()">&#8617;</button>
+      </div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="tb">
+      <div><div class="tb-tit" id="tb-tit">Dashboard</div><div class="tb-sub" id="tb-sub">May 2026 &middot; All Platforms</div></div>
+      <div class="tb-r">
+        <button class="tb-btn" onclick="syncAll()">&#128260; Sync All</button>
+        <button class="tb-btn" style="position:relative" onclick="openNotif()"><div class="nb-dot"></div>&#128276; Alerts</button>
+        <button class="tb-btn tb-pri" onclick="toast('Generating report...','i','Report queued','Ready in ~30 sec')">&#8595; Export</button>
+      </div>
+    </div>
+    <div class="pc" id="pc"></div>
+  </div>
+</div>
+<div class="mbg" id="mbg" onclick="mbgClick(event)">
+  <div class="mbox" id="mbox">
+    <div class="mhd">
+      <div><div class="mtit" id="mtit">Title</div><div class="msub" id="msub"></div></div>
+      <button class="mcls" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div class="mbdy" id="mbdy"></div>
+    <div class="mft" id="mft"></div>
+  </div>
+</div>
+<script>
+// ===================== DATA =====================
+var PLATS=[
+  {id:'amazon',name:'Amazon India',icon:'🛒',status:'connected',phase:1,orders:2847,gmv:1840000,pending:120000,returns:312,rr:10.9,comm:14.2,sync:'2 min ago',key:'AMZN-***-4821',ep:'sellingpartnerapi-fe.amazon.com'},
+  {id:'flipkart',name:'Flipkart',icon:'🛍️',status:'connected',phase:1,orders:1923,gmv:1280000,pending:80000,returns:198,rr:10.3,comm:12.5,sync:'5 min ago',key:'FK-***-9241',ep:'api.flipkart.net'},
+  {id:'meesho',name:'Meesho',icon:'👗',status:'connected',phase:1,orders:3401,gmv:520000,pending:30000,returns:521,rr:15.3,comm:0,sync:'12 min ago',key:'MSH-***-1182',ep:'merchant.meesho.com'},
+  {id:'myntra',name:'Myntra',icon:'👠',status:'connected',phase:2,orders:489,gmv:380000,pending:40000,returns:185,rr:37.8,comm:18.0,sync:'1 hr ago',key:'MNT-***-7723',ep:'api.myntrainfo.com'},
+  {id:'nykaa',name:'Nykaa',icon:'💄',status:'pending',phase:2,orders:221,gmv:190000,pending:20000,returns:44,rr:19.9,comm:15.0,sync:'Pending',key:null,ep:'api.nykaa.com/seller'},
+  {id:'ajio',name:'AJIO',icon:'🧥',status:'pending',phase:2,orders:178,gmv:210000,pending:18000,returns:38,rr:21.3,comm:20.0,sync:'Pending',key:null,ep:'api.ajio.com/seller'},
+  {id:'snapdeal',name:'Snapdeal',icon:'📱',status:'disconnected',phase:3,orders:0,gmv:0,pending:0,returns:0,rr:0,comm:0,sync:'Not connected',key:null,ep:'api.snapdeal.com'},
+  {id:'jiomart',name:'JioMart',icon:'🏪',status:'disconnected',phase:3,orders:0,gmv:0,pending:0,returns:0,rr:0,comm:0,sync:'Not connected',key:null,ep:'jiomartpartners.com'}
+];
+var SETTS=[
+  {id:'AMZN-2026-0448',plat:'Amazon India',icon:'🛒',period:'Apr 16-30, 2026',base:312400,comm:44280,logi:18640,ret:27890,tcs:2844,pen:0,net:218746,status:'paid',paid:'May 3, 2026',orders:347,inv:14},
+  {id:'AMZN-2026-0434',plat:'Amazon India',icon:'🛒',period:'Apr 1-15, 2026',base:289100,comm:41020,logi:16480,ret:19240,tcs:2563,pen:0,net:209797,status:'paid',paid:'Apr 19, 2026',orders:312,inv:12},
+  {id:'FK-RMT-2026-089',plat:'Flipkart',icon:'🛍️',period:'Apr 20-30, 2026',base:144300,comm:18040,logi:9820,ret:8440,tcs:1246,pen:640,net:106114,status:'paid',paid:'May 5, 2026',orders:188,inv:8},
+  {id:'FK-RMT-2026-078',plat:'Flipkart',icon:'🛍️',period:'Apr 10-20, 2026',base:138400,comm:17300,logi:8920,ret:12480,tcs:1162,pen:320,net:98218,status:'paid',paid:'Apr 25, 2026',orders:164,inv:7},
+  {id:'MEESHO-W18-2026',plat:'Meesho',icon:'👗',period:'Apr 28-May 4',base:42380,comm:0,logi:3840,ret:7200,tcs:424,pen:1280,net:29636,status:'pending',paid:'May 9, 2026',orders:284,inv:4},
+  {id:'MEESHO-W17-2026',plat:'Meesho',icon:'👗',period:'Apr 21-27, 2026',base:38640,comm:0,logi:3620,ret:6840,tcs:386,pen:960,net:26834,status:'paid',paid:'May 2, 2026',orders:256,inv:3},
+  {id:'MYNTRA-04B-2026',plat:'Myntra',icon:'👠',period:'Apr 16-30, 2026',base:124800,comm:22464,logi:12840,ret:47280,tcs:894,pen:0,net:41322,status:'paid',paid:'May 6, 2026',orders:92,inv:3},
+  {id:'FK-RMT-2026-090',plat:'Flipkart',icon:'🛍️',period:'May 1-10, 2026',base:98400,comm:12300,logi:7640,ret:5180,tcs:842,pen:0,net:72438,status:'pending',paid:'May 18, 2026',orders:121,inv:5}
+];
+var BANK=[
+  {id:'B001',date:'May 3',desc:'NEFT CR-AMAZON SELLER SERVICES',amt:218746,ref:'AMZN218746IN',sid:'AMZN-2026-0448',ms:'matched',va:0},
+  {id:'B002',date:'May 5',desc:'NEFT CR-FLIPKART INTERNET PVT',amt:106114,ref:'FK106114IN',sid:'FK-RMT-2026-089',ms:'matched',va:0},
+  {id:'B003',date:'May 2',desc:'NEFT CR-MEESHO FASTRACK',amt:26834,ref:'MSH26834IN',sid:'MEESHO-W17-2026',ms:'matched',va:0},
+  {id:'B004',date:'May 6',desc:'NEFT CR-MYNTRA DESIGNS PVT',amt:41322,ref:'MNT41322IN',sid:'MYNTRA-04B-2026',ms:'matched',va:0},
+  {id:'B005',date:'Apr 19',desc:'NEFT CR-AMAZON SELLER SERVICES',amt:209797,ref:'AMZN209797IN',sid:'AMZN-2026-0434',ms:'matched',va:0},
+  {id:'B006',date:'Apr 25',desc:'NEFT CR-FLIPKART INTERNET PVT',amt:97898,ref:'FK97898IN',sid:'FK-RMT-2026-078',ms:'partial',va:320},
+  {id:'B007',date:'May 8',desc:'NEFT CR-UNKNOWN MARKETPLACE',amt:12400,ref:'UNK12400IN',sid:null,ms:'unmatched',va:12400},
+  {id:'B008',date:'May 9',desc:'NEFT CR-AMAZON SELLER SERVICES',amt:44820,ref:'AMZN44820IN',sid:null,ms:'unmatched',va:44820}
+];
+var DISPS=[
+  {id:'DISP-001',plat:'Amazon India',icon:'🛒',type:'Commission Overcharge',amt:5368,desc:'Amazon charged 17.2% on TRP-KNT-001 vs published 13.0% for Apparel. Overcharge on 142 orders totalling Rs 5,368.',status:'open',raised:'May 7, 2026',expected:'May 21, 2026',ref:'AMZ-DISP-24891',resolution:''},
+  {id:'DISP-002',plat:'Flipkart',icon:'🛍️',type:'Commission Overcharge',amt:4568,desc:'Flipkart charged 14.8% on TRP-KNT-003 vs published 12.0% for Ethnic Wear. Overcharge across 188 orders.',status:'pending',raised:'May 5, 2026',expected:'May 19, 2026',ref:'FK-DISP-88241',resolution:''},
+  {id:'DISP-003',plat:'Flipkart',icon:'🛍️',type:'Penalty Charge',amt:640,desc:'Flipkart deducted Rs 640 as Late Dispatch Penalty. All 188 orders dispatched within 24 hours of placement.',status:'won',raised:'Apr 28, 2026',expected:'May 10, 2026',ref:'FK-DISP-87120',resolution:'Flipkart reversed penalty on May 10. Rs 640 credited in next settlement.'},
+  {id:'DISP-004',plat:'Meesho',icon:'👗',type:'Return Shipping Overcharge',amt:1280,desc:'Meesho deducted Rs 1,280 as reverse logistics charges for returns covered under seller protection policy.',status:'pending',raised:'May 8, 2026',expected:'May 22, 2026',ref:'MSH-DISP-19284',resolution:''}
+];
+var RETS=[
+  {id:'RET-24811',plat:'Myntra',icon:'👠',oid:'MNT-88241',sku:'TRP-KNT-021',prod:'Summer Floral Kurti (M)',reason:'Size Mismatch',qty:3,base:2280,ship:180,total:2460,date:'May 2',status:'processed'},
+  {id:'RET-24799',plat:'Amazon India',icon:'🛒',oid:'AMZ-44821',sku:'TRP-CTN-004',prod:'Cotton T-Shirt White (L)',reason:'Defective Item',qty:1,base:649,ship:80,total:729,date:'May 1',status:'processed'},
+  {id:'RET-24792',plat:'Meesho',icon:'👗',oid:'MSH-19281',sku:'TRP-KNT-011',prod:'Casual Striped Top (S)',reason:'Wrong Item Sent',qty:2,base:598,ship:120,total:718,date:'Apr 30',status:'processed'},
+  {id:'RET-24780',plat:'Flipkart',icon:'🛍️',oid:'FK-99241',sku:'TRP-KNT-003',prod:'Ethnic Printed Kurti (XL)',reason:'Not as Described',qty:2,base:1398,ship:160,total:1558,date:'Apr 29',status:'processed'},
+  {id:'RET-24774',plat:'Myntra',icon:'👠',oid:'MNT-87992',sku:'TRP-KNT-021',prod:'Summer Floral Kurti (L)',reason:'Quality Issue',qty:4,base:3040,ship:240,total:3280,date:'Apr 28',status:'pending'},
+  {id:'RET-24761',plat:'Amazon India',icon:'🛒',oid:'AMZ-44601',sku:'TRP-KNT-001',prod:'Knitwear Polo Shirt (M)',reason:'Changed Mind',qty:1,base:899,ship:80,total:979,date:'Apr 27',status:'processed'},
+  {id:'RET-24750',plat:'Nykaa',icon:'💄',oid:'NYK-28812',sku:'TRP-KNT-022',prod:'Designer Blouse Set (S)',reason:'Size Mismatch',qty:2,base:1798,ship:160,total:1958,date:'Apr 26',status:'disputed'},
+  {id:'RET-24739',plat:'Meesho',icon:'👗',oid:'MSH-19100',sku:'TRP-CTN-002',prod:'Basic Cotton Kurti (M)',reason:'Damaged in Transit',qty:3,base:1197,ship:180,total:1377,date:'Apr 25',status:'processed'}
+];
+var COMMS=[
+  {plat:'Amazon India',icon:'🛒',sku:'TRP-KNT-001',prod:'Knitwear Polo Shirt',cat:'Apparel',pub:13,chg:17.2,orders:142,base:127580,expFee:16585,chgFee:21953,over:5368,flag:true},
+  {plat:'Flipkart',icon:'🛍️',sku:'TRP-KNT-003',prod:'Ethnic Printed Kurti',cat:'Ethnic Wear',pub:12,chg:14.8,orders:188,base:163140,expFee:19577,chgFee:24145,over:4568,flag:true},
+  {plat:'Amazon India',icon:'🛒',sku:'TRP-KNT-018',prod:'Polo Neck Knit Top',cat:'Apparel',pub:13,chg:16.5,orders:87,base:78300,expFee:10179,chgFee:12920,over:2741,flag:true},
+  {plat:'Amazon India',icon:'🛒',sku:'TRP-CTN-004',prod:'Cotton T-Shirt',cat:'Apparel',pub:13,chg:13,orders:98,base:63602,expFee:8268,chgFee:8268,over:0,flag:false},
+  {plat:'Flipkart',icon:'🛍️',sku:'TRP-CTN-007',prod:'Cotton Casual Kurta',cat:'Kurtas',pub:12,chg:12,orders:76,base:45600,expFee:5472,chgFee:5472,over:0,flag:false},
+  {plat:'Meesho',icon:'👗',sku:'TRP-KNT-011',prod:'Casual Striped Top',cat:'Tops',pub:0,chg:0,orders:284,base:42380,expFee:0,chgFee:0,over:0,flag:false},
+  {plat:'Myntra',icon:'👠',sku:'TRP-KNT-021',prod:'Summer Floral Kurti',cat:'Kurtis',pub:18,chg:18,orders:92,base:124800,expFee:22464,chgFee:22464,over:0,flag:false}
+];
+var INV=[
+  {sku:'TRP-KNT-001',prod:'Knitwear Polo Shirt',amazon:142,flipkart:89,meesho:201,myntra:0,nykaa:0,total:432,reorder:50,st:'ok'},
+  {sku:'TRP-KNT-003',prod:'Ethnic Printed Kurti',amazon:88,flipkart:44,meesho:0,myntra:32,nykaa:18,total:182,reorder:80,st:'low'},
+  {sku:'TRP-KNT-011',prod:'Casual Striped Top',amazon:0,flipkart:0,meesho:24,myntra:0,nykaa:0,total:24,reorder:60,st:'critical'},
+  {sku:'TRP-CTN-002',prod:'Basic Cotton Kurti',amazon:210,flipkart:180,meesho:340,myntra:88,nykaa:44,total:862,reorder:100,st:'ok'},
+  {sku:'TRP-CTN-004',prod:'Cotton T-Shirt White',amazon:320,flipkart:240,meesho:480,myntra:0,nykaa:0,total:1040,reorder:150,st:'ok'},
+  {sku:'TRP-CTN-007',prod:'Cotton Casual Kurta',amazon:76,flipkart:40,meesho:0,myntra:0,nykaa:0,total:116,reorder:80,st:'low'},
+  {sku:'TRP-KNT-021',prod:'Summer Floral Kurti',amazon:0,flipkart:0,meesho:0,myntra:18,nykaa:24,total:42,reorder:40,st:'low'},
+  {sku:'TRP-KNT-022',prod:'Designer Blouse Set',amazon:0,flipkart:0,meesho:0,myntra:0,nykaa:44,total:44,reorder:30,st:'ok'}
+];
+var GST_DATA=[
+  {plat:'Amazon India',icon:'🛒',taxable:601500,tcs:6015,tds:12030,gstByP:88200,inv:8,ok:true},
+  {plat:'Flipkart',icon:'🛍️',taxable:382100,tcs:3821,tds:7642,gstByP:56400,inv:6,ok:true},
+  {plat:'Meesho',icon:'👗',taxable:81020,tcs:810,tds:1620,gstByP:0,inv:4,ok:false},
+  {plat:'Myntra',icon:'👠',taxable:124800,tcs:1248,tds:2496,gstByP:22464,inv:2,ok:true},
+  {plat:'Nykaa',icon:'💄',taxable:38400,tcs:384,tds:768,gstByP:6912,inv:1,ok:false}
+];
+var PROFIT=[
+  {sku:'TRP-CTN-004',prod:'Cotton T-Shirt White',rev:207040,cogs:82400,fees:27000,retCost:9800,ads:6200,net:81640,margin:39.4,top:'Amazon'},
+  {sku:'TRP-CTN-002',prod:'Basic Cotton Kurti',rev:184200,cogs:72000,fees:27630,retCost:12400,ads:4200,net:68170,margin:37.0,top:'Meesho'},
+  {sku:'TRP-KNT-011',prod:'Casual Striped Top',rev:42380,cogs:16800,fees:2760,retCost:7200,ads:1200,net:14420,margin:34.0,top:'Meesho'},
+  {sku:'TRP-KNT-003',prod:'Ethnic Printed Kurti',rev:163140,cogs:63000,fees:24580,retCost:18600,ads:9800,net:47160,margin:28.9,top:'Flipkart'},
+  {sku:'TRP-KNT-001',prod:'Knitwear Polo Shirt',rev:127580,cogs:51000,fees:26120,retCost:14200,ads:8400,net:27860,margin:21.8,top:'Amazon'},
+  {sku:'TRP-KNT-021',prod:'Summer Floral Kurti',rev:124800,cogs:52000,fees:22800,retCost:42000,ads:8400,net:-400,margin:-0.3,top:'Myntra'}
+];
+var CF=[
+  {date:'2026-05-09',label:'Meesho W18',amt:29636,type:'expected'},
+  {date:'2026-05-18',label:'Flipkart May 1-10',amt:72438,type:'expected'},
+  {date:'2026-05-20',label:'Meesho W19',amt:31200,type:'predicted'},
+  {date:'2026-05-25',label:'Amazon Apr Final',amt:218746,type:'paid'},
+  {date:'2026-06-01',label:'Flipkart May 11-20',amt:68000,type:'predicted'},
+  {date:'2026-06-03',label:'Myntra May',amt:52000,type:'predicted'},
+  {date:'2026-06-05',label:'Amazon May 1-15',amt:195000,type:'predicted'}
+];
+
+// ===================== UTILS =====================
+function INR(n){return '\u20B9'+Math.abs(n).toLocaleString('en-IN');}
+function INRL(n){return n>=100000?'\u20B9'+(n/100000).toFixed(1)+'L':INR(n);}
+function INRCR(n){return n>=10000000?'\u20B9'+(n/10000000).toFixed(2)+' Cr':INRL(n);}
+function PCT(n){return n.toFixed(1)+'%';}
+function chip(t,c){return '<span class="chip '+c+'">'+t+'</span>';}
+function sc(s){
+  var m={paid:['Paid','cg'],connected:['Connected','cg'],ok:['OK','cg'],pending:['Pending','ca'],partial:['Partial','ca'],
+    low:['Low Stock','ca'],unmatched:['Unmatched','cr'],disconnected:['Not Connected','cgr'],critical:['Critical','cr'],
+    processed:['Processed','cg'],disputed:['Disputed','cp'],open:['Open','ca'],won:['Won','cg'],lost:['Lost','cr']};
+  var v=m[s]||[s,'cgr'];
+  return chip(v[0],v[1]);
+}
+function H(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function toast(title,type,msg,sub){
+  type=type||'i';
+  var area=document.getElementById('toasts');
+  var icons={i:'&#9432;',s:'&#9989;',e:'&#10060;',w:'&#9888;&#65039;'};
+  var cls={i:'',s:'ts',e:'te',w:'tw'};
+  var el=document.createElement('div');
+  el.className='toast '+(cls[type]||'');
+  el.innerHTML='<div class="t-ico">'+(icons[type]||'&#9432;')+'</div><div><div class="t-tit">'+title+'</div>'+(sub?'<div class="t-sub">'+sub+'</div>':'')+'</div>';
+  el.onclick=function(){killToast(el);};
+  area.appendChild(el);
+  setTimeout(function(){killToast(el);},4000);
+}
+function killToast(el){el.classList.add('t-exit');setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},280);}
+
+function openModal(title,sub,body,footer,size){
+  document.getElementById('mtit').textContent=title;
+  document.getElementById('msub').textContent=sub||'';
+  document.getElementById('mbdy').innerHTML=body;
+  document.getElementById('mft').innerHTML=footer||'<button class="btn btn-p btn-sm" onclick="closeModal()">Close</button>';
+  var b=document.getElementById('mbox');
+  b.className='mbox'+(size?' '+size:'');
+  document.getElementById('mbg').classList.add('open');
+}
+function closeModal(){document.getElementById('mbg').classList.remove('open');}
+function mbgClick(e){if(e.target===document.getElementById('mbg'))closeModal();}
+
+// ===================== LOGIN =====================
+function fillDemo(){document.getElementById('lf-email').value='demo@clearsettle.in';document.getElementById('lf-pwd').value='demo123';}
+function doLogin(){
+  var e=document.getElementById('lf-email').value.trim();
+  var p=document.getElementById('lf-pwd').value.trim();
+  var err=document.getElementById('lf-err');
+  if(e==='demo@clearsettle.in'&&p==='demo123'){
+    err.style.display='none';
+    document.getElementById('login-screen').classList.add('exit');
+    var seen=sessionStorage.getItem('cs_ob');
+    setTimeout(function(){if(seen){showApp();}else{showOB();}},500);
+  }else{err.style.display='block';}
+}
+document.getElementById('lf-pwd').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+document.getElementById('lf-email').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+function doLogout(){document.getElementById('app').classList.add('hidden');document.getElementById('login-screen').classList.remove('exit');}
+
+// ===================== ONBOARDING =====================
+var obStep=0;
+var OB_LABELS=['Company','Connect','Test','Go Live'];
+function showOB(){obStep=0;document.getElementById('ob-screen').classList.remove('hidden');renderOB();}
+function renderOBSteps(){
+  var h='';
+  for(var i=0;i<OB_LABELS.length;i++){
+    if(i>0)h+='<div class="ob-line'+(i<=obStep?' ob-line-done':'')+'"></div>';
+    var cls=i<obStep?'ob-done':i===obStep?'ob-active':'ob-todo';
+    h+='<div style="display:flex;flex-direction:column;align-items:center"><div class="ob-circle '+cls+'">'+(i<obStep?'&#10003;':(i+1))+'</div><div class="ob-slabel">'+OB_LABELS[i]+'</div></div>';
+  }
+  document.getElementById('ob-steps').innerHTML=h;
+}
+function renderOB(){
+  renderOBSteps();
+  var c=document.getElementById('ob-card');
+  c.className='ob-card pa';
+  if(obStep===0)ob0(c);
+  else if(obStep===1)ob1(c);
+  else if(obStep===2)ob2(c);
+  else ob3(c);
+}
+function ob0(c){
+  c.innerHTML='<div class="ob-title">&#128075; Welcome to ClearSettle</div><div class="ob-sub">Set up your business details first.</div>'
+    +'<div class="fr"><div class="fg"><label>Company Name</label><input type="text" value="Tirupur Exports Pvt. Ltd."/></div><div class="fg"><label>GSTIN</label><input type="text" value="33ABCDE1234F1Z5"/></div></div>'
+    +'<div class="fr"><div class="fg"><label>Primary City</label><input type="text" value="Tirupur, Tamil Nadu"/></div><div class="fg"><label>Industry</label><select><option selected>Textiles &amp; Garments</option><option>Electronics</option><option>Fashion</option><option>FMCG</option></select></div></div>'
+    +'<div class="fg"><label>Business Email</label><input type="email" value="demo@clearsettle.in"/></div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn btn-p" onclick="obNext()">Continue &rarr;</button></div>';
+}
+function ob1(c){
+  var connected=['Amazon India','Flipkart','Meesho'];
+  var pls=[
+    {n:'Amazon India',i:'🛒',d:'SP-API \u00B7 OAuth 2.0',ph:'Phase 1'},
+    {n:'Flipkart',i:'🛍️',d:'Seller API v3 \u00B7 OAuth 2.0',ph:'Phase 1'},
+    {n:'Meesho',i:'👗',d:'Supplier API v2 \u00B7 API Key',ph:'Phase 1'},
+    {n:'Myntra',i:'👠',d:'MMIP v4 \u00B7 API Key',ph:'Phase 2'},
+    {n:'Nykaa',i:'💄',d:'NSP API \u00B7 Bearer Token',ph:'Phase 2'},
+    {n:'AJIO',i:'🧥',d:'Reliance API \u00B7 OAuth',ph:'Phase 2'},
+    {n:'Snapdeal',i:'📱',d:'Seller API v1 \u00B7 API Key',ph:'Phase 3+'},
+    {n:'JioMart',i:'🏪',d:'Partner API \u00B7 OAuth',ph:'Phase 3+'}
+  ];
+  var rows='';
+  for(var i=0;i<pls.length;i++){
+    var p=pls[i];
+    var isCon=connected.indexOf(p.n)>=0;
+    rows+='<div class="cc"><div class="cc-ico">'+p.i+'</div><div class="cc-inf"><div class="cc-nm">'+H(p.n)+'</div><div class="cc-ds">'+p.d+' &middot; <b style="color:var(--tl2)">'+p.ph+'</b></div></div>'
+      +'<div class="cc-r">'+(isCon?sc('connected'):'<button class="btn btn-s btn-sm" onclick="obConnect(\''+H(p.n)+'\')">Connect</button>')+'</div></div>';
+  }
+  c.innerHTML='<div class="ob-title">&#128279; Connect Your Platforms</div><div class="ob-sub">Connect marketplaces you sell on. Add more later from Platform Settings.</div>'
+    +'<div style="max-height:320px;overflow-y:auto;margin-bottom:16px">'+rows+'</div>'
+    +'<div style="display:flex;justify-content:space-between"><button class="btn btn-g" onclick="obPrev()">&larr; Back</button><button class="btn btn-p" onclick="obNext()">Continue &rarr;</button></div>';
+}
+function obConnect(name){
+  openModal('Connect '+name,'Enter API credentials',
+    '<div class="ab inf"><div class="ab-ico">&#128274;</div><div><div class="ab-title">Read-only access only</div><div class="ab-sub">ClearSettle never writes to your seller account.</div></div></div>'
+    +'<div class="fg"><label>App ID / Client ID</label><input type="text" placeholder="Your App ID"/></div>'
+    +'<div class="fg"><label>App Secret</label><input type="password" placeholder="Your Secret Key"/></div>'
+    +'<div class="fg"><label>Seller ID</label><input type="text" placeholder="Your seller ID"/></div>',
+    '<button class="btn btn-g btn-sm" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-s btn-sm" onclick="toast(\'Testing...\',\'i\',\'Making test API call\')">Test</button>'
+    +'<button class="btn btn-p btn-sm" onclick="closeModal();toast(\''+H(name)+' connected!\',\'s\',\'API verified successfully\')">Save &amp; Connect</button>');
+}
+function ob2(c){
+  var tests=[['Amazon India','🛒','2,847 orders \u00B7 \u20B918.4L GMV pulled'],['Flipkart','🛍️','1,923 orders \u00B7 \u20B912.8L GMV pulled'],['Meesho','👗','3,401 orders \u00B7 \u20B95.2L GMV pulled']];
+  var rows='';
+  for(var i=0;i<tests.length;i++){
+    rows+='<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--gn-bg);border:1px solid rgba(13,176,122,.2);border-radius:10px">'
+      +'<span style="font-size:20px">'+tests[i][1]+'</span>'
+      +'<div style="flex:1"><div style="font-size:13px;font-weight:700">'+tests[i][0]+'</div><div style="font-size:11px;color:var(--tx3)">'+tests[i][2]+'</div></div>'
+      +'<span>&#9989;</span></div>';
+  }
+  c.innerHTML='<div class="ob-title">&#129514; Testing Connections</div><div class="ob-sub">Verifying credentials and pulling initial data.</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0">'+rows+'</div>'
+    +'<div style="display:flex;justify-content:space-between"><button class="btn btn-g" onclick="obPrev()">&larr; Back</button><button class="btn btn-p" onclick="obNext()">All good &rarr;</button></div>';
+}
+function ob3(c){
+  c.innerHTML='<div style="text-align:center;padding:16px 0">'
+    +'<div style="font-size:56px;margin-bottom:14px;animation:bounceIn .5s ease">&#127881;</div>'
+    +'<div class="ob-title" style="font-size:24px;margin-bottom:6px">You\'re all set!</div>'
+    +'<div class="ob-sub" style="max-width:380px;margin:0 auto 24px">ClearSettle has synced your last 90 days across 3 platforms.</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:400px;margin:0 auto 24px">'
+    +'<div style="background:var(--gn-bg);border-radius:10px;padding:14px;border:1px solid rgba(13,176,122,.15)"><div style="font-size:20px;font-weight:800">3</div><div style="font-size:10px;color:var(--tx3);margin-top:3px">Platforms</div></div>'
+    +'<div style="background:var(--tl-bg);border-radius:10px;padding:14px;border:1px solid rgba(10,191,202,.15)"><div style="font-size:20px;font-weight:800">8,171</div><div style="font-size:10px;color:var(--tx3);margin-top:3px">Orders Synced</div></div>'
+    +'<div style="background:var(--am-bg);border-radius:10px;padding:14px;border:1px solid rgba(233,147,13,.15)"><div style="font-size:20px;font-weight:800">\u20B912,677</div><div style="font-size:10px;color:var(--tx3);margin-top:3px">Overcharges</div></div>'
+    +'</div>'
+    +'<button class="btn btn-p" style="font-size:14px;padding:12px 28px" onclick="finishOB()">Go to Dashboard &rarr;</button></div>';
+}
+function obNext(){obStep=Math.min(obStep+1,3);renderOB();}
+function obPrev(){obStep=Math.max(obStep-1,0);renderOB();}
+function finishOB(){sessionStorage.setItem('cs_ob','1');document.getElementById('ob-screen').classList.add('hidden');showApp();}
+function showApp(){document.getElementById('app').classList.remove('hidden');nav('dashboard');setTimeout(function(){toast('Welcome back, Ranjith!','s','ClearSettle synced','3 platforms \u00B7 8,171 orders ready');},600);}
+
+// ===================== NAVIGATION =====================
+var PAGES={
+  dashboard:['Dashboard','May 2026 \u00B7 All Platforms'],
+  settlements:['Settlements','Invoice Reconciliation'],
+  bank:['Bank Reconciliation','Match settlements to bank credits'],
+  disputes:['Disputes','Raise and track invalid charge disputes'],
+  returns:['Returns & Deductions','All Platforms \u00B7 Apr-May 2026'],
+  commission:['Commission Audit','Fee overcharge detection'],
+  gst:['GST / TCS Reconciliation','April 2026'],
+  inventory:['Inventory Sync','Real-time stock across platforms'],
+  cashflow:['Cash Flow Forecast','Upcoming settlements and payment calendar'],
+  analytics:['Profitability Analytics','SKU-level P&L breakdown'],
+  platforms:['Platform Settings','API connections and configuration'],
+  reports:['Reports','Generate and download analytics reports'],
+  'dispute-engine':['Dispute Rule Engine','Auto-detect and route every overcharge to the right recovery path'],
+  'recovery':['Recovery Tracker','Track all disputes, legal notices and recoveries'],
+  'competitors':['Market Intelligence','Competitive landscape & ClearSettle positioning']
+};
+function nav(page){
+  var items=document.querySelectorAll('.sb-item');
+  for(var i=0;i<items.length;i++)items[i].classList.remove('active');
+  var el=document.getElementById('n-'+page);
+  if(el)el.classList.add('active');
+  var meta=PAGES[page]||[page,''];
+  document.getElementById('tb-tit').textContent=meta[0];
+  document.getElementById('tb-sub').textContent=meta[1];
+  var pc=document.getElementById('pc');
+  pc.innerHTML='';
+  var wrap=document.createElement('div');
+  wrap.className='pa';
+  pc.appendChild(wrap);
+  var renders={dashboard:rDash,settlements:rSetts,bank:rBank,disputes:rDisps,returns:rRets,commission:rComm,
+    gst:rGST,inventory:rInv,cashflow:rCF,analytics:rAnalytics,platforms:rPlats,reports:rReports,
+    'dispute-engine':rDisputeEngine,recovery:rRecovery,competitors:rCompetitors};
+  if(renders[page])renders[page](wrap);
+}
+function syncAll(){toast('Syncing all platforms...','i','Pulling latest data','Amazon \u00B7 Flipkart \u00B7 Meesho');setTimeout(function(){toast('Sync complete','s','All platforms updated');},2800);}
+function openNotif(){
+  var items=[
+    ['&#9888;&#65039;','Commission Overcharge','Amazon charged 17.2% on TRP-KNT-001 vs 13%','2 hrs ago'],
+    ['&#9989;','Flipkart Settlement','\u20B91,06,114 credited for Apr 20-30','6 hrs ago'],
+    ['&#127970;','Bank Mismatch','\u20B912,400 credit with no matching settlement','8 hrs ago'],
+    ['&#128230;','Low Stock Alert','TRP-KNT-011 has only 24 units (reorder: 60)','1 day ago'],
+    ['&#8617;&#65039;','High Returns - Myntra','37.8% return rate on Summer Floral Kurti','2 days ago'],
+    ['&#128196;','GST Mismatch','TCS reconciliation incomplete - Meesho','3 days ago']
+  ];
+  var rows='';
+  for(var i=0;i<items.length;i++){
+    rows+='<div style="display:flex;gap:10px;padding:12px;background:var(--sf2);border-radius:10px;border:1px solid var(--br);margin-bottom:8px">'
+      +'<span style="font-size:16px;flex-shrink:0">'+items[i][0]+'</span>'
+      +'<div><div style="font-size:13px;font-weight:700">'+items[i][1]+'</div>'
+      +'<div style="font-size:12px;color:var(--tx2)">'+items[i][2]+'</div>'
+      +'<div style="font-size:10px;color:var(--tx3);margin-top:3px">'+items[i][3]+'</div></div></div>';
+  }
+  openModal('Notification Centre','Recent alerts and updates',rows,'<button class="btn btn-s btn-sm" onclick="closeModal()">Mark all read</button><button class="btn btn-p btn-sm" onclick="closeModal()">Close</button>');
+}
+
+// ===================== HELPERS =====================
+function kpiCard(label,val,change,changeType,ico,colorClass){
+  return '<div class="kpi '+colorClass+'"><div class="kpi-lbl">'+label+'</div><div class="kpi-val">'+val+'</div>'
+    +'<div class="kpi-ch '+(changeType==='up'?'kup':changeType==='down'?'kdn':'kfl')+'">'+change+'</div><div class="kpi-ico">'+ico+'</div></div>';
+}
+function statCard(label,sub,val){
+  return '<div class="card" style="padding:16px 18px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px">'+label+'</div>'
+    +'<div style="font-size:22px;font-weight:800;margin-bottom:3px">'+val+'</div><div style="font-size:11px;color:var(--tx3)">'+sub+'</div></div>';
+}
+function detailGrid(items){
+  var h='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:18px">';
+  for(var i=0;i<items.length;i++){
+    h+='<div style="background:var(--sf2);border-radius:8px;padding:11px">'
+      +'<div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:4px">'+items[i][0]+'</div>'
+      +'<div style="font-size:13px;font-weight:600">'+items[i][1]+'</div></div>';
+  }
+  return h+'</div>';
+}
+function alertBanner(type,ico,title,sub,actionHtml){
+  return '<div class="ab '+type+'"><div class="ab-ico">'+ico+'</div><div class="ab-body"><div class="ab-title">'+title+'</div><div class="ab-sub">'+sub+'</div></div>'
+    +(actionHtml?'<div class="ab-act">'+actionHtml+'</div>':'')+'</div>';
+}
+
+// ===================== DASHBOARD =====================
+function rDash(w){
+  var tGMV=0,tPend=0,tOrd=0;
+  for(var i=0;i<PLATS.length;i++){tGMV+=PLATS[i].gmv;tPend+=PLATS[i].pending;tOrd+=PLATS[i].orders;}
+  var h='';
+  h+=alertBanner('warn','&#9888;&#65039;','2 commission overcharges - \u20B912,677 recoverable','Amazon &amp; Flipkart charged above published rates on 3 SKUs.','<button class="btn btn-sm" style="background:var(--am);color:#fff" onclick="nav(\'commission\')">Review &rarr;</button>');
+  h+=alertBanner('err','&#127970;','2 bank transactions unmatched - \u20B957,220 unexplained','Credits in bank with no matching settlement record.','<button class="btn btn-sm" style="background:var(--rd);color:#fff" onclick="nav(\'bank\')">Reconcile &rarr;</button>');
+  h+='<div class="kpi-grid">';
+  h+=kpiCard('Total GMV Apr 2026',INRCR(tGMV),'&#8593; 18.4% vs March','up','&#128176;','kt');
+  h+=kpiCard('Settlements Received','\u20B942.8L','&#8593; 12.1% vs March','up','&#9989;','kg');
+  h+=kpiCard('Pending Payout',INRL(tPend),'3 active settlements','flat','&#8987;','ka');
+  h+=kpiCard('Return Deductions','\u20B98.4L','&#8593; 24.8% vs March','down','&#8617;&#65039;','kre');
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px">';
+  h+=statCard('Total Orders','Apr 2026',tOrd.toLocaleString());
+  h+=statCard('Connected Platforms','3 of 8 active','3 / 8');
+  h+=statCard('Commission Overcharges','Flagged this month','\u20B912,677');
+  h+=statCard('Bank Mismatches','Unreconciled entries','2 entries');
+  h+='</div>';
+  h+='<div class="sh"><div><div class="stit">Platform Overview</div><div class="ssub">Click any card for details</div></div><button class="btn btn-s btn-sm" onclick="nav(\'platforms\')">Manage &rarr;</button></div>';
+  h+='<div class="plat-grid" style="margin-bottom:24px">';
+  for(var i=0;i<PLATS.length;i++){h+=buildPlatCard(PLATS[i]);}
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px">';
+  h+='<div class="card"><div class="ch"><div><div class="ct2">Settlement Trend</div><div class="cs">Net payout - last 6 months</div></div></div><div class="cb2">'+barChart()+'</div></div>';
+  h+='<div class="card"><div class="ch"><div class="ct2">Platform Revenue Share</div></div><div class="cb2">'+donut()+'</div></div>';
+  h+='</div>';
+  w.innerHTML=h;
+}
+function buildPlatCard(p){
+  var sc2=p.status==='connected'?'conn':p.status==='pending'?'pend':'disc';
+  var h='<div class="pc2 '+sc2+'" onclick="showPlatModal(\''+p.id+'\')"><div class="pch"><div class="pc-iw">'+p.icon+'</div>'+sc(p.status)+'</div>'
+    +'<div class="pc-nm">'+H(p.name)+'</div><div class="pc-ph">Phase '+p.phase+'</div>';
+  if(p.status!=='disconnected'){
+    h+='<div class="pc-gmv">'+INRL(p.gmv)+'</div><div class="pc-gl">GMV this month</div>'
+      +'<div class="pc-stats">'
+      +'<div><div class="psl">Orders</div><div class="psv">'+p.orders.toLocaleString()+'</div></div>'
+      +'<div><div class="psl">Returns</div><div class="psv" style="color:'+(p.rr>25?'var(--rd)':p.rr>15?'var(--am)':'var(--gn)')+'">'+p.rr+'%</div></div>'
+      +'<div><div class="psl">Commission</div><div class="psv">'+p.comm+'%</div></div>'
+      +'<div><div class="psl">Last Sync</div><div class="psv" style="font-size:11px">'+p.sync+'</div></div>'
+      +'</div>';
+  }else{
+    h+='<div style="margin-top:14px;font-size:12px;color:var(--tx3)">Not connected. <span style="color:var(--tl);cursor:pointer;font-weight:600" onclick="event.stopPropagation();nav(\'platforms\')">Connect &rarr;</span></div>';
+  }
+  return h+'</div>';
+}
+function barChart(){
+  var data=[['Dec',28.4],['Jan',31.2],['Feb',29.8],['Mar',36.4],['Apr',42.8],['May*',14.2]];
+  var max=42.8;
+  var h='<div style="display:flex;align-items:flex-end;gap:8px;height:170px;padding:0 4px">';
+  for(var i=0;i<data.length;i++){
+    var ht=Math.round(data[i][1]/max*140);
+    var hi=data[i][0]==='Apr';
+    h+='<div style="display:flex;flex-direction:column;align-items:center;gap:5px;flex:1">'
+      +'<div style="font-size:10px;font-weight:700;color:'+(hi?'var(--tl)':'var(--tx2)')+'">&#8377;'+data[i][1]+'L</div>'
+      +'<div style="width:100%;max-width:40px;height:'+ht+'px;background:'+(hi?'linear-gradient(180deg,var(--tl),var(--tl2))':'var(--sf3)')+';border-radius:5px 5px 0 0;border:1px solid '+(hi?'var(--tl)':'var(--br)')+'"></div>'
+      +'<div style="font-size:10px;color:var(--tx3)">'+data[i][0]+'</div></div>';
+  }
+  h+='</div><div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:6px">*May partial through May 13</div>';
+  return h;
+}
+function donut(){
+  var sl=[['Amazon',42,'#F59E0B'],['Flipkart',30,'#0ABFCA'],['Meesho',12,'#7B52E8'],['Myntra',9,'#E8344A'],['Others',7,'#C8D8E8']];
+  var r=52,cx=68,cy=68,sw=17,c=2*Math.PI*r;
+  var off=0,segs='';
+  for(var i=0;i<sl.length;i++){
+    var d=sl[i][1]/100*c;
+    segs+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+sl[i][2]+'" stroke-width="'+sw+'" stroke-dasharray="'+d.toFixed(2)+' '+(c-d).toFixed(2)+'" stroke-dashoffset="'+(-off*c/100+c/4).toFixed(2)+'"><title>'+sl[i][0]+': '+sl[i][1]+'%</title></circle>';
+    off+=sl[i][1];
+  }
+  var leg='';
+  for(var i=0;i<sl.length;i++){
+    leg+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><div style="width:9px;height:9px;border-radius:2px;background:'+sl[i][2]+'"></div><span style="font-size:12px;color:var(--tx2);flex:1">'+sl[i][0]+'</span><span style="font-size:12px;font-weight:700">'+sl[i][1]+'%</span></div>';
+  }
+  return '<div style="display:flex;gap:14px;align-items:center">'
+    +'<svg width="136" height="136" viewBox="0 0 136 136">'+segs
+    +'<text x="68" y="64" text-anchor="middle" font-size="15" font-weight="800" fill="var(--tx)" font-family="Plus Jakarta Sans">\u20B944L</text>'
+    +'<text x="68" y="78" text-anchor="middle" font-size="10" fill="var(--tx3)" font-family="Plus Jakarta Sans">Apr Total</text></svg>'
+    +'<div>'+leg+'</div></div>';
+}
+function showPlatModal(id){
+  var p=null;for(var i=0;i<PLATS.length;i++){if(PLATS[i].id===id){p=PLATS[i];break;}}
+  if(!p)return;
+  var body='';
+  if(p.status!=='disconnected'){
+    body+=detailGrid([['GMV',INRL(p.gmv)],['Orders',p.orders.toLocaleString()],['Returns',p.rr+'%'],['Commission',p.comm+'%'],['Pending',INRL(p.pending)],['Last Sync',p.sync]]);
+    body+='<div style="font-size:13px;font-weight:700;margin-bottom:8px">API Configuration</div>'
+      +'<table class="ibt"><tr><td style="color:var(--tx3)">Endpoint</td><td style="font-family:JetBrains Mono,monospace;font-size:11px">'+p.ep+'</td></tr>'
+      +'<tr><td style="color:var(--tx3)">API Key</td><td style="font-family:JetBrains Mono,monospace;font-size:11px">'+(p.key||'Not configured')+'</td></tr>'
+      +'<tr><td style="color:var(--tx3)">Status</td><td>'+sc(p.status)+'</td></tr></table>';
+  }else{
+    body='<div style="text-align:center;padding:20px;color:var(--tx3)">Not connected. Go to Platform Settings to connect.</div>';
+  }
+  var footer='<button class="btn btn-g btn-sm" onclick="closeModal()">Close</button>'
+    +(p.status==='connected'?'<button class="btn btn-s btn-sm" onclick="toast(\'Syncing...\',\'i\');closeModal()">&#128260; Sync</button>':'')
+    +'<button class="btn btn-p btn-sm" onclick="nav(\'platforms\');closeModal()">&#9881; Settings</button>';
+  openModal(p.icon+' '+p.name,'Platform overview \u00B7 '+p.status,body,footer);
+}
+
+// ===================== SETTLEMENTS =====================
+function rSetts(w){
+  var pend=0,vars=0;
+  for(var i=0;i<SETTS.length;i++){if(SETTS[i].status==='pending')pend+=SETTS[i].net;vars+=SETTS[i].pen;}
+  var h='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">';
+  h+=statCard('Total Settled (Apr)','6 settlements received','\u20B97,02,469');
+  h+=statCard('Pending Payout','2 pending settlements',INRL(pend));
+  h+='<div class="card" style="padding:16px 18px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:6px">Penalty Deductions</div><div style="font-size:22px;font-weight:800;color:var(--rd)">'+INR(vars)+'</div><div style="font-size:11px;color:var(--rd)">Across 4 settlements</div></div>';
+  h+='</div>';
+  h+='<div class="fp">'
+    +'<button class="fpill active" onclick="fSett(event,\'all\')">All ('+SETTS.length+')</button>'
+    +'<button class="fpill" onclick="fSett(event,\'paid\')">Paid ('+SETTS.filter(function(s){return s.status==='paid';}).length+')</button>'
+    +'<button class="fpill" onclick="fSett(event,\'pending\')">Pending ('+SETTS.filter(function(s){return s.status==='pending';}).length+')</button>'
+    +'<div style="margin-left:auto;display:flex;gap:8px"><input type="text" placeholder="Search..." style="width:180px" oninput="searchSett(this.value)"/>'
+    +'<button class="btn btn-p btn-sm" onclick="toast(\'Downloading CSV...\',\'i\')">&#8595; Export</button></div></div>';
+  h+='<div class="tw" id="sett-tbl">'+settTable(SETTS)+'</div>';
+  w.innerHTML=h;
+}
+function settTable(data){
+  var h='<table><thead><tr><th>Settlement ID</th><th>Platform</th><th>Period</th><th>Base Value</th><th>Deductions</th><th>Net Settled</th><th>Penalty</th><th>Status</th><th></th></tr></thead><tbody>';
+  for(var i=0;i<data.length;i++){
+    var s=data[i];
+    var ded=s.comm+s.logi+s.ret+s.tcs+s.pen;
+    h+='<tr>'
+      +'<td><span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tl2)">'+s.id+'</span></td>'
+      +'<td>'+s.icon+' '+s.plat+'</td>'
+      +'<td style="font-size:12px;color:var(--tx2)">'+s.period+'</td>'
+      +'<td style="font-weight:600">'+INR(s.base)+'</td>'
+      +'<td style="color:var(--rd)">-'+INR(ded)+'</td>'
+      +'<td style="font-weight:700">'+INR(s.net)+'</td>'
+      +'<td>'+(s.pen>0?'<span style="color:var(--am);font-weight:600">-'+INR(s.pen)+'</span>':'<span style="color:var(--gn)">\u2014</span>')+'</td>'
+      +'<td>'+sc(s.status)+'</td>'
+      +'<td><button class="btn btn-s btn-sm" onclick="showSettDetail(\''+s.id+'\')">View</button></td></tr>';
+  }
+  return h+'</tbody></table>';
+}
+function fSett(e,f){
+  var pills=document.querySelectorAll('.fpill');
+  for(var i=0;i<pills.length;i++)pills[i].classList.remove('active');
+  e.target.classList.add('active');
+  var d=f==='all'?SETTS:SETTS.filter(function(s){return s.status===f;});
+  document.getElementById('sett-tbl').innerHTML=settTable(d);
+}
+function searchSett(q){
+  var d=q?SETTS.filter(function(s){return s.id.toLowerCase().indexOf(q.toLowerCase())>=0||s.plat.toLowerCase().indexOf(q.toLowerCase())>=0;}):SETTS;
+  document.getElementById('sett-tbl').innerHTML=settTable(d);
+}
+function showSettDetail(id){
+  var s=null;for(var i=0;i<SETTS.length;i++){if(SETTS[i].id===id){s=SETTS[i];break;}}
+  if(!s)return;
+  var ded=s.comm+s.logi+s.ret+s.tcs+s.pen;
+  var body=detailGrid([['Orders',s.orders],['Invoices',s.inv],['Period',s.period],['Paid On',s.paid],['Status',sc(s.status)],['Penalty',s.pen>0?'<span style="color:var(--rd)">-'+INR(s.pen)+'</span>':'<span style="color:var(--gn)">None</span>']]);
+  body+='<div style="font-size:13px;font-weight:700;margin-bottom:10px">Invoice Breakdown</div>';
+  body+='<table class="ibt"><tr><td>Base Selling Price</td><td style="text-align:right;font-weight:600">'+INR(s.base)+'</td></tr>';
+  if(s.comm>0)body+='<tr><td style="color:var(--tx2)">\u2212 Marketplace Commission</td><td style="text-align:right;color:var(--rd)">-'+INR(s.comm)+'</td></tr>';
+  body+='<tr><td style="color:var(--tx2)">\u2212 Logistics / Shipping</td><td style="text-align:right;color:var(--rd)">-'+INR(s.logi)+'</td></tr>';
+  body+='<tr><td style="color:var(--tx2)">\u2212 Returns Deducted</td><td style="text-align:right;color:var(--rd)">-'+INR(s.ret)+'</td></tr>';
+  body+='<tr><td style="color:var(--tx2)">\u2212 TCS (1%)</td><td style="text-align:right;color:var(--rd)">-'+INR(s.tcs)+'</td></tr>';
+  if(s.pen>0)body+='<tr><td style="color:var(--rd);font-weight:600">\u2212 Penalty / Violation</td><td style="text-align:right;color:var(--rd);font-weight:600">-'+INR(s.pen)+'</td></tr>';
+  body+='<tr class="ttr"><td><strong>Net Settlement</strong></td><td style="text-align:right"><strong style="color:var(--gn);font-size:15px">'+INR(s.net)+'</strong></td></tr></table>';
+  if(s.pen>0)body+=alertBanner('warn','&#9888;&#65039;','Penalty deduction of '+INR(s.pen),'This may be raisable as a dispute if no violation occurred.','');
+  var footer='<button class="btn btn-g btn-sm" onclick="closeModal()">Close</button>'
+    +(s.pen>0?'<button class="btn btn-d btn-sm" onclick="closeModal();setTimeout(function(){nav(\'disputes\');},200)">&#9878; Raise Dispute</button>':'')
+    +'<button class="btn btn-p btn-sm" onclick="toast(\'Downloading PDF...\',\'i\');closeModal()">&#8595; PDF</button>';
+  openModal('Settlement: '+s.id,s.plat+' \u00B7 '+s.period,body,footer,'lg');
+}
+
+// ===================== BANK RECONCILIATION =====================
+function rBank(w){
+  var matched=0,unmArr=[],partArr=[];
+  for(var i=0;i<BANK.length;i++){
+    if(BANK[i].ms==='matched')matched++;
+    else if(BANK[i].ms==='unmatched')unmArr.push(BANK[i]);
+    else if(BANK[i].ms==='partial')partArr.push(BANK[i]);
+  }
+  var unmtAmt=0,partVar=0,totalAmt=0;
+  for(var i=0;i<unmArr.length;i++)unmtAmt+=unmArr[i].amt;
+  for(var i=0;i<partArr.length;i++)partVar+=partArr[i].va;
+  for(var i=0;i<BANK.length;i++)totalAmt+=BANK[i].amt;
+  var h=alertBanner('err','&#127970;',unmArr.length+' bank credits unmatched - '+INR(unmtAmt)+' unexplained','Credits in bank with no corresponding settlement record.','');
+  h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">';
+  h+=statCard('Total Bank Credits',BANK.length+' transactions',INR(totalAmt));
+  h+='<div class="card" style="padding:16px 18px;border-top:3px solid var(--gn)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:6px">Matched</div><div style="font-size:20px;font-weight:800;color:var(--gn)">'+matched+'</div></div>';
+  h+='<div class="card" style="padding:16px 18px;border-top:3px solid var(--am)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:6px">Partial</div><div style="font-size:20px;font-weight:800;color:var(--am)">'+partArr.length+'</div><div style="font-size:11px;color:var(--tx3)">var: '+INR(partVar)+'</div></div>';
+  h+='<div class="card" style="padding:16px 18px;border-top:3px solid var(--rd)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:6px">Unmatched</div><div style="font-size:20px;font-weight:800;color:var(--rd)">'+unmArr.length+'</div><div style="font-size:11px;color:var(--tx3)">'+INR(unmtAmt)+'</div></div>';
+  h+='</div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div style="font-size:14px;font-weight:700">Bank Statement vs Settlement Match</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn btn-s btn-sm" onclick="showUploadModal()">&#8679; Upload Statement</button>'
+    +'<button class="btn btn-p btn-sm" onclick="autoMatch()">&#128260; Auto-Match All</button></div></div>';
+  for(var i=0;i<BANK.length;i++){
+    var t=BANK[i];
+    var matchIco=t.ms==='matched'?'&#9989;':t.ms==='partial'?'&#9888;&#65039;':'&#10067;';
+    var sidHtml='';
+    if(t.sid){
+      sidHtml='<div class="rmamt" style="color:var(--gn)">'+INR(t.amt-t.va)+'</div>'
+        +'<div class="rmref" style="font-family:JetBrains Mono,monospace">'+t.sid+'</div>'
+        +(t.va>0?'<div class="rmref" style="color:var(--am)">Variance: -'+INR(t.va)+'</div>':'');
+    }else{
+      sidHtml='<div class="rmamt" style="color:var(--rd)">No match found</div><div class="rmref">Investigate manually</div>';
+    }
+    h+='<div class="rmatch '+t.ms+'" onclick="showBankDetail(\''+t.id+'\')"><div class="rml">'
+      +'<div class="rmlbl" style="color:var(--tx3)">Bank Credit</div>'
+      +'<div class="rmamt">'+INR(t.amt)+'</div>'
+      +'<div class="rmref">'+H(t.desc)+'</div>'
+      +'<div class="rmref">'+t.date+' \u00B7 '+t.ref+'</div></div>'
+      +'<div style="font-size:20px;color:var(--tx3);flex-shrink:0">'+matchIco+'</div>'
+      +'<div class="rmr"><div class="rmlbl" style="color:var(--tx3)">Settlement</div>'+sidHtml+'</div>'
+      +'<div>'+sc(t.ms)+'</div></div>';
+  }
+  w.innerHTML=h;
+}
+function showUploadModal(){
+  openModal('Upload Bank Statement','Import for auto-reconciliation',
+    '<div style="border:2px dashed var(--br2);border-radius:12px;padding:36px;text-align:center;margin-bottom:16px;cursor:pointer" onclick="simulateUpload()" onmouseover="this.style.borderColor=\'var(--tl)\'" onmouseout="this.style.borderColor=\'var(--br2)\'">'
+    +'<div style="font-size:32px;margin-bottom:8px">&#128193;</div>'
+    +'<div style="font-size:14px;font-weight:700;margin-bottom:4px">Click to upload or drag &amp; drop</div>'
+    +'<div style="font-size:12px;color:var(--tx3)">PDF, Excel, CSV &middot; HDFC, ICICI, SBI, Axis, Kotak supported</div></div>'
+    +'<div class="fg"><label>Bank Account</label><select><option>HDFC Bank - Current A/C ****4821</option><option>ICICI Bank - Current A/C ****2294</option></select></div>'
+    +'<div class="fr"><div class="fg"><label>From Date</label><input type="text" value="01 Apr 2026"/></div><div class="fg"><label>To Date</label><input type="text" value="13 May 2026"/></div></div>',
+    '<button class="btn btn-g btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-p btn-sm" onclick="simulateUpload()">Upload &amp; Match &rarr;</button>');
+}
+function simulateUpload(){closeModal();toast('Processing statement...','i','Parsing transactions','Matching against settlements...');setTimeout(function(){toast('Auto-match complete!','s','6 matched \u00B7 2 unmatched','Review unmatched entries');},2500);}
+function autoMatch(){toast('Running auto-match...','i','Comparing bank credits to settlements');setTimeout(function(){toast('Auto-match complete','s','8/8 reviewed','2 need manual review');},2200);}
+function showBankDetail(id){
+  var t=null;for(var i=0;i<BANK.length;i++){if(BANK[i].id===id){t=BANK[i];break;}}
+  if(!t)return;
+  var body=detailGrid([['Amount',INR(t.amt)],['Date',t.date],['Reference',t.ref],['Match Status',sc(t.ms)],['Matched To',t.sid||'No match'],['Variance',t.va>0?'-'+INR(t.va):'None']]);
+  if(t.ms==='unmatched'){
+    body+=alertBanner('warn','&#9888;&#65039;','Manual investigation required','Could not be automatically matched. May be from unconnected platform or duplicate payment.','');
+    body+='<div class="fg" style="margin-top:14px"><label>Manually assign to settlement</label><select><option>Select settlement...</option>';
+    for(var i=0;i<SETTS.length;i++)body+='<option>'+SETTS[i].id+' - '+SETTS[i].plat+' - '+INR(SETTS[i].net)+'</option>';
+    body+='</select></div>';
+  }
+  var footer='<button class="btn btn-g btn-sm" onclick="closeModal()">Close</button>'
+    +(t.ms!=='matched'?'<button class="btn btn-p btn-sm" onclick="toast(\'Assignment saved\',\'s\');closeModal()">Save Assignment</button>':'');
+  openModal('Bank Transaction Detail',H(t.desc),body,footer);
+}
+
+// ===================== DISPUTES =====================
+function rDisps(w){
+  var openArr=[],wonArr=[];
+  for(var i=0;i<DISPS.length;i++){
+    if(DISPS[i].status==='open'||DISPS[i].status==='pending')openArr.push(DISPS[i]);
+    if(DISPS[i].status==='won')wonArr.push(DISPS[i]);
+  }
+  var totAmt=0,wonAmt=0;
+  for(var i=0;i<DISPS.length;i++)totAmt+=DISPS[i].amt;
+  for(var i=0;i<wonArr.length;i++)wonAmt+=wonArr[i].amt;
+  var h='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">';
+  h+=statCard('Total Disputed',DISPS.length+' disputes',INR(totAmt));
+  h+='<div class="card" style="padding:16px 18px;border-top:3px solid var(--am)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:6px">Open / Pending</div><div style="font-size:22px;font-weight:800;color:var(--am)">'+openArr.length+'</div></div>';
+  h+='<div class="card" style="padding:16px 18px;border-top:3px solid var(--gn)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:6px">Won</div><div style="font-size:22px;font-weight:800;color:var(--gn)">'+wonArr.length+' &middot; '+INR(wonAmt)+'</div></div>';
+  h+=statCard('Win Rate','1 of 2 resolved','50%');
+  h+='</div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div style="font-size:14px;font-weight:700">Active Disputes</div>'
+    +'<button class="btn btn-p btn-sm" onclick="showRaiseDisp()">+ Raise New Dispute</button></div>';
+  for(var i=0;i<DISPS.length;i++){
+    var d=DISPS[i];
+    h+='<div class="dc '+d.status+'">';
+    h+='<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;gap:10px">'
+      +'<div><div style="font-size:14px;font-weight:700">'+d.icon+' '+H(d.plat)+' \u2014 '+H(d.type)+'</div>'
+      +'<div style="font-size:11px;color:var(--tx3);margin-top:2px">Ref: '+d.ref+' &middot; Raised: '+d.raised+' &middot; Expected: '+d.expected+'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><div style="font-size:17px;font-weight:800">'+INR(d.amt)+'</div>'+sc(d.status)+'</div></div>';
+    h+='<div style="font-size:12px;color:var(--tx2);line-height:1.6;margin-bottom:10px">'+H(d.desc)+'</div>';
+    if(d.resolution){
+      h+='<div style="background:var(--gn-bg);border:1px solid rgba(13,176,122,.2);border-radius:8px;padding:10px;font-size:12px;color:#065F46;margin-bottom:10px">&#9989; '+H(d.resolution)+'</div>';
+    }
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    if(d.status==='open'||d.status==='pending'){
+      h+='<button class="btn btn-s btn-sm" onclick="addDispUpdate(\''+d.id+'\')">Add Update</button>'
+        +'<button class="btn btn-s btn-sm" onclick="toast(\'Escalated\',\'w\',\'Dispute escalated\')">Escalate</button>'
+        +'<button class="btn btn-s btn-sm" onclick="toast(\'Withdrawn\',\'w\')">Withdraw</button>';
+    }
+    h+='<button class="btn btn-g btn-sm" onclick="showDispDetail(\''+d.id+'\')">View Full &rarr;</button></div></div>';
+  }
+  w.innerHTML=h;
+}
+function showRaiseDisp(){
+  var settOpts='';
+  for(var i=0;i<SETTS.length;i++)settOpts+='<option>'+SETTS[i].id+'</option>';
+  openModal('Raise New Dispute','File against invalid charge',
+    '<div class="fg"><label>Platform</label><select><option>Amazon India</option><option>Flipkart</option><option>Meesho</option><option>Myntra</option><option>Nykaa</option></select></div>'
+    +'<div class="fg"><label>Dispute Type</label><select><option>Commission Overcharge</option><option>Penalty - No Violation</option><option>Return Shipping Overcharge</option><option>Incorrect Fee Category</option><option>Duplicate Deduction</option><option>Other</option></select></div>'
+    +'<div class="fr"><div class="fg"><label>Settlement ID</label><select>'+settOpts+'</select></div><div class="fg"><label>Disputed Amount (\u20B9)</label><input type="text" placeholder="e.g. 5368"/></div></div>'
+    +'<div class="fg"><label>Description</label><textarea rows="4" placeholder="Describe the incorrect charge with order IDs, SKUs, rate comparison..."></textarea></div>'
+    +'<div class="fg"><label>Evidence</label><div style="border:1.5px dashed var(--br2);border-radius:8px;padding:18px;text-align:center;cursor:pointer;color:var(--tx3);font-size:13px" onclick="toast(\'File ready\',\'i\')">&#128206; Attach screenshots or rate cards</div></div>',
+    '<button class="btn btn-g btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-p btn-sm" onclick="submitDisp()">Submit Dispute &rarr;</button>','lg');
+}
+function submitDisp(){
+  closeModal();
+  toast('Dispute submitted!','s','DISP-2026-005 created','Resolution expected in 14 days');
+  setTimeout(function(){
+    DISPS.unshift({id:'DISP-2026-005',plat:'Amazon India',icon:'🛒',type:'Commission Overcharge',amt:2741,
+      desc:'Amazon charged 16.5% on TRP-KNT-018 vs 13%. Overcharge across 87 orders.',
+      status:'pending',raised:'Today',expected:'May 27, 2026',ref:'AMZ-DISP-24999',resolution:''});
+    nav('disputes');
+  },500);
+}
+function addDispUpdate(id){
+  openModal('Add Update','Dispute '+id,
+    '<div class="fg"><label>Update Note</label><textarea rows="3" placeholder="New evidence, follow-up notes, or platform responses..."></textarea></div>'
+    +'<div class="fg"><label>New Status</label><select><option>Pending</option><option>Escalated</option><option>Platform Responded</option></select></div>',
+    '<button class="btn btn-g btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-p btn-sm" onclick="toast(\'Update saved\',\'s\');closeModal()">Save</button>');
+}
+function showDispDetail(id){
+  var d=null;for(var i=0;i<DISPS.length;i++){if(DISPS[i].id===id){d=DISPS[i];break;}}
+  if(!d)return;
+  var body=detailGrid([['Amount',INR(d.amt)],['Raised',d.raised],['Expected',d.expected],['Platform',d.plat],['Reference',d.ref],['Status',sc(d.status)]]);
+  body+='<div style="background:var(--sf2);border-radius:8px;padding:14px;font-size:13px;color:var(--tx2);line-height:1.7;margin-bottom:14px">'+H(d.desc)+'</div>';
+  body+=d.resolution
+    ?alertBanner('ok','&#9989;','Resolution',H(d.resolution),'')
+    :alertBanner('inf','&#8505;&#65039;','Awaiting response','Platforms respond within 7-14 business days.','');
+  openModal('Dispute: '+d.ref,d.icon+' '+d.plat+' \u2014 '+d.type,body);
+}
+
+// ===================== RETURNS =====================
+function rRets(w){
+  var total=0;
+  var byR={};
+  for(var i=0;i<RETS.length;i++){total+=RETS[i].total;byR[RETS[i].reason]=(byR[RETS[i].reason]||0)+1;}
+  var disputed=RETS.filter(function(r){return r.status==='disputed';}).length;
+  var tbl='<table><thead><tr><th>Return ID</th><th>Platform</th><th>Product</th><th>Reason</th><th>Qty</th><th>Refund</th><th>Shipping</th><th>Total</th><th>Status</th></tr></thead><tbody>';
+  for(var i=0;i<RETS.length;i++){
+    var r=RETS[i];
+    tbl+='<tr><td><span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tl2)">'+r.id+'</span></td>'
+      +'<td>'+r.icon+' '+r.plat+'</td>'
+      +'<td><div style="font-size:12px;font-weight:600">'+H(r.prod)+'</div><div style="font-size:10px;color:var(--tx3);font-family:JetBrains Mono,monospace">'+r.sku+'</div></td>'
+      +'<td>'+chip(r.reason,'ca')+'</td>'
+      +'<td style="text-align:center">'+r.qty+'</td>'
+      +'<td>'+INR(r.base)+'</td>'
+      +'<td style="color:var(--rd)">-'+INR(r.ship)+'</td>'
+      +'<td style="font-weight:700;color:var(--rd)">-'+INR(r.total)+'</td>'
+      +'<td>'+sc(r.status)+'</td></tr>';
+  }
+  tbl+='</tbody></table>';
+  var reasonBars='',entries=Object.entries(byR).sort(function(a,b){return b[1]-a[1];});
+  for(var i=0;i<entries.length;i++){
+    reasonBars+='<div class="ibr"><div class="ibl">'+H(entries[i][0])+'</div><div class="ibw"><div class="ibf" style="width:'+Math.round(entries[i][1]/RETS.length*100)+'%;background:var(--am)"></div></div><div class="ibc">'+entries[i][1]+'</div></div>';
+  }
+  var rrBars='';
+  var sortedP=PLATS.filter(function(p){return p.rr>0;}).sort(function(a,b){return b.rr-a.rr;});
+  for(var i=0;i<sortedP.length;i++){
+    var col=sortedP[i].rr>25?'var(--rd)':sortedP[i].rr>15?'var(--am)':'var(--gn)';
+    rrBars+='<div class="ibr"><div class="ibl" style="width:90px;font-size:11px">'+sortedP[i].icon+' '+sortedP[i].name.split(' ')[0]+'</div><div class="ibw"><div class="ibf" style="width:'+Math.round(sortedP[i].rr/40*100)+'%;background:'+col+'"></div></div><div class="ibc" style="color:'+col+'">'+sortedP[i].rr+'%</div></div>';
+  }
+  var h='<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px">';
+  h+='<div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">';
+  h+=statCard('Total Returns','Apr-May 2026',RETS.length.toString());
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Total Deducted</div><div style="font-size:20px;font-weight:800;color:var(--rd)">'+INR(total)+'</div></div>';
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Disputed</div><div style="font-size:20px;font-weight:800;color:var(--pu)">'+disputed+'</div></div>';
+  h+='</div><div class="tw">'+tbl+'</div></div>';
+  h+='<div><div class="card" style="margin-bottom:12px"><div class="ch"><div class="ct2">By Reason</div></div><div class="cb2">'+reasonBars+'</div></div>';
+  h+='<div class="card"><div class="ch"><div class="ct2">Platform Return Rates</div></div><div class="cb2">'+rrBars+'</div></div></div>';
+  h+='</div>';
+  w.innerHTML=h;
+}
+
+// ===================== COMMISSION AUDIT =====================
+function rComm(w){
+  var flagged=COMMS.filter(function(c){return c.flag;}),tot=0;
+  for(var i=0;i<flagged.length;i++)tot+=flagged[i].over;
+  var h=alertBanner('warn','&#9888;&#65039;',flagged.length+' overcharges - '+INR(tot)+' recoverable','ClearSettle compared charged rates against published rate cards.','<button class="btn btn-sm" style="background:var(--am);color:#fff" onclick="bulkDisp()">Dispute All &rarr;</button>');
+  h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">';
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Total Overcharge</div><div style="font-size:20px;font-weight:800;color:var(--rd)">'+INR(tot)+'</div></div>';
+  h+=statCard('SKUs Affected','flagged this month',flagged.length.toString());
+  h+=statCard('Orders Affected','total overcharged',flagged.reduce(function(a,c){return a+c.orders;},0).toString());
+  h+='</div>';
+  h+='<div class="tw"><table><thead><tr><th>Platform</th><th>SKU</th><th>Product</th><th>Category</th><th>Published</th><th>Charged</th><th>Orders</th><th>Expected Fee</th><th>Charged Fee</th><th>Overcharge</th><th></th></tr></thead><tbody>';
+  for(var i=0;i<COMMS.length;i++){
+    var c=COMMS[i];
+    var rowBg=c.flag?'background:rgba(232,52,74,.025)':'';
+    var overText=c.flag?'-'+INR(c.over):'&#10003; Correct';
+    var overColor=c.flag?'color:var(--rd)':'color:var(--gn)';
+    var chgColor=c.flag?'color:var(--rd)':'color:var(--gn)';
+    var diffText=c.flag?' <span style="font-size:10px">(+'+((c.chg-c.pub).toFixed(1))+'%)</span>':'';
+    h+='<tr style="'+rowBg+'">'
+      +'<td>'+c.icon+' '+c.plat+'</td>'
+      +'<td><span style="font-family:JetBrains Mono,monospace;font-size:11px">'+c.sku+'</span></td>'
+      +'<td style="font-weight:600;font-size:12px">'+c.prod+'</td>'
+      +'<td>'+chip(c.cat,'cgr')+'</td>'
+      +'<td style="font-weight:600">'+c.pub+'%</td>'
+      +'<td style="font-weight:700;'+chgColor+'">'+c.chg+'%'+diffText+'</td>'
+      +'<td style="text-align:center">'+c.orders+'</td>'
+      +'<td>'+INR(c.expFee)+'</td>'
+      +'<td style="'+chgColor+'">'+INR(c.chgFee)+'</td>'
+      +'<td style="font-weight:700;'+overColor+'">'+overText+'</td>'
+      +'<td>'+(c.flag?'<button class="btn btn-d btn-sm" onclick="commDisp(\''+c.sku+'\',\''+c.plat+'\','+c.over+')">Dispute</button>':'')+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  w.innerHTML=h;
+}
+function commDisp(sku,plat,amt){toast('Dispute raised for '+sku+'!','s',plat+' overcharge: '+INR(amt));}
+function bulkDisp(){
+  var tot=COMMS.filter(function(c){return c.flag;}).reduce(function(a,c){return a+c.over;},0);
+  toast('3 disputes submitted!','s','Amazon & Flipkart notified','Total: '+INR(tot));
+}
+
+// ===================== GST / TCS =====================
+function rGST(w){
+  var totTCS=0,totTDS=0;
+  for(var i=0;i<GST_DATA.length;i++){totTCS+=GST_DATA[i].tcs;totTDS+=GST_DATA[i].tds;}
+  var unok=GST_DATA.filter(function(g){return !g.ok;});
+  var h='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">';
+  h+=statCard('TCS Deducted','1% of taxable',INR(totTCS));
+  h+=statCard('TDS Deducted','2% of taxable',INR(totTDS));
+  h+='<div class="card" style="padding:14px 16px;border-top:3px solid var(--rd)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Unreconciled</div><div style="font-size:20px;font-weight:800;color:var(--rd)">'+unok.length+' platforms</div></div>';
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">GSTR-2A Claim</div><div style="font-size:20px;font-weight:800;color:var(--tl)">'+INR(totTCS+totTDS)+'</div></div>';
+  h+='</div>';
+  if(unok.length){
+    var platNames='';for(var i=0;i<unok.length;i++)platNames+=(i?', ':'')+unok[i].plat;
+    h+=alertBanner('warn','&#128196;',unok.length+' platforms pending reconciliation',platNames,'<button class="btn btn-sm" style="background:var(--am);color:#fff" onclick="toast(\'Generating GSTR export...\',\'i\')">Export GSTR</button>');
+  }
+  h+='<div class="tw"><table><thead><tr><th>Platform</th><th>Taxable Value</th><th>TCS (1%)</th><th>TDS (2%)</th><th>GST by Platform</th><th>Invoices</th><th>Reconciled</th><th></th></tr></thead><tbody>';
+  for(var i=0;i<GST_DATA.length;i++){
+    var g=GST_DATA[i];
+    h+='<tr><td>'+g.icon+' '+g.plat+'</td>'
+      +'<td style="font-weight:600">'+INR(g.taxable)+'</td>'
+      +'<td>'+INR(g.tcs)+'</td>'
+      +'<td>'+INR(g.tds)+'</td>'
+      +'<td>'+(g.gstByP?INR(g.gstByP):'<span style="color:var(--tx3)">N/A</span>')+'</td>'
+      +'<td style="text-align:center">'+g.inv+'</td>'
+      +'<td>'+(g.ok?chip('Reconciled','cg'):chip('Pending','ca'))+'</td>'
+      +'<td><button class="btn btn-s btn-sm" onclick="toast(\'Downloading GSTR...\',\'i\')">&#8595; GSTR</button></td></tr>';
+  }
+  h+='</tbody></table></div>';
+  h+='<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">'
+    +'<button class="btn btn-p btn-sm" onclick="toast(\'Generating CA pack...\',\'i\',\'GSTR-2A + TCS + TDS included\')">&#128230; CA Report Pack</button>'
+    +'<button class="btn btn-s btn-sm" onclick="toast(\'Downloading TCS/TDS...\',\'i\')">&#8595; TCS/TDS Statement</button>'
+    +'<button class="btn btn-s btn-sm" onclick="toast(\'Generating ITC claim...\',\'i\')">&#128196; ITC Claim</button></div>';
+  w.innerHTML=h;
+}
+
+// ===================== INVENTORY =====================
+function rInv(w){
+  var crit=INV.filter(function(i){return i.st==='critical';}),low=INV.filter(function(i){return i.st==='low';});
+  var h='';
+  if(crit.length){var n='';for(var i=0;i<crit.length;i++)n+=(i?', ':'')+crit[i].sku;h+=alertBanner('err','&#128230;',crit.length+' SKU critical - stockout risk',n,'');}
+  if(low.length){var n='';for(var i=0;i<low.length;i++)n+=(i?', ':'')+low[i].sku;h+=alertBanner('warn','&#128201;',low.length+' SKUs below reorder level',n,'');}
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div style="font-size:14px;font-weight:700">Cross-Platform Stock Levels</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn btn-s btn-sm" onclick="toast(\'Syncing inventory...\',\'i\')">&#128260; Sync All</button>'
+    +'<button class="btn btn-p btn-sm" onclick="toast(\'Downloading...\',\'i\')">&#8595; Export</button></div></div>';
+  h+='<div class="tw"><table><thead><tr><th>SKU</th><th>Product</th><th>Amazon</th><th>Flipkart</th><th>Meesho</th><th>Myntra</th><th>Nykaa</th><th>Total</th><th>Reorder</th><th>Status</th></tr></thead><tbody>';
+  for(var i=0;i<INV.length;i++){
+    var inv=INV[i];
+    h+='<tr><td><span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--tl2)">'+inv.sku+'</span></td>'
+      +'<td style="font-weight:600">'+inv.prod+'</td>';
+    var plkeys=['amazon','flipkart','meesho','myntra','nykaa'];
+    for(var j=0;j<plkeys.length;j++){
+      var v=inv[plkeys[j]];
+      h+='<td style="text-align:center;color:'+(v===0?'var(--tx3)':v<20?'var(--rd)':'var(--tx)')+';font-weight:'+(v>0?'600':'400')+'">'+(v||'\u2014')+'</td>';
+    }
+    h+='<td style="font-weight:800;text-align:center">'+inv.total+'</td>'
+      +'<td style="text-align:center;color:var(--tx3)">'+inv.reorder+'</td>'
+      +'<td>'+sc(inv.st)+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  h+='<div style="margin-top:12px;display:flex;gap:8px">'
+    +'<button class="btn btn-p btn-sm" onclick="toast(\'Reorder alerts sent\',\'s\',\'Procurement team notified\')">&#128228; Send Reorder Alert</button>'
+    +'<button class="btn btn-s btn-sm" onclick="toast(\'Full sync complete\',\'s\')">&#128260; Force Sync</button></div>';
+  w.innerHTML=h;
+}
+
+// ===================== CASH FLOW =====================
+function rCF(w){
+  var upcom=CF.filter(function(e){return e.amt;});
+  var totExp=0;for(var i=0;i<upcom.length;i++)totExp+=upcom[i].amt;
+  var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var first=new Date(2026,4,1).getDay();
+  var calH='';
+  for(var i=0;i<days.length;i++)calH+='<div class="cal-dh">'+days[i]+'</div>';
+  for(var i=0;i<first;i++)calH+='<div></div>';
+  for(var d=1;d<=31;d++){
+    var isToday=d===13;
+    var ds='2026-05-'+(d<10?'0':'')+d;
+    var evts=[];for(var i=0;i<CF.length;i++){if(CF[i].date===ds)evts.push(CF[i]);}
+    var evH='';
+    for(var i=0;i<evts.length;i++){
+      if(evts[i].amt){
+        var cls=evts[i].type==='paid'?'ce-g':evts[i].type==='expected'?'ce-b':'ce-a';
+        evH+='<div class="ce '+cls+'" title="'+H(evts[i].label)+': '+INR(evts[i].amt)+'">'+H(evts[i].label.split(' ')[0])+'</div>';
+      }
+    }
+    calH+='<div class="cal-d'+(isToday?' today':'')+(evts.length?' has-ev':'')+'">';
+    calH+=isToday?'<div class="cal-tn">13</div>':'<div class="cal-dt">'+d+'</div>';
+    calH+=evH+'</div>';
+  }
+  var upcoming='';
+  for(var i=0;i<CF.length;i++){
+    var e=CF[i];if(!e.amt)continue;
+    var bg=e.type==='paid'?'var(--gn-bg)':e.type==='expected'?'var(--bl-bg)':'var(--am-bg)';
+    var fc=e.type==='paid'?'var(--gn)':e.type==='expected'?'var(--bl)':'var(--am)';
+    upcoming+='<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--br)">'
+      +'<div style="width:34px;height:34px;border-radius:8px;background:'+bg+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+fc+';flex-shrink:0">'+e.date.slice(8)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+H(e.label)+'</div>'
+      +'<div style="font-size:10px;color:var(--tx3)">'+e.date+'</div></div>'
+      +'<div style="font-size:13px;font-weight:800;flex-shrink:0">'+INRL(e.amt)+'</div></div>';
+  }
+  var h='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px">';
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Expected This Month</div><div style="font-size:20px;font-weight:800;color:var(--tl)">'+INRL(totExp)+'</div><div style="font-size:11px;color:var(--tx3)">'+upcom.length+' settlements</div></div>';
+  h+=statCard('Next Settlement','Flipkart - '+INR(72438),'May 18');
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">30-Day Forecast</div><div style="font-size:20px;font-weight:800;color:var(--gn)">'+INRL(totExp)+'</div><div style="font-size:11px;color:var(--tx3)">predicted inflow</div></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px">';
+  h+='<div class="card"><div class="ch"><div><div class="ct2">May 2026 Payment Calendar</div></div><div style="display:flex;gap:6px">'+chip('Expected','cb')+chip('Confirmed','cg')+chip('Predicted','ca')+'</div></div><div class="cb2"><div class="cal">'+calH+'</div></div></div>';
+  h+='<div class="card"><div class="ch"><div class="ct2">Upcoming Settlements</div></div><div class="cb2" style="padding:12px 18px">'+upcoming+'</div></div>';
+  h+='</div>';
+  w.innerHTML=h;
+}
+
+// ===================== ANALYTICS =====================
+function rAnalytics(w){
+  var sorted=PROFIT.slice().sort(function(a,b){return b.margin-a.margin;});
+  var totRev=0,totNet=0,totM=0;
+  for(var i=0;i<PROFIT.length;i++){totRev+=PROFIT[i].rev;totNet+=PROFIT[i].net;totM+=PROFIT[i].margin;}
+  var lossCount=PROFIT.filter(function(p){return p.net<0;}).length;
+  var h='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px">';
+  h+=statCard('Total Revenue','Apr 2026',INRL(totRev));
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Net Profit</div><div style="font-size:20px;font-weight:800;color:var(--gn)">'+INRL(totNet)+'</div></div>';
+  h+='<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Avg. Margin</div><div style="font-size:20px;font-weight:800;color:var(--tl)">'+PCT(totM/PROFIT.length)+'</div></div>';
+  h+='<div class="card" style="padding:14px 16px;border-top:3px solid var(--rd)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Loss-Making SKUs</div><div style="font-size:20px;font-weight:800;color:var(--rd)">'+lossCount+'</div></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">';
+  var rankRows='';
+  for(var i=0;i<sorted.length;i++){
+    var p=sorted[i];
+    var rankBg=i===0?'var(--tl)':i===1?'#999':i===2?'#CD7F32':'var(--nv)';
+    var mrgColor=p.margin<0?'var(--rd)':p.margin<20?'var(--am)':'var(--gn)';
+    var barW=Math.max(0,(p.margin/45*100)).toFixed(0);
+    rankRows+='<div class="prow" onclick="showSKUModal(\''+p.sku+'\')" style="cursor:pointer">'
+      +'<div class="prnk" style="background:'+rankBg+'">'+(i+1)+'</div>'
+      +'<div class="pinf"><div class="pnm">'+H(p.prod)+'</div><div class="psk">'+p.sku+' \u00B7 Best: '+p.top+'</div></div>'
+      +'<div class="pbw"><div class="pbf" style="width:'+barW+'%;background:'+mrgColor+'"></div></div>'
+      +'<div class="pmrg" style="color:'+mrgColor+'">'+PCT(p.margin)+'</div></div>';
+  }
+  h+='<div class="card"><div class="ch"><div class="ct2">SKU Profitability Ranking</div></div><div class="cb2">'+rankRows+'</div></div>';
+  var plBars='';
+  for(var i=0;i<PROFIT.length;i++){
+    var p=PROFIT[i];
+    var tot2=p.cogs+p.fees+p.retCost+Math.max(0,p.net);
+    var netCol=p.net<0?'var(--rd)':'var(--gn)';
+    plBars+='<div onclick="showSKUModal(\''+p.sku+'\')" style="margin-bottom:12px;cursor:pointer;padding:10px;border-radius:8px;transition:background .15s" onmouseover="this.style.background=\'var(--sf2)\'" onmouseout="this.style.background=\'transparent\'">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:5px"><div style="font-size:12px;font-weight:700">'+H(p.prod)+'</div><div style="font-size:12px;font-weight:800;color:'+netCol+'">'+INRL(p.net)+'</div></div>'
+      +'<div style="display:flex;height:7px;border-radius:4px;overflow:hidden;gap:1px">'
+      +'<div style="flex:'+p.cogs+';background:var(--sf3)" title="COGS: '+INR(p.cogs)+'"></div>'
+      +'<div style="flex:'+p.fees+';background:var(--am-bg);border:1px solid rgba(233,147,13,.3)" title="Fees: '+INR(p.fees)+'"></div>'
+      +'<div style="flex:'+p.retCost+';background:var(--rd-bg);border:1px solid rgba(232,52,74,.3)" title="Returns: '+INR(p.retCost)+'"></div>'
+      +'<div style="flex:'+Math.max(0,p.net)+';background:var(--gn-bg);border:1px solid rgba(13,176,122,.3)" title="Net: '+INR(p.net)+'"></div>'
+      +'</div><div style="display:flex;gap:8px;margin-top:4px;font-size:10px">'
+      +'<span style="color:var(--tx3)">COGS '+INRL(p.cogs)+'</span>'
+      +'<span style="color:var(--am)">Fees '+INRL(p.fees)+'</span>'
+      +'<span style="color:var(--rd)">Returns '+INRL(p.retCost)+'</span>'
+      +'<span style="color:var(--gn);margin-left:auto">Net '+INRL(p.net)+'</span></div></div>';
+  }
+  h+='<div class="card"><div class="ch"><div class="ct2">P&amp;L by SKU (click for detail)</div></div><div class="cb2">'+plBars+'</div></div>';
+  h+='</div>';
+  w.innerHTML=h;
+}
+function showSKUModal(sku){
+  var p=null;for(var i=0;i<PROFIT.length;i++){if(PROFIT[i].sku===sku){p=PROFIT[i];break;}}
+  if(!p)return;
+  var body=detailGrid([
+    ['Revenue',INRL(p.rev)],['COGS',INRL(p.cogs)],['Platform Fees',INRL(p.fees)],
+    ['Return Cost',INRL(p.retCost)],['Ad Spend',INRL(p.ads)],['Net Profit',INRL(p.net)]
+  ]);
+  body+='<table class="ibt">'
+    +'<tr><td>Gross Revenue</td><td style="text-align:right;font-weight:600">'+INRL(p.rev)+'</td></tr>'
+    +'<tr><td style="color:var(--tx2)">\u2212 COGS</td><td style="text-align:right;color:var(--rd)">-'+INRL(p.cogs)+'</td></tr>'
+    +'<tr><td style="color:var(--tx2)">\u2212 Platform Fees</td><td style="text-align:right;color:var(--rd)">-'+INRL(p.fees)+'</td></tr>'
+    +'<tr><td style="color:var(--tx2)">\u2212 Return Costs</td><td style="text-align:right;color:var(--rd)">-'+INRL(p.retCost)+'</td></tr>'
+    +'<tr><td style="color:var(--tx2)">\u2212 Ad Spend</td><td style="text-align:right;color:var(--rd)">-'+INRL(p.ads)+'</td></tr>'
+    +'<tr class="ttr"><td><strong>Net Profit</strong></td><td style="text-align:right"><strong style="color:'+(p.net<0?'var(--rd)':'var(--gn)')+';font-size:15px">'+INRL(p.net)+' ('+PCT(p.margin)+')</strong></td></tr>'
+    +'</table>';
+  if(p.margin<0)body+=alertBanner('err','&#9888;&#65039;','This SKU is loss-making','High return rate on '+p.top+' (37.8%) eliminates all profit. Review listing, sizing guide, or pricing.','');
+  openModal(p.prod,p.sku+' \u00B7 Best platform: '+p.top,body);
+}
+
+// ===================== PLATFORM SETTINGS =====================
+function rPlats(w){
+  var h=alertBanner('inf','&#128279;','3 of 8 platforms connected','Connect more platforms for unified reconciliation across all your marketplaces.','');
+  h+='<div class="tabs" id="plat-tabs">'
+    +'<div class="tab active" onclick="fPlat(event,\'all\')">All (8)</div>'
+    +'<div class="tab" onclick="fPlat(event,\'connected\')">Connected (3)</div>'
+    +'<div class="tab" onclick="fPlat(event,\'pending\')">Pending (2)</div>'
+    +'<div class="tab" onclick="fPlat(event,\'disconnected\')">Not Connected (3)</div></div>';
+  h+='<div id="plat-list">';
+  for(var i=0;i<PLATS.length;i++){h+=buildConnectCard(PLATS[i]);}
+  h+='</div>';
+  w.innerHTML=h;
+}
+function buildConnectCard(p){
+  var sdCls=p.status==='connected'?'sdg':p.status==='pending'?'sda':'sdgr';
+  var stTxt=p.status.charAt(0).toUpperCase()+p.status.slice(1);
+  var desc=p.status==='connected'?'Key: '+(p.key||'N/A')+' &middot; '+p.ep:p.status==='pending'?'Approval pending - credentials submitted':'Not configured';
+  var syncInfo=p.status==='connected'?'<div style="font-size:11px;color:var(--tx3);margin-top:2px">Sync: '+p.sync+' &middot; '+p.orders.toLocaleString()+' orders</div>':'';
+  var btns='';
+  if(p.status==='connected'){btns='<button class="btn btn-s btn-sm" onclick="editPlat(\''+p.id+'\')">&#9881; Configure</button><button class="btn btn-s btn-sm" onclick="toast(\'Syncing...\',\'i\')">&#128260;</button>';}
+  else if(p.status==='pending'){btns='<button class="btn btn-s btn-sm" onclick="toast(\'Checking...\',\'i\')">Check Status</button>';}
+  else{btns='<button class="btn btn-p btn-sm" onclick="showConnect(\''+p.id+'\')">+ Connect</button>';}
+  return '<div class="cc" id="pc-'+p.id+'">'
+    +'<div class="cc-ico">'+p.icon+'</div>'
+    +'<div class="cc-inf"><div class="cc-nm">'+H(p.name)+' <span style="font-size:11px;color:var(--tx3);font-weight:400">Phase '+p.phase+'</span></div>'
+    +'<div class="cc-ds">'+desc+'</div>'+syncInfo+'</div>'
+    +'<div class="cc-r"><div style="display:flex;align-items:center;gap:5px;margin-right:8px"><div class="sd '+sdCls+'"></div><span style="font-size:12px;font-weight:600;color:var(--tx2)">'+stTxt+'</span></div>'
+    +btns+'</div></div>';
+}
+function fPlat(e,f){
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++)tabs[i].classList.remove('active');
+  e.target.classList.add('active');
+  for(var i=0;i<PLATS.length;i++){
+    var el=document.getElementById('pc-'+PLATS[i].id);
+    if(el)el.style.display=(f==='all'||f===PLATS[i].status)?'flex':'none';
+  }
+}
+function showConnect(id){
+  var p=null;for(var i=0;i<PLATS.length;i++){if(PLATS[i].id===id){p=PLATS[i];break;}}
+  if(!p)return;
+  var at={amazon:'3-7 days',flipkart:'Instant',meesho:'5-14 days',myntra:'14-30 days',nykaa:'14-21 days',ajio:'21-45 days',snapdeal:'Instant',jiomart:'30-60 days'}[id]||'Unknown';
+  openModal('Connect '+p.icon+' '+p.name,'Approval time: '+at,
+    alertBanner('inf','&#128274;','Read-only access only','ClearSettle never writes to your seller account.','')
+    +'<div class="fg"><label>App ID / Client ID</label><input type="text" placeholder="Get from '+H(p.name)+' Developer Portal"/></div>'
+    +'<div class="fg"><label>App Secret</label><input type="password" placeholder="Your secret key"/></div>'
+    +'<div class="fg"><label>Seller ID</label><input type="text" placeholder="Your seller ID on '+H(p.name)+'"/></div>'
+    +'<div class="fhint">&#128218; <a href="#" style="color:var(--tl);font-weight:600" onclick="toast(\'Opening docs...\',\'i\');return false">Step-by-step guide for '+H(p.name)+' &rarr;</a></div>',
+    '<button class="btn btn-g btn-sm" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-s btn-sm" onclick="toast(\'Testing...\',\'i\')">Test Connection</button>'
+    +'<button class="btn btn-p btn-sm" onclick="saveConn(\''+id+'\')">Save &amp; Connect &rarr;</button>');
+}
+function saveConn(id){
+  closeModal();
+  var n='';for(var i=0;i<PLATS.length;i++){if(PLATS[i].id===id)n=PLATS[i].name;}
+  toast('Connecting to '+n+'...','i','Testing credentials','Pulling initial data...');
+  setTimeout(function(){
+    for(var i=0;i<PLATS.length;i++){if(PLATS[i].id===id){PLATS[i].status='connected';PLATS[i].key=id.toUpperCase()+'-***-DEMO';PLATS[i].sync='just now';break;}}
+    toast(n+' Connected!','s','API verified','Data sync starting');
+    nav('platforms');
+  },2500);
+}
+function editPlat(id){
+  var p=null;for(var i=0;i<PLATS.length;i++){if(PLATS[i].id===id){p=PLATS[i];break;}}
+  if(!p)return;
+  var toggles=['Pull Settlements &amp; Payments','Pull Returns Data','Pull Order Details','Pull Inventory','Commission Audit','GST/TCS Data'];
+  var tHTML='<div style="display:flex;flex-direction:column;gap:10px;background:var(--sf2);border-radius:10px;padding:14px">';
+  for(var i=0;i<toggles.length;i++){
+    tHTML+='<div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;font-weight:500">'+toggles[i]+'</span><div class="toggle on" onclick="this.classList.toggle(\'on\');this.classList.toggle(\'off\')"></div></div>';
+  }
+  tHTML+='</div>';
+  openModal(p.icon+' '+p.name+' - Configure','API settings and sync preferences',
+    '<div class="fg"><label>API Key</label><input type="text" value="'+(p.key||'')+'"/></div>'
+    +'<div class="fg"><label>Sync Frequency</label><select><option>Every 6 hours</option><option>Every 12 hours</option><option selected>Daily</option><option>Manual</option></select></div>'
+    +tHTML,
+    '<button class="btn btn-g btn-sm" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-d btn-sm" onclick="toast(\'Disconnected\',\'w\');closeModal()">Disconnect</button>'
+    +'<button class="btn btn-p btn-sm" onclick="toast(\'Settings saved\',\'s\');closeModal()">Save Settings</button>','lg');
+}
+
+// ===================== REPORTS =====================
+function rReports(w){
+  var rpts=[
+    ['&#128202;','Monthly Settlement Summary','Complete settlement report all platforms - Apr 2026',['PDF','Excel','CSV']],
+    ['&#127970;','Bank Reconciliation Report','Settlement vs bank credit match with variance analysis',['PDF','Excel']],
+    ['&#9878;&#65039;','Dispute Status Report','Active, resolved and pending disputes with amounts',['PDF','Excel']],
+    ['&#128196;','GST / TCS Certificate Pack','CA-ready TCS certificates and GSTR-2A input',['PDF','ZIP']],
+    ['&#8617;&#65039;','Returns & Deduction Analysis','Platform-wise return rates, reasons, deductions',['PDF','Excel']],
+    ['&#128200;','Profitability Report','SKU-level P&L with margin analysis',['PDF','Excel']],
+    ['&#128269;','Commission Audit Report','Overcharge detection with dispute-ready evidence',['PDF','Excel']],
+    ['&#128197;','Cash Flow Forecast','30-day settlement prediction calendar',['PDF']]
+  ];
+  var h='<div class="sh"><div><div class="stit">Report Centre</div><div class="ssub">Generate, download and share analytics reports</div></div><button class="btn btn-p btn-sm" onclick="toast(\'Generating all...\',\'i\',\'This may take a few minutes\')">&#8595; Download All</button></div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px">';
+  for(var i=0;i<rpts.length;i++){
+    var r=rpts[i];
+    var btns='';
+    for(var j=0;j<r[3].length;j++)btns+='<button class="btn btn-s btn-sm" onclick="genReport(\''+r[1]+'\',\''+r[3][j]+'\')">&#8595; '+r[3][j]+'</button>';
+    h+='<div class="card" style="padding:18px 20px"><div style="display:flex;gap:12px;align-items:flex-start">'
+      +'<div style="width:42px;height:42px;border-radius:11px;background:var(--sf2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">'+r[0]+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;margin-bottom:3px">'+r[1]+'</div>'
+      +'<div style="font-size:12px;color:var(--tx3);margin-bottom:10px">'+r[2]+'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+btns
+      +'<span style="margin-left:auto;font-size:10px;color:var(--tx3)">May 13, 2026</span></div></div></div></div>';
+  }
+  h+='</div>';
+  h+='<div class="card"><div class="ch"><div class="ct2">Scheduled Reports</div><button class="btn btn-p btn-sm" onclick="toast(\'Opening scheduler...\',\'i\')">+ Schedule</button></div>'
+    +'<div class="cb2"><div class="empty"><div class="empty-ico">&#128197;</div><div class="empty-tit">No scheduled reports</div>'
+    +'<div class="empty-sub">Set up auto weekly/monthly reports emailed to you and your CA.</div>'
+    +'<button class="btn btn-p btn-sm" onclick="toast(\'Scheduling...\',\'i\')">+ Schedule Report</button></div></div></div>';
+  w.innerHTML=h;
+}
+function genReport(title,fmt){toast('Generating '+fmt+'...','i',title,'Preparing...');setTimeout(function(){toast(fmt+' Ready!','s',title+' ready to download');},1800);}
+
+// ===================== DISPUTE RULE ENGINE DATA =====================
+var RULES = [
+  {id:1,color:'#E8344A',title:'Commission Rate Overcharge',verdict:'AUTO-DISPUTE',logic:'charged_rate > published_rate_card',
+    trigger:'Charged commission % exceeds published rate card for that SKU category',
+    immediate:'File via Seller Central/Hub within 90-day window. ClearSettle generates pre-filled dispute form.',
+    legal:'Beyond 90 days: legal notice under CPA 2019. 2-year window from discovery date.',
+    evidence:['Settlement report with charged %','Published rate card screenshot','Order-level commission breakdown'],
+    window:'90 days (platform) | 2 years (CPA 2019)',recovery:'₹2,000–₹50,000/SKU/year',rate:'70%+ with rate card proof',auto:true,
+    examples:[{plat:'Amazon India',sku:'TRP-KNT-001',pub:13,chg:17.2,over:5368},{plat:'Flipkart',sku:'TRP-KNT-003',pub:12,chg:14.8,over:4568},{plat:'Amazon India',sku:'TRP-KNT-018',pub:13,chg:16.5,over:2741}]},
+  {id:2,color:'#E9930D',title:'Unexplained Penalty Deduction',verdict:'AUTO-DISPUTE',logic:'penalty_amount > 0 AND violation_notice_missing',
+    trigger:'Settlement has penalty deduction but no dispatch SLA breach or violation notice on record',
+    immediate:'File same day with order dispatch timestamps. Very strong case if timestamps show on-time dispatch.',
+    legal:'Beyond 45 days: legal notice citing unfair trade practice under E-Commerce Rules 2020.',
+    evidence:['Order dispatch timestamp','Seller dashboard SLA report','Settlement statement showing deduction'],
+    window:'45–60 days (platform) | 2 years (CPA 2019)',recovery:'₹500–₹15,000/incident',rate:'50–60% — Flipkart more responsive',auto:true,
+    examples:[{plat:'Flipkart',sku:'FK-RMT-2026-089',pub:0,chg:640,over:640},{plat:'Meesho',sku:'MEESHO-W18',pub:0,chg:1280,over:1280}]},
+  {id:3,color:'#7B52E8',title:'FBA Weight/Dimension Overcharge (Amazon)',verdict:'AUTO-DISPUTE',logic:'amazon_fee > fee_at_correct_dimensions',
+    trigger:'Amazon FBA charges calculated on wrong weight or size — inflating storage and shipping costs',
+    immediate:'Open Seller Central case with physical measurement photos and Fee Preview Report comparison.',
+    legal:'Beyond 90 days: systematic overcharge legal notice. Especially strong if multiple SKUs affected.',
+    evidence:['Product on scale photo','Tape measure photo','Fee Preview Report','FBA shipment receipt'],
+    window:'90 days (platform) | 2 years (CPA 2019)',recovery:'₹1,000–₹1,00,000 (scales with volume)',rate:'65–75% with measurements',auto:true,
+    examples:[]},
+  {id:4,color:'#0DB07A',title:'TCS/TDS Not Reconciled with GSTR-2A',verdict:'GST RECOVERY',logic:'tcs_deducted != tcs_in_gstr2a',
+    trigger:'Platform deducted TCS @1% on all supplies, but vendor never claimed it in GST return',
+    immediate:'Generate ClearSettle GST reconciliation report → hand to CA for GSTR-2A revision and credit claim.',
+    legal:'No legal action needed. Works via GST portal for up to 3–4 years of past data.',
+    evidence:['All platform settlement reports','GSTIN certificate','GSTR-2A from GST portal'],
+    window:'3–4 years via GST revision (no platform dispute needed)',recovery:'₹10,000–₹2,00,000/year (1% of GMV)',rate:'90%+ — this is accounting, not negotiation',auto:false,
+    examples:[]},
+  {id:5,color:'#0ABFCA',title:'Return Deduction Without SPF Coverage Filed',verdict:'AUTO-DISPUTE',logic:'return_deducted AND spf_eligible AND claim_not_filed',
+    trigger:'Product returned and cost deducted from settlement, but item qualifies for Seller Protection Fund — claim was never filed',
+    immediate:'File SPF claim via Flipkart Seller Hub or Amazon return protection. Attach return photos.',
+    legal:'If SPF rejected unfairly: escalate with evidence of protection policy terms.',
+    evidence:['Return order ID','Product condition photos','SPF policy terms (dated screenshot)'],
+    window:'Platform SPF window (varies) | 2 years legally',recovery:'₹500–₹20,000/return',rate:'45–55% needs photo evidence',auto:true,
+    examples:[]},
+  {id:6,color:'#2563EB',title:'Bank Credit With No Matching Settlement',verdict:'INVESTIGATE',logic:'bank_credit NOT IN any_settlement_net',
+    trigger:'Bank shows a credit from a platform but no corresponding settlement record exists in ClearSettle',
+    immediate:'Cross-reference all settlement reports for that date range. Check for truncated UTR matching.',
+    legal:'If unresolved after 30 days: civil recovery notice. No hard window — civil limitation 3 years.',
+    evidence:['Bank statement with UTR','All settlement reports for same period'],
+    window:'No hard window | Civil limitation: 3 years',recovery:'Variable — could be ₹1,000 to ₹10,00,000',rate:'Very high once identified',auto:false,
+    examples:[]},
+  {id:7,color:'#0DB07A',title:'Duplicate Deduction Same Settlement Period',verdict:'AUTO-DISPUTE',logic:'order_id APPEARS_TWICE IN deductions',
+    trigger:'Same order ID deducted twice in same settlement. Platforms occasionally double-charge fees.',
+    immediate:'Open case with settlement showing both duplicate lines. Easiest dispute to win.',
+    legal:'If not resolved in 14 days: legal notice citing unfair trade practice.',
+    evidence:['Settlement report with highlighted duplicates','Order ID confirmation'],
+    window:'Within next settlement cycle (fastest) | 2 years legally',recovery:'Exact duplicate amount (100% expected)',rate:'85%+ — trivially provable',auto:true,
+    examples:[]},
+  {id:8,color:'#E8344A',title:'Return Rate Spike — Listing Issue Alert',verdict:'LISTING ALERT',logic:'return_rate_7d > return_rate_90d * 1.5',
+    trigger:'Return rate on a SKU has spiked 50%+ above 90-day baseline. Reason codes suggest listing, not product.',
+    immediate:'Not a dispute — alert vendor to review size charts, images, and product description.',
+    legal:'If returns are fraudulent (customer abuse pattern): escalate to platform Trust & Safety.',
+    evidence:['Return rate trend data','Return reason code breakdown'],
+    window:'N/A — prevention alert',recovery:'Indirect: ₹50,000–₹5,00,000/year saved by fixing listing',rate:'N/A preventive',auto:false,
+    examples:[]}
+];
+
+var RECOVERY_DATA = [
+  {id:'REC-001',type:'Commission Overcharge',platform:'Amazon India',sku:'TRP-KNT-001',amount:5368,status:'open',raisedDate:'May 7, 2026',expectedDate:'May 21, 2026',ref:'AMZ-DISP-24891',route:'Platform',daysLeft:8,notes:'Rate card evidence submitted. Awaiting Amazon response.'},
+  {id:'REC-002',type:'Commission Overcharge',platform:'Flipkart',sku:'TRP-KNT-003',amount:4568,status:'pending',raisedDate:'May 5, 2026',expectedDate:'May 19, 2026',ref:'FK-DISP-88241',route:'Platform',daysLeft:6,notes:'Case escalated to senior support.'},
+  {id:'REC-003',type:'Penalty — No Violation',platform:'Flipkart',sku:'FK-RMT-2026-089',amount:640,status:'won',raisedDate:'Apr 28, 2026',expectedDate:'May 10, 2026',ref:'FK-DISP-87120',route:'Platform',daysLeft:0,notes:'Won. ₹640 credited in next settlement cycle.'},
+  {id:'REC-004',type:'Return Shipping Overcharge',platform:'Meesho',sku:'TRP-KNT-011',amount:1280,status:'pending',raisedDate:'May 8, 2026',expectedDate:'May 22, 2026',ref:'MSH-DISP-19284',route:'Platform',daysLeft:9,notes:'Meesho support acknowledged. Reviewing seller protection coverage.'},
+  {id:'REC-005',type:'TCS Not Claimed',platform:'All Platforms',sku:'GST FY2025-26',amount:42680,status:'gst_pending',raisedDate:'May 10, 2026',expectedDate:'June 30, 2026',ref:'GST-CA-2026-01',route:'GST Revision',daysLeft:48,notes:'CA preparing GSTR-2A reconciliation for FY2025-26 across all platforms.'},
+  {id:'REC-006',type:'Commission Overcharge',platform:'Amazon India',sku:'TRP-KNT-018',amount:2741,status:'open',raisedDate:'May 13, 2026',expectedDate:'May 27, 2026',ref:'AMZ-DISP-24999',route:'Platform',daysLeft:14,notes:'Newly raised today. Evidence package sent.'},
+];
+
+var COMPETITORS_DATA = [
+  {name:'eVanik AI',type:'Direct',origin:'India',founded:'2015',target:'SMB-Mid India sellers',platforms:'Amazon, Flipkart, Meesho, 10+',pricing:'~₹2,000–₹8,000/mo',customers:'2,000+',tirupurFit:'Medium',disputeEngine:false,bankMatch:false,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:true,gstModule:true,invSync:true,profitAnalytics:true,rating:3.8,gap:'No dispute filing, no bank reconciliation, no legal route, no cash flow'},
+  {name:'ReconPe',type:'Direct',origin:'India',founded:'2023',target:'Indian 1K–10K orders/mo',platforms:'Amazon, Flipkart, Meesho, Razorpay',pricing:'SMB range',customers:'N/D',tirupurFit:'High',disputeEngine:false,bankMatch:true,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:true,gstModule:true,invSync:false,profitAnalytics:false,rating:4.2,gap:'No dispute filing, no legal notice, no cash flow, no inventory'},
+  {name:'SaySeller',type:'Direct',origin:'India',founded:'2022',target:'Small Indian sellers',platforms:'Amazon, Flipkart, Meesho',pricing:'Freemium',customers:'N/D',tirupurFit:'High',disputeEngine:true,bankMatch:false,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:true,gstModule:true,invSync:false,profitAnalytics:false,rating:3.9,gap:'No bank matching, no legal route, no cash flow, no inventory, only 3 platforms'},
+  {name:'Unicommerce',type:'Adjacent',origin:'India',founded:'2012',target:'Mid-Enterprise India',platforms:'30+ marketplaces',pricing:'₹15,000–₹50,000/mo',customers:'10,300+ warehouses',tirupurFit:'Low',disputeEngine:false,bankMatch:false,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:false,gstModule:true,invSync:true,profitAnalytics:false,rating:4.0,gap:'OMS-first. Too expensive for Tirupur SMBs. No dispute management at all.'},
+  {name:'EasyEcom',type:'Adjacent',origin:'India/Global',founded:'2014',target:'SMB-Mid, 40 countries',platforms:'Amazon, Flipkart, 150+ integrations',pricing:'From $89/mo',customers:'5,000+',tirupurFit:'Low',disputeEngine:false,bankMatch:false,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:false,gstModule:true,invSync:true,profitAnalytics:true,rating:3.5,gap:'OMS-first, USD pricing, poor support reviews, no dispute management'},
+  {name:'BUSY Recom',type:'Adjacent',origin:'India',founded:'2023',target:'BUSY accounting users',platforms:'Amazon, Flipkart, Shopify',pricing:'₹5,000–₹15,000/yr',customers:'BUSY 800K users (subset)',tirupurFit:'Medium',disputeEngine:false,bankMatch:false,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:false,gstModule:true,invSync:true,profitAnalytics:false,rating:3.7,gap:'Only works with BUSY ERP. Only 3 platforms. No commission audit or disputes.'},
+  {name:'SellerApp',type:'Adjacent',origin:'India',founded:'2017',target:'Amazon sellers global',platforms:'Amazon only',pricing:'From $49/mo',customers:'15,000+',tirupurFit:'Low',disputeEngine:false,bankMatch:false,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:false,gstModule:false,invSync:true,profitAnalytics:true,rating:4.1,gap:'Amazon-only, no Flipkart/Meesho, no GST, no disputes, no bank matching'},
+  {name:'Browntape',type:'Adjacent',origin:'India',founded:'2013',target:'Indian multi-channel',platforms:'Amazon, Flipkart, Snapdeal, 20+',pricing:'~₹2,000–₹10,000/mo',customers:'N/D',tirupurFit:'Medium',disputeEngine:false,bankMatch:false,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:false,gstModule:true,invSync:true,profitAnalytics:false,rating:3.5,gap:'Older product, limited innovation, no dispute management at all'},
+  {name:'Recko (Stripe)',type:'Adjacent',origin:'India/Global',founded:'2017',target:'Enterprise fintech',platforms:'Payment gateways only',pricing:'₹50,000+/mo enterprise',customers:'Large enterprises',tirupurFit:'None',disputeEngine:false,bankMatch:true,legalNotice:false,cashForecast:false,settleRecon:true,commAudit:false,gstModule:false,invSync:false,profitAnalytics:false,rating:4.3,gap:'Enterprise only, no Indian marketplace features, no GST, no dispute management'},
+];
+
+// ===================== DISPUTE RULE ENGINE PAGE =====================
+function rDisputeEngine(w) {
+  var flagged = COMMS.filter(function(c){return c.flag;});
+  var totOver = flagged.reduce(function(a,c){return a+c.over;},0);
+  var autoRules = RULES.filter(function(r){return r.auto;}).length;
+
+  var h = '';
+  h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px">';
+  h += statCard('Rules Active','Monitoring all settlements',RULES.length+' rules');
+  h += statCard('Auto-Raise Rules','No manual action needed',autoRules+' automated');
+  h += '<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Overcharges Found</div><div style="font-size:20px;font-weight:800;color:var(--rd)">'+INR(totOver)+'</div><div style="font-size:11px;color:var(--tx3)">Across '+flagged.length+' SKUs — recoverable</div></div>';
+  h += statCard('Legal Window Alert','2yr CPA 2019 route available','Active');
+  h += '</div>';
+
+  h += alertBanner('inf','&#9881;','How the Rule Engine works','Every settlement report uploaded to ClearSettle is automatically scanned against all 8 rules below. Flagged anomalies are classified, a recovery path is assigned, and — for auto-raise rules — the dispute form is pre-filled. You review and submit in one click.','');
+
+  // Rules accordion
+  for (var i = 0; i < RULES.length; i++) {
+    var r = RULES[i];
+    var verdBg = r.verdict === 'AUTO-DISPUTE' ? 'var(--gn-bg)' : r.verdict === 'GST RECOVERY' ? 'var(--pu-bg)' : r.verdict === 'INVESTIGATE' ? 'var(--am-bg)' : 'var(--tl-bg)';
+    var verdColor = r.verdict === 'AUTO-DISPUTE' ? '#065F46' : r.verdict === 'GST RECOVERY' ? '#4B1E9E' : r.verdict === 'INVESTIGATE' ? '#B45309' : 'var(--tl2)';
+
+    h += '<div class="card" style="margin-bottom:10px;border-left:4px solid '+r.color+'">';
+    h += '<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="toggleReRule('+i+')">';
+    h += '<div style="width:28px;height:28px;border-radius:50%;background:'+r.color+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+r.id+'</div>';
+    h += '<div style="flex:1;font-size:14px;font-weight:700;color:var(--tx)">'+r.title+'</div>';
+    h += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:'+verdBg+';color:'+verdColor+'">'+r.verdict+'</span>';
+    if (r.auto) h += '<span class="chip ct" style="margin-left:4px">&#9889; Auto-raise</span>';
+    h += '<span id="re-arr-'+i+'" style="color:var(--tx3);font-size:12px;transition:transform .2s">&#9660;</span>';
+    h += '</div>';
+
+    h += '<div id="re-body-'+i+'" style="display:none;border-top:1px solid var(--br);background:var(--sf2);padding:16px 18px">';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">';
+    h += '<div style="background:var(--sf);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Rule Condition</div><div style="font-family:JetBrains Mono,monospace;font-size:11px;background:var(--nv);color:#7FE4EC;padding:8px 12px;border-radius:6px">'+r.logic+'</div></div>';
+    h += '<div style="background:var(--sf);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Time Window</div><div style="font-size:12px;font-weight:600;color:var(--tx)">'+r.window+'</div></div>';
+    h += '<div style="background:var(--sf);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Immediate Action</div><div style="font-size:12px;color:var(--tx2)">'+r.immediate+'</div></div>';
+    h += '<div style="background:var(--sf);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Legal Route</div><div style="font-size:12px;color:var(--tx2)">'+r.legal+'</div></div>';
+    h += '<div style="background:var(--sf);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Avg Recovery</div><div style="font-size:13px;font-weight:700;color:var(--gn)">'+r.recovery+'</div></div>';
+    h += '<div style="background:var(--sf);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Success Rate</div><div style="font-size:12px;color:var(--tx)">'+r.rate+'</div></div>';
+    h += '</div>';
+    h += '<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">Evidence Required</div><div style="display:flex;gap:6px;flex-wrap:wrap">';
+    for (var j = 0; j < r.evidence.length; j++) {
+      h += chip(r.evidence[j],'cgr');
+    }
+    h += '</div></div>';
+
+    if (r.examples && r.examples.length) {
+      h += '<div><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Live Examples from Your Data</div>';
+      h += '<div class="tw"><table><thead><tr><th>Platform</th><th>SKU</th><th>Published Rate</th><th>Charged Rate</th><th>Overcharge</th><th>Action</th></tr></thead><tbody>';
+      for (var k = 0; k < r.examples.length; k++) {
+        var ex = r.examples[k];
+        h += '<tr><td>'+ex.plat+'</td><td style="font-family:JetBrains Mono,monospace;font-size:11px">'+ex.sku+'</td>';
+        h += '<td>'+(ex.pub > 0 ? ex.pub+'%' : '\u20140')+'</td>';
+        h += '<td style="color:var(--rd);font-weight:600">'+(ex.chg > 0 ? ex.chg+'%' : INR(ex.chg))+'</td>';
+        h += '<td style="font-weight:700;color:var(--rd)">'+INR(ex.over)+'</td>';
+        h += '<td><button class="btn btn-d btn-sm" onclick="toast(\'Dispute filed!\',\'s\',\''+ex.plat+' — '+ex.sku+'\',\'Reference ID generated\')">&#9878; File Dispute</button></td></tr>';
+      }
+      h += '</tbody></table></div></div>';
+    }
+    h += '</div></div>';
+  }
+
+  // Calculator section
+  h += '<div class="card" style="margin-top:20px;border:1.5px solid var(--tl)">';
+  h += '<div class="ch"><div><div class="ct2">&#128200; Recovery Potential Calculator</div><div class="cs">Estimate recoverable amounts from historical data</div></div></div>';
+  h += '<div class="cb2">';
+  h += '<div class="fr" style="margin-bottom:12px">';
+  h += '<div class="fg"><label>Annual GMV (&#8377;)</label><input type="number" id="calc-gmv" value="5000000" oninput="runCalc()"/></div>';
+  h += '<div class="fg"><label>Years of Data</label><select id="calc-years" onchange="runCalc()"><option value="1">1 year</option><option value="2">2 years</option><option value="3" selected>3 years</option></select></div>';
+  h += '</div>';
+  h += '<div class="fr" style="margin-bottom:16px">';
+  h += '<div class="fg"><label>Primary Platform</label><select id="calc-platform" onchange="runCalc()"><option value="amazon">Amazon India</option><option value="flipkart">Flipkart</option><option value="meesho">Meesho</option><option value="multi" selected>Multi-Platform (3+)</option></select></div>';
+  h += '<div class="fg"><label>ClearSettle Fee Model</label><select id="calc-model" onchange="runCalc()"><option value="s15">Success Fee 15%</option><option value="s20" selected>Success Fee 20%</option><option value="s25">Success Fee 25%</option><option value="saas">SaaS &#8377;1,499/mo</option></select></div>';
+  h += '</div>';
+  h += '<div id="calc-result" style="background:var(--nv);border-radius:10px;padding:18px"></div>';
+  h += '</div></div>';
+
+  w.innerHTML = h;
+  runCalc();
+}
+
+function toggleReRule(i) {
+  var body = document.getElementById('re-body-'+i);
+  var arr = document.getElementById('re-arr-'+i);
+  if (!body) return;
+  var isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (arr) arr.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+function runCalc() {
+  var gmv = parseFloat(document.getElementById('calc-gmv') && document.getElementById('calc-gmv').value) || 5000000;
+  var years = parseInt(document.getElementById('calc-years') && document.getElementById('calc-years').value) || 3;
+  var platform = document.getElementById('calc-platform') ? document.getElementById('calc-platform').value : 'multi';
+  var model = document.getElementById('calc-model') ? document.getElementById('calc-model').value : 's20';
+  var rates = {amazon:0.028,flipkart:0.022,meesho:0.008,multi:0.035};
+  var rate = rates[platform] || 0.03;
+  var totalGMV = gmv * years;
+  var rawOver = totalGMV * rate;
+  var platDisp = rawOver * 0.25;
+  var legalRoute = rawOver * 0.45;
+  var gstRec = totalGMV * 0.01 * 0.6;
+  var total = platDisp + legalRoute + gstRec;
+  var cs = model==='s15'?total*0.15:model==='s20'?total*0.20:model==='s25'?total*0.25:1499*12*years;
+  var el = document.getElementById('calc-result');
+  if (!el) return;
+  var rows = [
+    ['Total GMV Analysed',INRL(totalGMV),'#fff'],
+    ['Raw Overcharges Found',INRL(rawOver),'#F87171'],
+    ['\u2514 Platform window (file now)',INRL(platDisp),'#FCD34D'],
+    ['\u2514 Legal notice route (2yr CPA)',INRL(legalRoute),'#FCD34D'],
+    ['TCS/GST Unclaimed',INRL(gstRec),'#FCD34D'],
+    ['Total Recoverable for Vendor',INRL(total),'#34D399'],
+    ['ClearSettle Earnings ('+model+')',INRL(cs),'#7FE4EC'],
+  ];
+  var h = '';
+  for (var i = 0; i < rows.length; i++) {
+    var isTot = i === rows.length - 2 || i === rows.length - 1;
+    h += '<div style="display:flex;justify-content:space-between;padding:'+(isTot?'10px':'7px')+' 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:'+(isTot?'14px':'13px')+';font-weight:'+(isTot?'800':'400')+'">';
+    h += '<span style="color:rgba(255,255,255,.7)">'+rows[i][0]+'</span><span style="color:'+rows[i][2]+';font-weight:700">'+rows[i][1]+'</span></div>';
+  }
+  el.innerHTML = h;
+}
+
+// ===================== RECOVERY TRACKER PAGE =====================
+function rRecovery(w) {
+  var won = RECOVERY_DATA.filter(function(r){return r.status==='won';});
+  var open2 = RECOVERY_DATA.filter(function(r){return r.status==='open'||r.status==='pending';});
+  var gstPend = RECOVERY_DATA.filter(function(r){return r.status==='gst_pending';});
+  var wonAmt = won.reduce(function(a,r){return a+r.amount;},0);
+  var openAmt = open2.reduce(function(a,r){return a+r.amount;},0);
+  var gstAmt = gstPend.reduce(function(a,r){return a+r.amount;},0);
+
+  var h = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">';
+  h += statCard('Total Disputes Filed',RECOVERY_DATA.length+' active cases',INR(RECOVERY_DATA.reduce(function(a,r){return a+r.amount;},0)));
+  h += '<div class="card" style="padding:14px 16px;border-top:3px solid var(--gn)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">Won / Recovered</div><div style="font-size:20px;font-weight:800;color:var(--gn)">'+INR(wonAmt)+'</div><div style="font-size:11px;color:var(--tx3)">'+won.length+' cases resolved</div></div>';
+  h += '<div class="card" style="padding:14px 16px;border-top:3px solid var(--am)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">In Progress</div><div style="font-size:20px;font-weight:800;color:var(--am)">'+INR(openAmt)+'</div><div style="font-size:11px;color:var(--tx3)">'+open2.length+' open cases</div></div>';
+  h += '<div class="card" style="padding:14px 16px;border-top:3px solid var(--pu)"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">GST Recovery (CA)</div><div style="font-size:20px;font-weight:800;color:var(--pu)">'+INR(gstAmt)+'</div><div style="font-size:11px;color:var(--tx3)">Via GSTR revision</div></div>';
+  h += '</div>';
+
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
+  h += '<div style="font-size:14px;font-weight:700">All Recovery Cases</div>';
+  h += '<button class="btn btn-p btn-sm" onclick="nav(\'dispute-engine\')">+ Raise New Dispute via Rule Engine</button></div>';
+
+  for (var i = 0; i < RECOVERY_DATA.length; i++) {
+    var r = RECOVERY_DATA[i];
+    var borderColor = r.status==='won'?'var(--gn)':r.status==='open'?'var(--am)':r.status==='gst_pending'?'var(--pu)':'var(--bl)';
+    var routeBg = r.route==='GST Revision'?'var(--pu-bg)':r.route==='Legal'?'var(--rd-bg)':'var(--tl-bg)';
+    var routeColor = r.route==='GST Revision'?'#6135C4':r.route==='Legal'?'var(--rd)':'var(--tl2)';
+    h += '<div class="card" style="margin-bottom:10px;border-left:4px solid '+borderColor+'">';
+    h += '<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:14px 18px 10px;gap:10px">';
+    h += '<div><div style="font-size:14px;font-weight:700">'+r.type+' — '+r.platform+'</div>';
+    h += '<div style="font-size:11px;color:var(--tx3);margin-top:2px">Ref: '+r.ref+' &middot; SKU: '+r.sku+' &middot; Raised: '+r.raisedDate+'</div></div>';
+    h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><div style="font-size:18px;font-weight:800">'+INR(r.amount)+'</div>'+sc(r.status==='gst_pending'?'pending':r.status)+'</div></div>';
+    h += '<div style="padding:0 18px 14px">';
+    h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">';
+    h += '<span style="background:'+routeBg+';color:'+routeColor+';padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+r.route+'</span>';
+    if (r.status !== 'won' && r.daysLeft > 0) {
+      h += '<span style="font-size:11px;color:'+(r.daysLeft < 5 ? 'var(--rd)':'var(--am)')+';font-weight:600">Expected: '+r.expectedDate+' ('+r.daysLeft+'d left)</span>';
+    }
+    h += '</div>';
+    h += '<div style="font-size:12px;color:var(--tx2)">'+r.notes+'</div>';
+    if (r.status === 'won') {
+      h += '<div style="background:var(--gn-bg);border:1px solid rgba(13,176,122,.2);border-radius:7px;padding:8px 12px;font-size:12px;color:#065F46;margin-top:8px">&#9989; Recovered: '+INR(r.amount)+' credited</div>';
+    }
+    h += '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">';
+    if (r.status === 'open' || r.status === 'pending') {
+      h += '<button class="btn btn-s btn-sm" onclick="showRecoveryUpdate(\''+r.id+'\')">Add Update</button>';
+      h += '<button class="btn btn-s btn-sm" onclick="toast(\'Escalating...\',\'w\',\'Escalation submitted\',\'Platform notified\')">Escalate</button>';
+    }
+    if (r.status === 'open') {
+      h += '<button class="btn btn-d btn-sm" onclick="toast(\'Legal notice drafted\',\'s\',\'Notice ready for review\',\'Download and send via advocate\')">&#9878; Generate Legal Notice</button>';
+    }
+    h += '<button class="btn btn-g btn-sm" onclick="toast(\'Downloading evidence pack...\',\'i\')">&#8595; Evidence Pack</button>';
+    h += '</div></div></div>';
+  }
+
+  // Timeline view
+  h += '<div class="card" style="margin-top:20px"><div class="ch"><div class="ct2">Recovery Timeline</div></div><div class="cb2">';
+  var tls = [{date:'Apr 28',icon:'&#9878;',title:'Flipkart Penalty Dispute Filed',sub:'FK-DISP-87120 — ₹640 penalty on FK-RMT-2026-089',col:'var(--am)'},
+    {date:'May 5',icon:'&#9878;',title:'Flipkart Commission Dispute Filed',sub:'FK-DISP-88241 — ₹4,568 on TRP-KNT-003',col:'var(--am)'},
+    {date:'May 7',icon:'&#9878;',title:'Amazon Commission Dispute Filed',sub:'AMZ-DISP-24891 — ₹5,368 on TRP-KNT-001',col:'var(--rd)'},
+    {date:'May 8',icon:'&#9878;',title:'Meesho Penalty Dispute Filed',sub:'MSH-DISP-19284 — ₹1,280 reverse logistics',col:'var(--pu)'},
+    {date:'May 10',icon:'&#9989;',title:'Flipkart Penalty — WON',sub:'FK-DISP-87120 resolved. ₹640 credited to next settlement.',col:'var(--gn)'},
+    {date:'May 10',icon:'&#128196;',title:'GST Recovery Initiated',sub:'CA engaged for GSTR-2A revision FY2025-26. ₹42,680 TCS claim.',col:'var(--pu)'},
+    {date:'May 13',icon:'&#9878;',title:'Amazon Commission Dispute #2 Filed',sub:'AMZ-DISP-24999 — ₹2,741 on TRP-KNT-018',col:'var(--rd)'}];
+  h += '<div style="position:relative;padding-left:24px">';
+  h += '<div style="position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:var(--br2)"></div>';
+  for (var i = 0; i < tls.length; i++) {
+    var t = tls[i];
+    h += '<div style="position:relative;margin-bottom:16px"><div style="position:absolute;left:-20px;width:14px;height:14px;border-radius:50%;background:'+t.col+';border:3px solid var(--sf);top:3px"></div>';
+    h += '<div style="font-size:13px;font-weight:700">'+t.icon+' '+t.title+'</div>';
+    h += '<div style="font-size:12px;color:var(--tx2);margin-top:2px">'+t.sub+'</div>';
+    h += '<div style="font-size:10px;color:var(--tx3);margin-top:3px;font-family:JetBrains Mono,monospace">'+t.date+'</div></div>';
+  }
+  h += '</div></div></div>';
+  w.innerHTML = h;
+}
+
+function showRecoveryUpdate(id) {
+  openModal('Add Update','Recovery Case '+id,
+    '<div class="fg"><label>Update Note</label><textarea rows="3" placeholder="New evidence, platform response, follow-up notes..."></textarea></div>'
+    +'<div class="fg"><label>New Status</label><select><option>Pending</option><option>Escalated</option><option>Platform Responded</option><option>Won</option><option>Withdrawn</option></select></div>',
+    '<button class="btn btn-g btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-p btn-sm" onclick="toast(\'Update saved\',\'s\');closeModal()">Save Update</button>');
+}
+
+// ===================== MARKET INTELLIGENCE PAGE =====================
+function rCompetitors(w) {
+  var direct = COMPETITORS_DATA.filter(function(c){return c.type==='Direct';});
+  var adjacent = COMPETITORS_DATA.filter(function(c){return c.type==='Adjacent';});
+  var FEAT_KEYS = ['settleRecon','commAudit','bankMatch','disputeEngine','gstModule','invSync','profitAnalytics','cashForecast'];
+  var FEAT_LABELS = ['Settlement Recon','Commission Audit','Bank Matching','Dispute Engine','GST/TCS','Inventory','P&L Analytics','Cash Flow'];
+
+  var h = '';
+  h += alertBanner('ok','&#9989;','ClearSettle has the most complete feature set of any Indian eCommerce reconciliation platform','No competitor combines: bank matching + dispute rule engine + legal notice generation + cash flow forecast + 8 platforms + India SMB pricing. This is your defensible moat.','');
+
+  h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px">';
+  h += statCard('Direct Competitors','Reconciliation-focused',direct.length.toString());
+  h += statCard('Adjacent Platforms','OMS/WMS with recon module',adjacent.length.toString());
+  h += '<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">With Dispute Engine</div><div style="font-size:20px;font-weight:800;color:var(--tl)">'+COMPETITORS_DATA.filter(function(c){return c.disputeEngine;}).length+' of '+COMPETITORS_DATA.length+'</div></div>';
+  h += '<div class="card" style="padding:14px 16px"><div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:5px">With Cash Forecast</div><div style="font-size:20px;font-weight:800;color:var(--rd)">0 of '+COMPETITORS_DATA.length+'</div><div style="font-size:11px;color:var(--gn)">ClearSettle only!</div></div>';
+  h += '</div>';
+
+  // Feature matrix table
+  h += '<div style="font-size:14px;font-weight:700;margin-bottom:12px">Feature Comparison Matrix</div>';
+  h += '<div class="tw" style="margin-bottom:24px"><table><thead><tr>';
+  h += '<th style="min-width:140px">Product</th><th>Type</th><th>Tirupur Fit</th><th>Pricing</th>';
+  for (var i = 0; i < FEAT_LABELS.length; i++) {
+    h += '<th style="text-align:center">'+FEAT_LABELS[i]+'</th>';
+  }
+  h += '<th>Key Gap</th></tr></thead><tbody>';
+
+  // ClearSettle row first
+  h += '<tr style="background:#F0FDF4">';
+  h += '<td style="font-weight:800;color:#065F46">&#11088; ClearSettle<div style="font-size:10px;color:var(--tx3);font-weight:400">clearsettle.in</div></td>';
+  h += '<td>'+chip('You','cg')+'</td>';
+  h += '<td>'+chip('Highest','cg')+'</td>';
+  h += '<td style="font-size:12px;font-weight:600">&#8377;499-2,499/mo<div style="font-size:10px;font-weight:400;color:var(--tx3)">+ Success Fee model</div></td>';
+  var allTrue = [true,true,true,true,true,true,true,true];
+  for (var i = 0; i < allTrue.length; i++) {
+    h += '<td style="text-align:center;color:#059669;font-size:16px">&#10003;</td>';
+  }
+  h += '<td style="font-size:11px;color:#065F46;font-weight:600">No gaps — most complete platform</td></tr>';
+
+  for (var ci = 0; ci < COMPETITORS_DATA.length; ci++) {
+    var c = COMPETITORS_DATA[ci];
+    var fitBg = c.tirupurFit==='High'?'var(--gn-bg)':c.tirupurFit==='Medium'?'var(--am-bg)':c.tirupurFit==='None'?'var(--sf2)':'var(--rd-bg)';
+    var fitColor = c.tirupurFit==='High'?'#067A57':c.tirupurFit==='Medium'?'#B45309':c.tirupurFit==='None'?'var(--tx3)':'#B91C2C';
+    var typeBg = c.type==='Direct'?'var(--rd-bg)':'var(--am-bg)';
+    var typeColor = c.type==='Direct'?'#B91C2C':'#B45309';
+    h += '<tr>';
+    h += '<td style="font-weight:700">'+c.name+'<div style="font-size:10px;color:var(--tx3);font-weight:400">'+c.origin+' &middot; Est.'+c.founded+'</div></td>';
+    h += '<td><span style="background:'+typeBg+';color:'+typeColor+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">'+c.type+'</span></td>';
+    h += '<td><span style="background:'+fitBg+';color:'+fitColor+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">'+c.tirupurFit+'</span></td>';
+    h += '<td style="font-size:11px">'+c.pricing+'</td>';
+    var featVals = [c.settleRecon,c.commAudit,c.bankMatch,c.disputeEngine,c.gstModule,c.invSync,c.profitAnalytics,c.cashForecast];
+    for (var i = 0; i < featVals.length; i++) {
+      h += '<td style="text-align:center;color:'+(featVals[i]?'#059669':'#CBD5E1')+';font-size:'+(featVals[i]?'16px':'14px')+'">'+(featVals[i]?'&#10003;':'&mdash;')+'</td>';
+    }
+    h += '<td style="font-size:11px;color:var(--rd);max-width:180px">'+c.gap.split('.')[0]+'</td></tr>';
+  }
+  h += '</tbody></table></div>';
+
+  // Key insights
+  h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">';
+  var insights = [
+    {ico:'&#128274;','title':'Unique Moats for ClearSettle','items':['Only platform with dispute rule engine + legal notice generation','Only platform with cash flow forecast for marketplace sellers','Only platform covering all 8 Indian marketplaces','India SMB pricing (₹499/mo) vs competitors at ₹2,000–₹50,000']},
+    {ico:'&#128250;','title':'Direct Competitor Watch','items':['ReconPe: closest technically. Watch their dispute roadmap.','SaySeller: freemium model, very early stage.','eVanik: established, 2,000+ customers — biggest threat in Tamil Nadu.','None have Tirupur-specific GTM strategy.']},
+    {ico:'&#127919;','title':'GTM Blind Spots (Open Territory)','items':['No competitor targets Tirupur / textile cluster specifically','No competitor offers success-fee model for SMBs','No competitor partners with CA firms as distribution channel','No competitor has Tamil-language onboarding']},
+  ];
+  for (var i = 0; i < insights.length; i++) {
+    var ins = insights[i];
+    h += '<div class="card" style="padding:18px 20px"><div style="font-size:20px;margin-bottom:8px">'+ins.ico+'</div><div style="font-size:13px;font-weight:700;margin-bottom:10px">'+ins.title+'</div>';
+    for (var j = 0; j < ins.items.length; j++) {
+      h += '<div style="font-size:12px;color:var(--tx2);line-height:1.6;padding:4px 0;border-bottom:1px solid var(--br)">'+ins.items[j]+'</div>';
+    }
+    h += '</div>';
+  }
+  h += '</div>';
+  w.innerHTML = h;
+}
+
+
+</script></body></html>
