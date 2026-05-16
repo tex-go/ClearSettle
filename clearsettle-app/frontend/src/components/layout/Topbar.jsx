@@ -60,9 +60,9 @@ function Topbar({ onMenuClick }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="topbar-actions">
         <button onClick={handleSync} className="btn btn-s btn-sm">
-          🔄 Sync All
+          🔄 <span className="btn-text">Sync All</span>
         </button>
 
         <button
@@ -85,7 +85,7 @@ function Topbar({ onMenuClick }) {
           onClick={function() { addToast('Exporting data...', 'info') }}
           className="btn btn-p btn-sm"
         >
-          ⬇ Export
+          ⬇ <span className="btn-text">Export</span>
         </button>
       </div>
 
