@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m py_compile app/main.py app/core/auth.py app/routers/auth.py)",
+      "Bash(py --version)",
+      "Bash(python -m py_compile app/main.py app/core/auth.py app/routers/auth.py)",
+      "Bash(python -c ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

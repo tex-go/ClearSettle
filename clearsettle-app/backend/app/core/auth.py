@@ -1,12 +1,13 @@
+import bcrypt
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 SECRET_KEY = "clearsettle-secret-2026"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# rounds=4 for fast demo startup
+_DEMO_HASH = bcrypt.hashpw(b"demo123", bcrypt.gensalt(rounds=4))
 
 DEMO_USER = {
     "id": 1,
@@ -16,15 +17,15 @@ DEMO_USER = {
     "gstin": "33ABCDE1234F1Z5",
     "city": "Tirupur, Tamil Nadu",
     "role": "admin",
-    "hashed_password": pwd_context.hash("demo123"),
+    "hashed_password": _DEMO_HASH,
 }
 
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain: str, hashed: bytes) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed)
 
 
-def create_token(data: dict):
+def create_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
@@ -33,7 +34,6 @@ def create_token(data: dict):
 
 def decode_token(token: str):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
