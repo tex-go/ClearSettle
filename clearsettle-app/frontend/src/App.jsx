@@ -42,7 +42,7 @@ function AppLayout({ children }) {
   useEffect(function() { setSidebarOpen(false) }, [location.pathname])
 
   return (
-    <div style={{ display: 'flex', height: '100%', background: '#F1F5F9' }}>
+    <div style={{ display: 'flex', height: '100%', width: '100%', background: '#F1F5F9' }}>
       <div
         className={'sidebar-overlay' + (sidebarOpen ? ' open' : '')}
         onClick={function() { setSidebarOpen(false) }}
