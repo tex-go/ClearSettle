@@ -1,7 +1,6 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
-watchPatterns = ["clearsettle-app/frontend/**"]
 
 [deploy]
 healthcheckPath = "/"
