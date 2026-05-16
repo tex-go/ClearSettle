@@ -173,7 +173,7 @@ function DisputeEngine() {
           </div>
         </div>
         <div className="card-bd">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+          <div className="input-grid-4">
             <div className="fg">
               <label>Annual GMV (₹)</label>
               <input

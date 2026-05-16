@@ -52,8 +52,8 @@ function Settlements() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div className="filter-pills">
+      <div className="filter-row">
+        <div className="filter-pills" style={{ marginBottom: 0 }}>
           {[
             { key: 'all', label: 'All (' + data.items.length + ')' },
             { key: 'paid', label: 'Paid (' + paidCount + ')' },
@@ -70,15 +70,11 @@ function Settlements() {
             )
           })}
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="filter-search">
           <input
             placeholder="Search settlements..."
             value={search}
             onChange={function(e) { setSearch(e.target.value) }}
-            style={{
-              padding: '7px 12px', borderRadius: 9,
-              border: '1px solid #E2EBF3', fontSize: 13, outline: 'none', width: 220,
-            }}
           />
           <button className="btn btn-s btn-sm" onClick={function() { addToast('Exporting settlements CSV...', 'info') }}>
             ⬇ Export CSV

@@ -1,19 +1,18 @@
 #!/bin/sh
 set -e
 
-# Defaults
 export PORT="${PORT:-80}"
 export API_URL="${API_URL:-http://localhost:8000}"
+# 127.0.0.11 = Docker embedded DNS; 8.8.8.8 = public DNS for Railway
+export NGINX_RESOLVER="${NGINX_RESOLVER:-8.8.8.8}"
 
 echo "[ClearSettle] Starting nginx on port $PORT"
 echo "[ClearSettle] Proxying /api to $API_URL"
+echo "[ClearSettle] DNS resolver: $NGINX_RESOLVER"
 
-# Substitute ONLY ${PORT} and ${API_URL} — leave nginx's own $variables untouched
-envsubst '${PORT} ${API_URL}' \
+envsubst '${PORT} ${API_URL} ${NGINX_RESOLVER}' \
   < /etc/nginx/conf.d/default.conf.template \
   > /etc/nginx/conf.d/default.conf
 
-# Verify config
 nginx -t
-
 exec nginx -g 'daemon off;'
