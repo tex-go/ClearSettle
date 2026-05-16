@@ -45,7 +45,7 @@ function Onboarding() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: 'linear-gradient(135deg,#0D1F35,#0A1628)',
+      minHeight: '100vh', width: '100%', background: 'linear-gradient(135deg,#0D1F35,#0A1628)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 40,
     }}>
