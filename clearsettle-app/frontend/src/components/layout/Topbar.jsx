@@ -26,7 +26,7 @@ var typeColors = {
   error: '#E8344A', warn: '#E9930D', info: '#0ABFCA', success: '#0DB07A',
 }
 
-function Topbar() {
+function Topbar({ onMenuClick }) {
   var location = useLocation()
   var meta = ROUTE_META[location.pathname] || { title: 'ClearSettle', sub: '' }
   var addToast = useUIStore(function(s) { return s.addToast })
@@ -45,12 +45,19 @@ function Topbar() {
       height: 60, background: '#fff',
       borderBottom: '1px solid #E2EBF3',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 28px', flexShrink: 0,
+      padding: '0 16px 0 20px', flexShrink: 0,
       position: 'sticky', top: 0, zIndex: 100,
     }}>
-      <div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: '#0D1F35' }}>{meta.title}</div>
-        <div style={{ fontSize: 11, color: '#8FA5BD' }}>{meta.sub}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          className="mob-show btn btn-g btn-sm"
+          onClick={onMenuClick}
+          style={{ display: 'none', padding: '6px 10px', fontSize: 18, lineHeight: 1 }}
+        >☰</button>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#0D1F35' }}>{meta.title}</div>
+          <div style={{ fontSize: 11, color: '#8FA5BD' }}>{meta.sub}</div>
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

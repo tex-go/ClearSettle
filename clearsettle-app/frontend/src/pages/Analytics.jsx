@@ -43,7 +43,7 @@ function Analytics() {
         })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="two-col">
         {/* Ranking */}
         <div className="card">
           <div className="card-hd">

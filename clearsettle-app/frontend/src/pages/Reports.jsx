@@ -36,7 +36,7 @@ function Reports() {
       </div>
 
       {/* Reports grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+      <div className="two-col" style={{ marginBottom: 24 }}>
         {data.items.map(function(r) {
           return (
             <div key={r.id} className="card" style={{ padding: '20px 22px' }}>

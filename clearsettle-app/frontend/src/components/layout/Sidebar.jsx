@@ -51,7 +51,7 @@ var badgeColors = {
   tl: { bg: 'rgba(10,191,202,.18)', color: '#0ABFCA' },
 }
 
-function Sidebar() {
+function Sidebar({ open, onClose }) {
   var { user, logout } = useAuthStore()
   var navigate = useNavigate()
 
@@ -61,26 +61,36 @@ function Sidebar() {
   }
 
   return (
-    <div style={{
+    <div className={'sidebar' + (open ? ' open' : '')} style={{
       width: 244, minHeight: '100vh', background: '#0D1F35',
       display: 'flex', flexDirection: 'column',
       position: 'sticky', top: 0, height: '100vh', flexShrink: 0,
       overflowY: 'auto',
     }}>
-      {/* Logo */}
-      <div style={{ padding: '22px 20px 16px' }}>
-        <div style={{
-          fontSize: 20, fontWeight: 800,
-          background: 'linear-gradient(135deg,#0ABFCA,#7FE4EC)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-        }}>
-          ClearSettle
+      {/* Logo row — close button visible on mobile only */}
+      <div style={{ padding: '22px 20px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{
+            fontSize: 20, fontWeight: 800,
+            background: 'linear-gradient(135deg,#0ABFCA,#7FE4EC)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          }}>
+            ClearSettle
+          </div>
+          <div style={{ fontSize: 10, color: '#4B6080', fontWeight: 600, letterSpacing: '.06em', marginTop: 2 }}>
+            UNIFIED eCOMMERCE INTELLIGENCE
+          </div>
         </div>
-        <div style={{ fontSize: 10, color: '#4B6080', fontWeight: 600, letterSpacing: '.06em', marginTop: 2 }}>
-          UNIFIED eCOMMERCE INTELLIGENCE
-        </div>
+        <button
+          className="mob-show"
+          onClick={onClose}
+          style={{
+            display: 'none', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+            background: 'rgba(255,255,255,.08)', color: '#8FA5BD', fontSize: 16,
+          }}
+        >✕</button>
       </div>
-
       {/* Company card */}
       <div style={{
         margin: '0 12px 16px',

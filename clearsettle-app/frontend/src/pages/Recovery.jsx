@@ -73,7 +73,7 @@ function Recovery() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+      <div className="two-col-wide">
         {/* Recovery cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {data.items.map(function(item) {

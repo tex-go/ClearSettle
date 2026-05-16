@@ -42,7 +42,7 @@ function Returns() {
 
   return (
     <div className="page page-anim">
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+      <div className="two-col-wide">
         {/* Left: table */}
         <div>
           <div className="stats-row cols-3" style={{ marginBottom: 20 }}>
