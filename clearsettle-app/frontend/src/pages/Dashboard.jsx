@@ -99,7 +99,7 @@ function Dashboard() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="four-col">
         {data.platforms.map(function(p) {
           return (
             <div
@@ -153,7 +153,7 @@ function Dashboard() {
       </div>
 
       {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+      <div className="two-col-wide">
         <div className="card">
           <div className="card-hd">
             <div>

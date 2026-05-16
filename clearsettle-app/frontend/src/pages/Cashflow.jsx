@@ -50,7 +50,7 @@ function Cashflow() {
         })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+      <div className="two-col-wide">
         {/* Calendar */}
         <div className="card">
           <div className="card-hd">

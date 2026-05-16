@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import useAuthStore from './store/authStore'
 import { ToastContainer } from './components/ui/Toast'
@@ -36,11 +36,20 @@ function ProtectedRoute({ children }) {
 }
 
 function AppLayout({ children }) {
+  var [sidebarOpen, setSidebarOpen] = useState(false)
+  var location = useLocation()
+
+  useEffect(function() { setSidebarOpen(false) }, [location.pathname])
+
   return (
     <div style={{ display: 'flex', height: '100%', background: '#F1F5F9' }}>
-      <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar />
+      <div
+        className={'sidebar-overlay' + (sidebarOpen ? ' open' : '')}
+        onClick={function() { setSidebarOpen(false) }}
+      />
+      <Sidebar open={sidebarOpen} onClose={function() { setSidebarOpen(false) }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        <Topbar onMenuClick={function() { setSidebarOpen(true) }} />
         <main style={{ flex: 1, overflowY: 'auto' }}>
           {children}
         </main>

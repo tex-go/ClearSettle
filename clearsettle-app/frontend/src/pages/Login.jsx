@@ -66,13 +66,9 @@ function Login() {
         )
       })}
 
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 80,
-        maxWidth: 960, width: '100%', padding: '0 40px',
-        position: 'relative', zIndex: 1,
-      }}>
+      <div className="login-wrap">
         {/* Left branding */}
-        <div style={{ flex: 1, color: '#fff' }}>
+        <div className="login-branding" style={{ flex: 1, color: '#fff' }}>
           <div style={{
             fontSize: 36, fontWeight: 800,
             background: 'linear-gradient(135deg,#0ABFCA,#7FE4EC)',
@@ -105,13 +101,7 @@ function Login() {
         </div>
 
         {/* Right form card */}
-        <div style={{
-          width: 380, flexShrink: 0,
-          background: 'rgba(255,255,255,.05)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,.1)',
-          borderRadius: 20, padding: 36,
-        }}>
+        <div className="login-form-card">
           <div style={{ marginBottom: 28 }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 6 }}>
               Sign in to ClearSettle
