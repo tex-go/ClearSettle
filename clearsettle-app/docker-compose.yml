@@ -8,32 +8,22 @@ services:
     environment:
       - SECRET_KEY=clearsettle-secret-key-2026
       - ENV=development
-    volumes:
-      - ./backend:/app
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" 2>/dev/null || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 10s
 
   frontend:
     build: ./frontend
     container_name: clearsettle-frontend
     ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    container_name: clearsettle-nginx
-    ports:
       - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      - API_URL=http://backend:8000
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
