@@ -35,6 +35,51 @@ app.include_router(recovery.router, prefix="/recovery", tags=["recovery"])
 app.include_router(competitors.router, prefix="/competitors", tags=["competitors"])
 
 
+@app.get("/")
+def root():
+    return {
+        "service": "ClearSettle API",
+        "status": "online",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health",
+        "status_endpoint": "/status",
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "ClearSettle API"}
+
+
+@app.get("/status")
+def status():
+    return {
+        "service": "ClearSettle API",
+        "status": "online",
+        "version": "1.0.0",
+        "environment": "production",
+        "demo_credentials": {
+            "email": "demo@clearsettle.in",
+            "password": "demo123",
+        },
+        "features": [
+            {"id": "auth",            "route": "/auth",            "description": "JWT login / logout / profile"},
+            {"id": "dashboard",       "route": "/dashboard",       "description": "Live KPIs, platform overview, settlement trend"},
+            {"id": "settlements",     "route": "/settlements",     "description": "Platform payout tracking with breakdown"},
+            {"id": "bank",            "route": "/bank",            "description": "Bank credit ↔ settlement ID reconciliation"},
+            {"id": "disputes",        "route": "/disputes",        "description": "Overcharge and penalty dispute management"},
+            {"id": "returns",         "route": "/returns",         "description": "Return deductions and reason analysis"},
+            {"id": "commission",      "route": "/commission",      "description": "Published vs charged commission rate audit"},
+            {"id": "gst",             "route": "/gst",             "description": "TCS/TDS reconciliation and ITC claims"},
+            {"id": "inventory",       "route": "/inventory",       "description": "Multi-platform stock levels with low-stock alerts"},
+            {"id": "cashflow",        "route": "/cashflow",        "description": "30-day settlement calendar and cash flow forecast"},
+            {"id": "analytics",       "route": "/analytics",       "description": "SKU-level profitability and P&L analysis"},
+            {"id": "platforms",       "route": "/platforms",       "description": "Marketplace API connection settings"},
+            {"id": "reports",         "route": "/reports",         "description": "PDF / Excel / CSV report generation"},
+            {"id": "dispute_engine",  "route": "/dispute-engine",  "description": "8 automated dispute detection rules + recovery calculator"},
+            {"id": "recovery",        "route": "/recovery",        "description": "Filed disputes and recovery timeline tracker"},
+            {"id": "competitors",     "route": "/competitors",     "description": "Market intelligence and competitor feature matrix"},
+        ],
+        "total_features": 16,
+    }
