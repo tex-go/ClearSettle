@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-var api = axios.create({ baseURL: '/api' })
+var api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' })
 
 api.interceptors.request.use(function(config) {
   var token = localStorage.getItem('cs_token')
