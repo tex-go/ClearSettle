@@ -29,16 +29,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.crypto import encrypt
 from app.core.deps import get_db, require_db_user
-from app.db.models import PlatformConnection, SyncJob, User
+from app.db.models import PlatformConnection, User
 from app.services.amazon.auth import (
     build_authorization_url,
     exchange_code_for_tokens,
     generate_oauth_state,
     get_valid_access_token,
 )
-from app.services.amazon.finances import get_financial_event_groups
-from app.services.amazon.orders import get_orders
-from app.services.amazon.sp_api_client import SPAPIClient
+from app.services.sync import job_manager, registry
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -86,28 +84,6 @@ async def _get_connection(connection_id: str, db: AsyncSession, user: User) -> P
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
     return conn
-
-
-async def _start_sync_job(db: AsyncSession, connection_id, job_type: str) -> SyncJob:
-    job = SyncJob(
-        connection_id=connection_id,
-        job_type=job_type,
-        status="running",
-        started_at=datetime.utcnow(),
-    )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job)
-    return job
-
-
-async def _finish_sync_job(db: AsyncSession, job: SyncJob, *, records: int = 0, error: str | None = None):
-    job.completed_at = datetime.utcnow()
-    job.status = "failed" if error else "completed"
-    job.records_synced = records
-    job.error_message = error
-    db.add(job)
-    await db.commit()
 
 
 # ── Step 1: Initiate OAuth ────────────────────────────────────────────────────
@@ -257,46 +233,6 @@ async def get_connection_status(
 
 # ── Sync: Orders ──────────────────────────────────────────────────────────────
 
-async def _bg_sync_orders(connection_id: str, job_id: str, days_back: int):
-    from app.db.database import AsyncSessionLocal
-    if not AsyncSessionLocal:
-        return
-    async with AsyncSessionLocal() as db:
-        try:
-            conn = await db.get(PlatformConnection, UUID(connection_id))
-            job  = await db.get(SyncJob, UUID(job_id))
-            if not conn or not job:
-                return
-
-            get_valid_access_token(conn)
-            db.add(conn)
-            await db.commit()
-
-            orders = get_orders(SPAPIClient(conn), days_back=days_back)
-
-            conn.last_sync_at       = datetime.utcnow()
-            conn.total_orders_synced = (conn.total_orders_synced or 0) + len(orders)
-            conn.last_sync_error    = None
-            db.add(conn)
-
-            await _finish_sync_job(db, job, records=len(orders))
-            logger.info("Orders sync done: %d records, connection %s", len(orders), connection_id)
-        except Exception as exc:
-            logger.error("Orders sync failed for %s: %s", connection_id, exc)
-            try:
-                job  = await db.get(SyncJob, UUID(job_id))
-                conn = await db.get(PlatformConnection, UUID(connection_id))
-                if job:
-                    await _finish_sync_job(db, job, error=str(exc))
-                if conn:
-                    conn.status = "error"
-                    conn.last_sync_error = str(exc)
-                    db.add(conn)
-                    await db.commit()
-            except Exception:
-                pass
-
-
 @router.post("/connections/{connection_id}/sync/orders", response_model=SyncResult)
 async def sync_orders(
     connection_id: str,
@@ -309,44 +245,21 @@ async def sync_orders(
     if conn.status != "connected":
         raise HTTPException(status_code=400, detail=f"Connection is '{conn.status}' — must be 'connected' to sync")
 
-    job = await _start_sync_job(db, conn.id, "orders")
-    background_tasks.add_task(_bg_sync_orders, str(conn.id), str(job.id), days_back)
-    return SyncResult(job_id=str(job.id), status="running", message=f"Fetching orders for last {days_back} days")
+    company = current_user.companies[0]
+    job = await job_manager.create_job(
+        db,
+        connection_id=conn.id,
+        company_id=company.id,
+        platform=conn.platform,
+        job_type="orders",
+        triggered_by="manual",
+        job_options={"days_back": days_back},
+    )
+    background_tasks.add_task(registry.dispatch, "orders", str(job.id))
+    return SyncResult(job_id=str(job.id), status="pending", message=f"Fetching orders for last {days_back} days")
 
 
-# ── Sync: Financial Events ────────────────────────────────────────────────────
-
-async def _bg_sync_financial_events(connection_id: str, job_id: str, days_back: int):
-    from app.db.database import AsyncSessionLocal
-    if not AsyncSessionLocal:
-        return
-    async with AsyncSessionLocal() as db:
-        try:
-            conn = await db.get(PlatformConnection, UUID(connection_id))
-            job  = await db.get(SyncJob, UUID(job_id))
-            if not conn or not job:
-                return
-
-            get_valid_access_token(conn)
-            db.add(conn)
-            await db.commit()
-
-            groups = get_financial_event_groups(SPAPIClient(conn), days_back=days_back)
-
-            conn.last_sync_at    = datetime.utcnow()
-            conn.last_sync_error = None
-            db.add(conn)
-
-            await _finish_sync_job(db, job, records=len(groups))
-        except Exception as exc:
-            logger.error("Financial events sync failed for %s: %s", connection_id, exc)
-            try:
-                job = await db.get(SyncJob, UUID(job_id))
-                if job:
-                    await _finish_sync_job(db, job, error=str(exc))
-            except Exception:
-                pass
-
+# ── Sync: Settlements ─────────────────────────────────────────────────────────
 
 @router.post("/connections/{connection_id}/sync/settlements", response_model=SyncResult)
 async def sync_settlements(
@@ -360,39 +273,48 @@ async def sync_settlements(
     if conn.status != "connected":
         raise HTTPException(status_code=400, detail="Connection must be 'connected' to sync")
 
-    job = await _start_sync_job(db, conn.id, "settlements")
-    background_tasks.add_task(_bg_sync_financial_events, str(conn.id), str(job.id), days_back)
-    return SyncResult(job_id=str(job.id), status="running", message=f"Settlement sync started for last {days_back} days")
+    company = current_user.companies[0]
+    job = await job_manager.create_job(
+        db,
+        connection_id=conn.id,
+        company_id=company.id,
+        platform=conn.platform,
+        job_type="settlements",
+        triggered_by="manual",
+        job_options={"days_back": days_back},
+    )
+    background_tasks.add_task(registry.dispatch, "settlements", str(job.id))
+    return SyncResult(job_id=str(job.id), status="pending", message=f"Settlement sync started for last {days_back} days")
 
 
 # ── Sync job audit log ────────────────────────────────────────────────────────
 
 @router.get("/connections/{connection_id}/sync-jobs")
-async def list_sync_jobs(
+async def list_connection_sync_jobs(
     connection_id: str,
     limit: int = Query(default=20, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_db_user),
 ):
     conn = await _get_connection(connection_id, db, current_user)
-    result = await db.execute(
-        select(SyncJob)
-        .where(SyncJob.connection_id == conn.id)
-        .order_by(SyncJob.created_at.desc())
-        .limit(limit)
-    )
+    jobs = await job_manager.list_jobs(db, connection_id=conn.id, limit=limit)
     return [
         {
-            "id":             str(j.id),
-            "job_type":       j.job_type,
-            "status":         j.status,
-            "started_at":     j.started_at,
-            "completed_at":   j.completed_at,
-            "records_synced": j.records_synced,
-            "error_message":  j.error_message,
-            "created_at":     j.created_at,
+            "id":               str(j.id),
+            "job_type":         j.job_type,
+            "triggered_by":     j.triggered_by or "manual",
+            "status":           j.status,
+            "retry_count":      j.retry_count or 0,
+            "max_retries":      j.max_retries or 3,
+            "started_at":       j.started_at,
+            "completed_at":     j.completed_at,
+            "duration_seconds": j.duration_seconds,
+            "records_created":  j.records_created or 0,
+            "records_synced":   j.records_synced or 0,   # backward compat
+            "error_message":    j.error_message,
+            "created_at":       j.created_at,
         }
-        for j in result.scalars().all()
+        for j in jobs
     ]
 
 
