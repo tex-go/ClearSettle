@@ -9,6 +9,10 @@ from app.db.models.platform_connection import PlatformConnection
 from app.db.models.sync_job import SyncJob
 from app.db.models.sync_log import SyncLog
 from app.db.models.refresh_token import RefreshToken
+from app.db.models.settlement import Settlement
+from app.db.models.settlement_transaction import SettlementTransaction
+from app.db.models.fee import Fee
+from app.db.models.payout_event import PayoutEvent
 
 __all__ = [
     "User",
@@ -17,4 +21,8 @@ __all__ = [
     "SyncJob",
     "SyncLog",
     "RefreshToken",
+    "Settlement",
+    "SettlementTransaction",
+    "Fee",
+    "PayoutEvent",
 ]

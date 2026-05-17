@@ -26,6 +26,7 @@ from app.services.amazon.auth import get_valid_access_token
 from app.services.amazon.finances import get_financial_event_groups
 from app.services.amazon.orders import get_orders
 from app.services.amazon.sp_api_client import AuthError, SPAPIClient, SpApiError, TransientError
+from app.services.ingestion import pipeline as ingestion_pipeline
 from app.services.sync import job_manager
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,12 @@ async def run_orders_sync(job_id: str) -> None:
 
 
 async def run_settlements_sync(job_id: str) -> None:
-    """Fetch financial event groups (settlements) from Amazon SP API."""
+    """
+    Full settlement ingestion pipeline for Amazon SP API.
+
+    Calls ingestion_pipeline.ingest_settlements() which handles:
+    fetch → parse → normalize → upsert settlements/transactions/fees/payouts.
+    """
     if not AsyncSessionLocal:
         return
 
@@ -116,28 +122,40 @@ async def run_settlements_sync(job_id: str) -> None:
         days_back = options.get("days_back", 30)
 
         await job_manager.start_job(db, job)
-        await job_manager.add_log(db, job, "info", f"Starting settlements sync (last {days_back} days)")
+        await job_manager.add_log(db, job, "info", f"Starting settlement ingestion (last {days_back} days)")
 
         try:
-            get_valid_access_token(conn)
+            get_valid_access_token(conn)   # refresh token; commit persists it
             db.add(conn)
             await db.commit()
 
-            await job_manager.add_log(db, job, "info", "Access token refreshed; calling Finances API")
+            await job_manager.add_log(db, job, "info", "Access token refreshed; running ingestion pipeline")
 
-            groups = get_financial_event_groups(SPAPIClient(conn), days_back=days_back)
-
-            await job_manager.add_log(
-                db, job, "info",
-                f"Fetched {len(groups)} settlement groups",
-                context={"count": len(groups), "days_back": days_back},
+            ingest_result = await ingestion_pipeline.ingest_settlements(
+                client=SPAPIClient(conn),
+                connection=conn,
+                company_id=job.company_id,
+                db=db,
+                days_back=days_back,
+                job=job,
             )
 
             conn.last_sync_at    = datetime.utcnow()
             conn.last_sync_error = None
             db.add(conn)
 
-            await job_manager.complete_job(db, job, records_created=len(groups))
+            await job_manager.complete_job(
+                db, job,
+                records_created=ingest_result.settlements_created + ingest_result.transactions_created,
+                records_updated=ingest_result.settlements_updated,
+            )
+            logger.info(
+                "Settlement ingestion done: %d settlements, %d transactions, %d fees — job %s",
+                ingest_result.settlements_created + ingest_result.settlements_updated,
+                ingest_result.transactions_created,
+                ingest_result.fees_created,
+                job_id,
+            )
 
         except AuthError as exc:
             conn.last_sync_error = str(exc)
