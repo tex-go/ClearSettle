@@ -21,10 +21,10 @@ async def lifespan(app: FastAPI):
     if settings.database_url:
         try:
             from app.db.database import init_db
-            init_db()
+            await init_db()
             logger.info("Database initialised")
         except Exception as exc:
-            logger.warning("DB init skipped (Alembic may manage schema): %s", exc)
+            logger.warning("DB init skipped (Alembic manages schema in prod): %s", exc)
     yield
 
 
@@ -65,24 +65,25 @@ app.include_router(sp_api.router,         prefix="/sp-api",         tags=["sp-ap
 def root():
     settings = get_settings()
     return {
-        "service": "ClearSettle API",
-        "status": "online",
-        "version": "1.0.0",
+        "service":  "ClearSettle API",
+        "status":   "online",
+        "version":  "1.0.0",
         "database": "connected" if settings.database_url else "mock-data mode",
-        "docs": "/docs",
-        "health": "/health",
+        "docs":     "/docs",
+        "health":   "/health",
     }
 
 
 @app.get("/health")
-def health():
+async def health():
     settings = get_settings()
     db_status = "not_configured"
     if settings.database_url:
         try:
             from app.db.database import engine
-            with engine.connect() as conn:
-                conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+            import sqlalchemy
+            async with engine.connect() as conn:
+                await conn.execute(sqlalchemy.text("SELECT 1"))
             db_status = "ok"
         except Exception as exc:
             db_status = f"error: {exc}"
@@ -90,35 +91,20 @@ def health():
 
 
 @app.get("/status")
-def status():
+def status_endpoint():
     settings = get_settings()
+    db_type = "none"
+    if "asyncpg" in (settings.database_url or "") or "postgresql" in (settings.database_url or ""):
+        db_type = "postgresql"
+    elif "sqlite" in (settings.database_url or ""):
+        db_type = "sqlite"
+
     return {
-        "service": "ClearSettle API",
-        "status": "online",
-        "version": "1.0.0",
-        "environment": settings.env,
-        "database": "postgresql" if "postgresql" in settings.database_url else
-                    ("sqlite" if "sqlite" in settings.database_url else "none"),
+        "service":          "ClearSettle API",
+        "status":           "online",
+        "version":          "1.0.0",
+        "environment":      settings.env,
+        "database":         db_type,
         "sp_api_configured": bool(settings.sp_api_app_id and settings.sp_api_client_id),
         "demo_credentials": {"email": "demo@clearsettle.in", "password": "demo123"},
-        "features": [
-            {"id": "auth",           "route": "/auth"},
-            {"id": "dashboard",      "route": "/dashboard"},
-            {"id": "settlements",    "route": "/settlements"},
-            {"id": "bank",           "route": "/bank"},
-            {"id": "disputes",       "route": "/disputes"},
-            {"id": "returns",        "route": "/returns"},
-            {"id": "commission",     "route": "/commission"},
-            {"id": "gst",            "route": "/gst"},
-            {"id": "inventory",      "route": "/inventory"},
-            {"id": "cashflow",       "route": "/cashflow"},
-            {"id": "analytics",      "route": "/analytics"},
-            {"id": "platforms",      "route": "/platforms"},
-            {"id": "reports",        "route": "/reports"},
-            {"id": "dispute_engine", "route": "/dispute-engine"},
-            {"id": "recovery",       "route": "/recovery"},
-            {"id": "competitors",    "route": "/competitors"},
-            {"id": "sp_api",         "route": "/sp-api"},
-        ],
-        "total_features": 17,
     }

@@ -1,29 +1,76 @@
 version: "3.9"
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  pg_data:
+    driver: local
+
+# ── Services ──────────────────────────────────────────────────────────────────
 services:
+
+  # ── PostgreSQL 15 ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: clearsettle-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       clearsettle
+      POSTGRES_USER:     clearsettle_user
+      POSTGRES_PASSWORD: clearsettle_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clearsettle_user -d clearsettle"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── FastAPI backend ────────────────────────────────────────────────────────
   backend:
     build: ./backend
     container_name: clearsettle-backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - SECRET_KEY=clearsettle-secret-key-2026
-      - ENV=development
-    restart: unless-stopped
+      # Database (asyncpg driver for the app; alembic auto-detects)
+      DATABASE_URL:   postgresql+asyncpg://clearsettle_user:clearsettle_pass@postgres:5432/clearsettle
+
+      # Security — override these in production!
+      SECRET_KEY:     clearsettle-dev-secret-change-in-prod
+      # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      ENCRYPTION_KEY: ""
+
+      # Amazon SP API — fill in when registered
+      SP_API_APP_ID:        ""
+      SP_API_CLIENT_ID:     ""
+      SP_API_CLIENT_SECRET: ""
+      SP_API_REDIRECT_URI:  "http://localhost:8000/sp-api/callback"
+      FRONTEND_URL:         "http://localhost:80"
+
+      ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" 2>/dev/null || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 10s
+      start_period: 20s
 
+  # ── React / nginx frontend ─────────────────────────────────────────────────
   frontend:
     build: ./frontend
     container_name: clearsettle-frontend
+    restart: unless-stopped
     ports:
       - "80:80"
     environment:
-      - API_URL=http://backend:8000
+      API_URL: http://backend:8000
     depends_on:
       backend:
         condition: service_healthy
-    restart: unless-stopped

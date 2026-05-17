@@ -1,72 +1,158 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+"""
+Auth router.
 
-from app.core.auth import DEMO_USER, verify_password, create_token
-from app.core.deps import get_db_optional, get_current_user
+Endpoints
+---------
+POST /auth/login         → issue access + refresh tokens
+POST /auth/register      → create user + company, issue tokens
+POST /auth/refresh       → rotate refresh token, issue new pair
+POST /auth/logout        → revoke refresh token
+GET  /auth/me            → current user profile
+PUT  /auth/me            → update display name
+POST /auth/change-password → change password + revoke all refresh tokens
+
+All endpoints fall back to demo-mode (no DB) except register / refresh /
+change-password / logout which require a live database.
+"""
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.auth import DEMO_USER, create_token, verify_password
+from app.core.deps import get_current_user, get_db, get_db_optional
+from app.schemas.auth import (
+    AccessTokenResponse,
+    LoginRequest,
+    LogoutRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+)
+from app.schemas.user import ChangePasswordRequest, UpdateProfileRequest, UserProfile
 
 router = APIRouter()
 
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
+# ── Login ─────────────────────────────────────────────────────────────────────
 
 @router.post("/login")
-def login(req: LoginRequest, db: Session | None = Depends(get_db_optional)):
+async def login(req: LoginRequest, request: Request, db: AsyncSession | None = Depends(get_db_optional)):
     if db is not None:
-        # DB-backed auth
-        from app.db.models import User
-        import bcrypt
-        user = db.query(User).filter(User.email == req.email, User.is_active == True).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        pw_match = bcrypt.checkpw(
-            req.password.encode("utf-8"),
-            user.hashed_password.encode("utf-8"),
-        )
-        if not pw_match:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+        from app.services.auth_service import login as svc_login
+        return await svc_login(req.email, req.password, db, request=request)
 
-        token = create_token({"sub": user.email, "id": str(user.id)})
-        company = user.companies[0] if user.companies else None
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": str(user.id),
-                "email": user.email,
-                "name": user.name,
-                "role": user.role,
-                "company": company.name if company else None,
-                "gstin": company.gstin if company else None,
-                "city": company.city if company else None,
-            },
-        }
-
-    # No DB — demo mode
+    # ── mock-data / demo mode ─────────────────────────────────────────────────
     if req.email != DEMO_USER["email"]:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not verify_password(req.password, DEMO_USER["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     token = create_token({"sub": DEMO_USER["email"], "id": DEMO_USER["id"]})
     user = {k: v for k, v in DEMO_USER.items() if k != "hashed_password"}
-    return {"access_token": token, "token_type": "bearer", "user": user}
-
-
-@router.get("/me")
-def me(current_user=Depends(get_current_user)):
-    if isinstance(current_user, dict):
-        return {k: v for k, v in current_user.items() if k != "hashed_password"}
-    # ORM object
-    company = current_user.companies[0] if current_user.companies else None
     return {
-        "id": str(current_user.id),
-        "email": current_user.email,
-        "name": current_user.name,
-        "role": current_user.role,
-        "company": company.name if company else None,
-        "city": company.city if company else None,
+        "access_token":  token,
+        "refresh_token": "demo-refresh-token",
+        "token_type":    "bearer",
+        "expires_in":    86400,
+        "user":          user,
     }
+
+
+# ── Register ──────────────────────────────────────────────────────────────────
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+async def register(req: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    from app.services.auth_service import register as svc_register
+    return await svc_register(
+        req.email, req.password, req.name, req.company_name, db, request=request
+    )
+
+
+# ── Refresh token ─────────────────────────────────────────────────────────────
+
+@router.post("/refresh", response_model=AccessTokenResponse)
+async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
+    from app.services.auth_service import refresh_tokens
+    return await refresh_tokens(req.refresh_token, db)
+
+
+# ── Logout ────────────────────────────────────────────────────────────────────
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(req: LogoutRequest, db: AsyncSession | None = Depends(get_db_optional)):
+    if db is not None and req.refresh_token:
+        from app.services.auth_service import logout as svc_logout
+        await svc_logout(req.refresh_token, db)
+
+
+# ── Current user ──────────────────────────────────────────────────────────────
+
+@router.get("/me", response_model=UserProfile)
+async def me(current_user=Depends(get_current_user)):
+    if isinstance(current_user, dict):
+        return UserProfile(
+            id=str(current_user.get("id", "")),
+            email=current_user["email"],
+            name=current_user.get("name"),
+            role=current_user.get("role", "admin"),
+            company=current_user.get("company"),
+            gstin=current_user.get("gstin"),
+            city=current_user.get("city"),
+        )
+
+    company = current_user.companies[0] if current_user.companies else None
+    return UserProfile(
+        id=str(current_user.id),
+        email=current_user.email,
+        name=current_user.name,
+        role=current_user.role,
+        company=company.name if company else None,
+        gstin=company.gstin if company else None,
+        city=company.city if company else None,
+        industry=company.industry if company else None,
+    )
+
+
+# ── Update profile ────────────────────────────────────────────────────────────
+
+@router.put("/me")
+async def update_profile(
+    req: UpdateProfileRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession | None = Depends(get_db_optional),
+):
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile update requires a database connection")
+
+    if req.name is not None:
+        current_user.name = req.name
+
+    if db:
+        db.add(current_user)
+        await db.commit()
+        await db.refresh(current_user)
+
+    company = current_user.companies[0] if current_user.companies else None
+    return UserProfile(
+        id=str(current_user.id),
+        email=current_user.email,
+        name=current_user.name,
+        role=current_user.role,
+        company=company.name if company else None,
+        gstin=company.gstin if company else None,
+        city=company.city if company else None,
+    )
+
+
+# ── Change password ───────────────────────────────────────────────────────────
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    req: ChangePasswordRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Requires database connection")
+
+    from app.services.auth_service import change_password as svc_change_pw
+    await svc_change_pw(current_user, req.current_password, req.new_password, db)
