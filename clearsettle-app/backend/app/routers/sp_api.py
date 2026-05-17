@@ -20,17 +20,25 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.crypto import encrypt
 from app.core.deps import get_db, require_db_user
 from app.db.models import PlatformConnection, SyncJob, User
+from app.services.amazon.auth import (
+    build_authorization_url,
+    exchange_code_for_tokens,
+    generate_oauth_state,
+    get_valid_access_token,
+)
+from app.services.amazon.finances import get_financial_event_groups
+from app.services.amazon.orders import get_orders
+from app.services.amazon.sp_api_client import SPAPIClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -132,7 +140,6 @@ async def initiate_oauth(
         conn = PlatformConnection(company_id=company.id, platform="amazon")
         db.add(conn)
 
-    from app.services.sp_api_client import generate_oauth_state, build_authorization_url
     state = generate_oauth_state()
     conn.oauth_state          = state
     conn.status               = "oauth_pending"
@@ -168,7 +175,6 @@ async def oauth_callback(
     if not conn:
         raise HTTPException(status_code=400, detail="Invalid OAuth state — possible CSRF or session expired")
 
-    from app.services.sp_api_client import exchange_code_for_tokens
     try:
         tokens = exchange_code_for_tokens(spapi_oauth_code)
     except Exception as exc:
@@ -208,7 +214,6 @@ async def force_token_refresh(
     if conn.platform != "amazon":
         raise HTTPException(status_code=400, detail="Token refresh only applies to Amazon SP API")
 
-    from app.services.sp_api_client import get_valid_access_token
     try:
         get_valid_access_token(conn)   # mutates conn in place
         db.add(conn)
@@ -257,7 +262,6 @@ async def _bg_sync_orders(connection_id: str, job_id: str, days_back: int):
     if not AsyncSessionLocal:
         return
     async with AsyncSessionLocal() as db:
-        from app.services.sp_api_client import fetch_orders, get_valid_access_token
         try:
             conn = await db.get(PlatformConnection, UUID(connection_id))
             job  = await db.get(SyncJob, UUID(job_id))
@@ -268,7 +272,7 @@ async def _bg_sync_orders(connection_id: str, job_id: str, days_back: int):
             db.add(conn)
             await db.commit()
 
-            orders = fetch_orders(conn, days_back=days_back)
+            orders = get_orders(SPAPIClient(conn), days_back=days_back)
 
             conn.last_sync_at       = datetime.utcnow()
             conn.total_orders_synced = (conn.total_orders_synced or 0) + len(orders)
@@ -317,7 +321,6 @@ async def _bg_sync_financial_events(connection_id: str, job_id: str, days_back: 
     if not AsyncSessionLocal:
         return
     async with AsyncSessionLocal() as db:
-        from app.services.sp_api_client import fetch_financial_events, get_valid_access_token
         try:
             conn = await db.get(PlatformConnection, UUID(connection_id))
             job  = await db.get(SyncJob, UUID(job_id))
@@ -328,8 +331,7 @@ async def _bg_sync_financial_events(connection_id: str, job_id: str, days_back: 
             db.add(conn)
             await db.commit()
 
-            result = fetch_financial_events(conn, days_back=days_back)
-            groups = result.get("financial_event_groups", [])
+            groups = get_financial_event_groups(SPAPIClient(conn), days_back=days_back)
 
             conn.last_sync_at    = datetime.utcnow()
             conn.last_sync_error = None
