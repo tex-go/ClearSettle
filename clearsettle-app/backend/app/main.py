@@ -9,7 +9,7 @@ from app.routers import (
     auth, dashboard, settlements, bank, disputes,
     returns, commission, gst, inventory, cashflow,
     analytics, platforms, reports, dispute_engine, recovery, competitors,
-    sp_api,
+    sp_api, sync,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ app.include_router(dispute_engine.router, prefix="/dispute-engine", tags=["dispu
 app.include_router(recovery.router,       prefix="/recovery",       tags=["recovery"])
 app.include_router(competitors.router,    prefix="/competitors",    tags=["competitors"])
 app.include_router(sp_api.router,         prefix="/sp-api",         tags=["sp-api"])
+app.include_router(sync.router,           prefix="/sync",            tags=["sync"])
 
 
 @app.get("/")

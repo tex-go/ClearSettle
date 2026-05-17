@@ -7,6 +7,7 @@ from app.db.models.user import User
 from app.db.models.company import Company
 from app.db.models.platform_connection import PlatformConnection
 from app.db.models.sync_job import SyncJob
+from app.db.models.sync_log import SyncLog
 from app.db.models.refresh_token import RefreshToken
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "Company",
     "PlatformConnection",
     "SyncJob",
+    "SyncLog",
     "RefreshToken",
 ]
