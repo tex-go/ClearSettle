@@ -22,6 +22,8 @@ import Reports from './pages/Reports'
 import DisputeEngine from './pages/DisputeEngine'
 import Recovery from './pages/Recovery'
 import Competitors from './pages/Competitors'
+import Rules from './pages/Rules'
+import ReconEngine from './pages/ReconEngine'
 
 function ProtectedRoute({ children }) {
   var isAuth = useAuthStore(function(s) { return s.isAuth })
@@ -80,6 +82,8 @@ function App() {
         <Route path="/dispute-engine" element={<ProtectedRoute><AppLayout><DisputeEngine /></AppLayout></ProtectedRoute>} />
         <Route path="/recovery" element={<ProtectedRoute><AppLayout><Recovery /></AppLayout></ProtectedRoute>} />
         <Route path="/competitors" element={<ProtectedRoute><AppLayout><Competitors /></AppLayout></ProtectedRoute>} />
+        <Route path="/rules" element={<ProtectedRoute><AppLayout><Rules /></AppLayout></ProtectedRoute>} />
+        <Route path="/recon-engine" element={<ProtectedRoute><AppLayout><ReconEngine /></AppLayout></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

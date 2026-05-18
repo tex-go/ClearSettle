@@ -17,8 +17,8 @@ down_revision: Union[str, None] = "001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-DEMO_USER_ID    = str(uuid.UUID("00000000-0000-0000-0000-000000000001"))
-DEMO_COMPANY_ID = str(uuid.UUID("00000000-0000-0000-0000-000000000002"))
+DEMO_USER_ID    = uuid.UUID("00000000-0000-0000-0000-000000000001")
+DEMO_COMPANY_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 PLATFORMS = [
     "amazon", "flipkart", "meesho", "myntra",
@@ -68,7 +68,7 @@ def upgrade() -> None:
                 VALUES (:id, :cid, :platform, 'disconnected', :now, :now)
                 ON CONFLICT (company_id, platform) DO NOTHING
             """).bindparams(
-                id=str(uuid.uuid4()),
+                id=uuid.uuid4(),
                 cid=DEMO_COMPANY_ID,
                 platform=platform,
                 now=now,

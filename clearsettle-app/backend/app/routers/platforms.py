@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db_optional
+from app.core.rbac import require_permission
 from app.data.mock_data import PLATFORMS
 from app.schemas.platform import (
     ConnectApiKeyRequest,
@@ -101,7 +102,7 @@ async def list_platform_registry():
 @router.get("/", response_model=ConnectionsResponse)
 async def get_platforms(
     db: AsyncSession | None = Depends(get_db_optional),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("platforms:read")),
 ):
     if db is not None and not isinstance(current_user, dict):
         from app.services.platform_service import list_connections
@@ -119,7 +120,7 @@ async def get_platforms(
 async def get_platform(
     pid: str,
     db: AsyncSession | None = Depends(get_db_optional),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("platforms:read")),
 ):
     if db is not None and not isinstance(current_user, dict):
         from app.services.platform_service import get_connection
@@ -139,7 +140,7 @@ async def connect_platform(
     pid: str,
     body: ConnectApiKeyRequest,
     db: AsyncSession | None = Depends(get_db_optional),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("platforms:write")),
 ):
     """
     Store encrypted credentials for an API-key platform.
@@ -174,7 +175,7 @@ async def connect_platform(
 async def disconnect_platform(
     pid: str,
     db: AsyncSession | None = Depends(get_db_optional),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("platforms:write")),
 ):
     if db is not None and not isinstance(current_user, dict):
         from app.services.platform_service import disconnect
@@ -194,7 +195,7 @@ async def disconnect_platform(
 async def test_platform_connection(
     pid: str,
     db: AsyncSession | None = Depends(get_db_optional),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("platforms:read")),
 ):
     """
     Validate the stored connection configuration.
@@ -231,7 +232,7 @@ async def test_platform_connection(
 async def get_platform_credentials(
     pid: str,
     db: AsyncSession | None = Depends(get_db_optional),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("platforms:read")),
 ):
     """
     Return masked credential information.
@@ -269,7 +270,7 @@ async def update_platform_credentials(
     pid: str,
     body: ConnectApiKeyRequest,
     db: AsyncSession | None = Depends(get_db_optional),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("platforms:write")),
 ):
     """Update stored credentials without changing connection status."""
     if db is not None and not isinstance(current_user, dict):

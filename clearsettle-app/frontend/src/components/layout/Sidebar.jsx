@@ -13,7 +13,6 @@ var NAV = [
     group: 'Finance',
     items: [
       { path: '/settlements', label: 'Settlements', icon: '💳', badge: 3, bc: 'rd' },
-      { path: '/bank', label: 'Bank Reconciliation', icon: '🏦', badge: 2, bc: 'am' },
       { path: '/disputes', label: 'Disputes', icon: '⚖️', badge: 1, bc: 'am' },
       { path: '/returns', label: 'Returns', icon: '↩️' },
       { path: '/commission', label: 'Commission Audit', icon: '🔍', badge: 2, bc: 'am' },
@@ -29,9 +28,17 @@ var NAV = [
     ],
   },
   {
+    group: 'Reconciliation',
+    items: [
+      { path: '/recon-engine', label: 'Recon Engine', icon: '🔬', badge: 'NEW', bc: 'tl' },
+      { path: '/bank', label: 'Bank Reconciliation', icon: '🏦', badge: 2, bc: 'am' },
+    ],
+  },
+  {
     group: 'Intelligence',
     items: [
       { path: '/dispute-engine', label: 'Dispute Rule Engine', icon: '🤖', badge: 8, bc: 'tl' },
+      { path: '/rules', label: 'Rule Manager', icon: '⚙️' },
       { path: '/recovery', label: 'Recovery Tracker', icon: '🎯', badge: 3, bc: 'rd' },
       { path: '/competitors', label: 'Market Intelligence', icon: '🔭' },
     ],

@@ -4,12 +4,20 @@ SP API router — async version.
 All endpoints use AsyncSession.  Background sync tasks are async coroutines
 so FastAPI awaits them inside the running event loop.
 
+Credential resolution
+---------------------
+SP API credentials (app_id, client_id, client_secret, redirect_uri) are stored
+per-company in the `platform_connections` row.  The new POST /config endpoint
+lets users supply credentials via the UI.  When a DB-stored credential is found
+it takes precedence over the corresponding environment variable.
+
 Endpoints
 ---------
-GET  /sp-api/authorize
-GET  /sp-api/callback
-POST /sp-api/connections/{id}/refresh
-GET  /sp-api/connections/{id}/status
+POST /sp-api/config                        — store SP API app credentials
+GET  /sp-api/authorize                     — initiate OAuth (DB creds or env fallback)
+GET  /sp-api/callback                      — OAuth callback (uses DB-stored creds)
+POST /sp-api/connections/{id}/refresh      — force token refresh
+GET  /sp-api/connections/{id}/status       — connection health
 POST /sp-api/connections/{id}/sync/orders
 POST /sp-api/connections/{id}/sync/settlements
 GET  /sp-api/connections/{id}/sync-jobs
@@ -27,7 +35,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.crypto import encrypt
+from app.core.crypto import decrypt, encrypt
 from app.core.deps import get_db, require_db_user
 from app.db.models import PlatformConnection, User
 from app.services.amazon.auth import (
@@ -43,6 +51,16 @@ router = APIRouter()
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
+
+class SpApiConfigRequest(BaseModel):
+    app_id:         str
+    client_id:      str
+    client_secret:  str
+    redirect_uri:   str
+    marketplace_id: str = "A21TJRUUN4KGV"
+    region:         str = "eu"
+    endpoint:       str = "https://sellingpartnerapi-eu.amazon.com"
+
 
 class AuthorizeResponse(BaseModel):
     authorization_url: str
@@ -61,6 +79,7 @@ class ConnectionStatus(BaseModel):
     last_sync_at: Optional[datetime] = None
     total_orders_synced: int
     last_sync_error: Optional[str] = None
+    credentials_configured: bool = False
 
 
 class SyncResult(BaseModel):
@@ -70,6 +89,21 @@ class SyncResult(BaseModel):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _get_or_create_connection(company_id, db: AsyncSession) -> PlatformConnection:
+    result = await db.execute(
+        select(PlatformConnection).where(
+            PlatformConnection.company_id == company_id,
+            PlatformConnection.platform   == "amazon",
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        conn = PlatformConnection(company_id=company_id, platform="amazon")
+        db.add(conn)
+        await db.flush()
+    return conn
+
 
 async def _get_connection(connection_id: str, db: AsyncSession, user: User) -> PlatformConnection:
     result = await db.execute(
@@ -86,6 +120,76 @@ async def _get_connection(connection_id: str, db: AsyncSession, user: User) -> P
     return conn
 
 
+def _resolve_client_secret(conn: PlatformConnection) -> Optional[str]:
+    """Decrypt and return the stored client secret, or None."""
+    if conn.sp_client_secret_enc:
+        try:
+            return decrypt(conn.sp_client_secret_enc)
+        except Exception:
+            pass
+    return None
+
+
+def _credentials_configured(conn: PlatformConnection) -> bool:
+    """True if the connection has app_id + client credentials stored."""
+    s = get_settings()
+    has_app_id    = bool(conn.sp_app_id or s.sp_api_app_id)
+    has_client_id = bool(conn.sp_client_id or s.sp_api_client_id)
+    has_secret    = bool(conn.sp_client_secret_enc or s.sp_api_client_secret)
+    return has_app_id and has_client_id and has_secret
+
+
+# ── Step 0: Configure credentials via UI ─────────────────────────────────────
+
+@router.post("/config")
+async def configure_sp_api_credentials(
+    body: SpApiConfigRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_db_user),
+):
+    """
+    Store Amazon SP API developer credentials for this company.
+
+    Call this endpoint BEFORE starting the OAuth flow.  Credentials are stored
+    encrypted in the database — no environment variables are required after this.
+
+    Required fields:
+        app_id        — SP API Application ID from the developer console
+                        (amzn1.sellerapps.app.xxx)
+        client_id     — LWA Client ID (amzn1.application-oa2-client.xxx)
+        client_secret — LWA Client Secret
+        redirect_uri  — OAuth redirect URI registered in the developer console
+                        (must match exactly what Amazon has on file)
+    """
+    company = current_user.companies[0] if current_user.companies else None
+    if not company:
+        raise HTTPException(status_code=400, detail="No company found for this user")
+
+    conn = await _get_or_create_connection(company.id, db)
+
+    conn.sp_app_id            = body.app_id
+    conn.sp_client_id         = body.client_id
+    conn.sp_client_secret_enc = encrypt(body.client_secret)
+    conn.sp_redirect_uri      = body.redirect_uri
+    conn.sp_marketplace_id    = body.marketplace_id
+    conn.sp_region            = body.region
+    conn.sp_endpoint          = body.endpoint
+
+    if conn.status == "disconnected":
+        conn.status = "configured"   # credentials set, OAuth not yet done
+
+    db.add(conn)
+    await db.commit()
+    await db.refresh(conn)
+
+    return {
+        "status": "configured",
+        "connection_id": str(conn.id),
+        "platform": "amazon",
+        "message": "SP API credentials saved. You can now start the OAuth flow via GET /sp-api/authorize",
+    }
+
+
 # ── Step 1: Initiate OAuth ────────────────────────────────────────────────────
 
 @router.get("/authorize", response_model=AuthorizeResponse)
@@ -93,43 +197,61 @@ async def initiate_oauth(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_db_user),
 ):
-    s = get_settings()
-    if not s.sp_api_app_id or not s.sp_api_client_id:
-        raise HTTPException(
-            status_code=503,
-            detail="Amazon SP API credentials not configured. Set SP_API_APP_ID, SP_API_CLIENT_ID, "
-                   "SP_API_CLIENT_SECRET, SP_API_REDIRECT_URI.",
-        )
+    """
+    Start the Amazon OAuth flow.
 
+    Credentials are resolved in this order:
+      1. Values stored in the platform_connections row (via POST /sp-api/config)
+      2. Environment variables (SP_API_APP_ID, SP_API_CLIENT_ID, etc.)
+
+    Returns the authorization URL to redirect the user's browser to.
+    """
     company = current_user.companies[0] if current_user.companies else None
     if not company:
         raise HTTPException(status_code=400, detail="No company found for this user")
 
-    result = await db.execute(
-        select(PlatformConnection).where(
-            PlatformConnection.company_id == company.id,
-            PlatformConnection.platform   == "amazon",
+    conn = await _get_or_create_connection(company.id, db)
+    s = get_settings()
+
+    # Resolve credentials: DB row takes priority, env vars are fallback
+    app_id      = conn.sp_app_id    or s.sp_api_app_id
+    client_id   = conn.sp_client_id or s.sp_api_client_id
+    client_secret_raw = _resolve_client_secret(conn) or s.sp_api_client_secret
+    redirect_uri = conn.sp_redirect_uri or s.sp_api_redirect_uri
+
+    if not app_id or not client_id or not client_secret_raw:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Amazon SP API credentials not configured. "
+                "Use POST /sp-api/config to provide app_id, client_id, client_secret, and redirect_uri. "
+                "Alternatively, set SP_API_APP_ID, SP_API_CLIENT_ID, SP_API_CLIENT_SECRET, "
+                "SP_API_REDIRECT_URI as environment variables."
+            ),
         )
-    )
-    conn = result.scalar_one_or_none()
-    if not conn:
-        conn = PlatformConnection(company_id=company.id, platform="amazon")
-        db.add(conn)
 
     state = generate_oauth_state()
     conn.oauth_state          = state
     conn.status               = "oauth_pending"
-    conn.sp_client_id         = s.sp_api_client_id
-    conn.sp_client_secret_enc = encrypt(s.sp_api_client_secret)
-    conn.sp_marketplace_id    = s.sp_api_marketplace_id
-    conn.sp_region            = s.sp_api_region
-    conn.sp_endpoint          = s.sp_api_endpoint
+    conn.sp_client_id         = client_id
+    conn.sp_client_secret_enc = encrypt(client_secret_raw)
+    conn.sp_marketplace_id    = conn.sp_marketplace_id or s.sp_api_marketplace_id
+    conn.sp_region            = conn.sp_region    or s.sp_api_region
+    conn.sp_endpoint          = conn.sp_endpoint  or s.sp_api_endpoint
+    conn.sp_app_id            = app_id
+    conn.sp_redirect_uri      = redirect_uri
     db.add(conn)
     await db.commit()
     await db.refresh(conn)
 
+    auth_url = build_authorization_url(
+        state,
+        app_id=app_id,
+        redirect_uri=redirect_uri,
+    )
+
     return AuthorizeResponse(
-        authorization_url=build_authorization_url(state),
+        authorization_url=auth_url,
         state=state,
         connection_id=str(conn.id),
     )
@@ -151,8 +273,24 @@ async def oauth_callback(
     if not conn:
         raise HTTPException(status_code=400, detail="Invalid OAuth state — possible CSRF or session expired")
 
+    # Use credentials stored in the connection row (set during /authorize)
+    client_id     = conn.sp_client_id
+    client_secret = _resolve_client_secret(conn)
+    redirect_uri  = conn.sp_redirect_uri
+
+    # Fallback to env vars in case this is a legacy connection
+    s = get_settings()
+    client_id     = client_id     or s.sp_api_client_id
+    client_secret = client_secret or s.sp_api_client_secret
+    redirect_uri  = redirect_uri  or s.sp_api_redirect_uri
+
     try:
-        tokens = exchange_code_for_tokens(spapi_oauth_code)
+        tokens = exchange_code_for_tokens(
+            spapi_oauth_code,
+            client_id=client_id,
+            client_secret=client_secret,
+            redirect_uri=redirect_uri,
+        )
     except Exception as exc:
         conn.status = "error"
         conn.last_sync_error = f"Token exchange failed: {exc}"
@@ -161,13 +299,13 @@ async def oauth_callback(
         logger.error("SP API token exchange failed: %s", exc)
         raise HTTPException(status_code=502, detail=f"Token exchange failed: {exc}")
 
-    conn.sp_selling_partner_id     = selling_partner_id
-    conn.sp_refresh_token_enc      = encrypt(tokens["refresh_token"])
-    conn.sp_access_token_enc       = encrypt(tokens["access_token"])
+    conn.sp_selling_partner_id      = selling_partner_id
+    conn.sp_refresh_token_enc       = encrypt(tokens["refresh_token"])
+    conn.sp_access_token_enc        = encrypt(tokens["access_token"])
     conn.sp_access_token_expires_at = datetime.utcnow() + timedelta(seconds=tokens.get("expires_in", 3600))
-    conn.oauth_state               = None
-    conn.status                    = "connected"
-    conn.updated_at                = datetime.utcnow()
+    conn.oauth_state                = None
+    conn.status                     = "connected"
+    conn.updated_at                 = datetime.utcnow()
     db.add(conn)
     await db.commit()
 
@@ -191,7 +329,7 @@ async def force_token_refresh(
         raise HTTPException(status_code=400, detail="Token refresh only applies to Amazon SP API")
 
     try:
-        get_valid_access_token(conn)   # mutates conn in place
+        get_valid_access_token(conn)
         db.add(conn)
         await db.commit()
         return {"status": "refreshed", "expires_at": conn.sp_access_token_expires_at}
@@ -228,6 +366,7 @@ async def get_connection_status(
         last_sync_at=conn.last_sync_at,
         total_orders_synced=conn.total_orders_synced or 0,
         last_sync_error=conn.last_sync_error,
+        credentials_configured=_credentials_configured(conn),
     )
 
 
@@ -297,7 +436,9 @@ async def list_connection_sync_jobs(
     current_user: User = Depends(require_db_user),
 ):
     conn = await _get_connection(connection_id, db, current_user)
-    jobs = await job_manager.list_jobs(db, connection_id=conn.id, limit=limit)
+    company = current_user.companies[0] if current_user.companies else None
+    company_id = company.id if company else None
+    jobs = await job_manager.list_jobs(db, connection_id=conn.id, company_id=company_id, limit=limit)
     return [
         {
             "id":               str(j.id),
@@ -310,7 +451,7 @@ async def list_connection_sync_jobs(
             "completed_at":     j.completed_at,
             "duration_seconds": j.duration_seconds,
             "records_created":  j.records_created or 0,
-            "records_synced":   j.records_synced or 0,   # backward compat
+            "records_synced":   j.records_synced or 0,
             "error_message":    j.error_message,
             "created_at":       j.created_at,
         }
@@ -330,7 +471,6 @@ async def disconnect(
     conn.sp_refresh_token_enc      = None
     conn.sp_access_token_enc       = None
     conn.sp_access_token_expires_at = None
-    conn.sp_client_secret_enc      = None
     conn.sp_selling_partner_id     = None
     conn.oauth_state               = None
     conn.status                    = "disconnected"

@@ -84,6 +84,11 @@ class PlatformConnection(Base, TimestampMixin):
     # CSRF state token (OAuth handshake only; cleared after callback)
     oauth_state = Column(String(255))
 
+    # SP API app identity — configurable via UI (POST /sp-api/config)
+    # When set, takes precedence over SP_API_APP_ID / SP_API_REDIRECT_URI env vars
+    sp_app_id      = Column(String(500), nullable=True)
+    sp_redirect_uri = Column(String(500), nullable=True)
+
     # ── Sync tracking ─────────────────────────────────────────────────────────
     last_sync_at        = Column(DateTime)
     last_sync_error     = Column(Text)
