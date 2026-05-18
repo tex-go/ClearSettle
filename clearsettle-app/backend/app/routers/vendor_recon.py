@@ -26,12 +26,17 @@ from datetime import date
 from typing import Any, Optional
 from uuid import UUID
 
+import asyncio
+import json as _json_stdlib
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
+from app.db.database import AsyncSessionLocal
 from app.db.models.recon_engine import (
     DimDeductionCode, FactReconciliation, LeakageEvent,
     ReconFile, ReconJob, ReconJobFile,
@@ -39,6 +44,7 @@ from app.db.models.recon_engine import (
     StgPaymentLine, StgSettlementLine,
 )
 from app.services.vendor_recon import engine as recon_engine
+from app.services.vendor_recon import event_bus as recon_event_bus
 from app.services.vendor_recon.ingestion import route_parse
 
 logger = logging.getLogger(__name__)
@@ -445,6 +451,18 @@ async def _stage_and_run(job_id: UUID, db: AsyncSession) -> None:
     await recon_engine.run_job(job_id, db)
 
 
+async def _run_job_background(job_id: UUID) -> None:
+    """Background coroutine: opens its own DB session so it survives after the HTTP request closes."""
+    if AsyncSessionLocal is None:
+        logger.error("AsyncSessionLocal not initialised — cannot run job %s", job_id)
+        return
+    async with AsyncSessionLocal() as db:
+        try:
+            await _stage_and_run(job_id, db)
+        except Exception as exc:
+            logger.exception("Background job %s failed: %s", job_id, exc)
+
+
 @router.post("/jobs/{job_id}/run")
 async def run_job(
     job_id: str,
@@ -452,6 +470,12 @@ async def run_job(
     db: AsyncSession = Depends(get_db),
     user             = Depends(get_current_user),
 ):
+    """Queue the job for execution and return immediately.
+
+    The job runs as a FastAPI background task with its own DB session.
+    Clients should open the SSE stream (/jobs/{job_id}/events) to
+    receive real-time progress events.
+    """
     company_id = _company_id(user)
     job = (await db.execute(
         select(ReconJob).where(ReconJob.id == UUID(job_id))
@@ -466,16 +490,78 @@ async def run_job(
     job.status = "queued"
     await db.commit()
 
-    # Run synchronously (FastAPI background tasks share the same DB session scope —
-    # for simplicity run inline; for prod switch to Celery/ARQ)
-    try:
-        await _stage_and_run(UUID(job_id), db)
-    except Exception as exc:
-        logger.exception("Job %s run failed: %s", job_id, exc)
+    background_tasks.add_task(_run_job_background, UUID(job_id))
+    return {"status": "queued", "job_id": job_id}
 
-    # Return updated job
-    await db.refresh(job)
-    return _job_out(job)
+
+@router.get("/jobs/{job_id}/events")
+async def job_event_stream(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    user             = Depends(get_current_user),
+):
+    """SSE stream of reconciliation engine events for a job.
+
+    Emits: stage start/complete events, per-detector results, terminal completed/failed.
+    Late-connecting clients receive a history replay of all events emitted so far.
+
+    Authentication: standard Bearer token via Authorization header.
+    """
+    company_id = _company_id(user)
+    job = (await db.execute(
+        select(ReconJob).where(ReconJob.id == UUID(job_id))
+    )).scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    _assert_job_owner(job, company_id)
+
+    job_status = job.status
+    # Close the DB session before entering the long-lived generator
+    await db.close()
+
+    async def _event_generator():
+        # Immediate keepalive so nginx/proxies don't close the connection
+        yield ": ping\n\n"
+
+        # If the job is already in a terminal state, send a synthetic event and close
+        if job_status in ("completed", "failed"):
+            payload = _json_stdlib.dumps({"type": job_status, "message": f"Job already {job_status}"})
+            yield f"data: {payload}\n\n"
+            yield "data: {\"type\": \"stream_end\"}\n\n"
+            return
+
+        q, history = recon_event_bus.subscribe(job_id)
+        try:
+            # Replay buffered history so late-connecting clients catch up
+            for evt in history:
+                yield f"data: {_json_stdlib.dumps(evt)}\n\n"
+
+            # Stream live events
+            while True:
+                try:
+                    item = await asyncio.wait_for(q.get(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    # Keepalive comment — prevents proxy timeouts
+                    yield ": keepalive\n\n"
+                    continue
+
+                if recon_event_bus.is_done(item):
+                    yield "data: {\"type\": \"stream_end\"}\n\n"
+                    break
+
+                yield f"data: {_json_stdlib.dumps(item)}\n\n"
+        finally:
+            recon_event_bus.unsubscribe(job_id, q)
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering": "no",   # disable nginx response buffering
+            "Connection":        "keep-alive",
+        },
+    )
 
 
 # ── leakage endpoints ─────────────────────────────────────────────────────────

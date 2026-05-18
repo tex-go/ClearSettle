@@ -31,3 +31,6 @@ class ReconciliationRule(Base, TimestampMixin):
     parameters_json = Column(Text, default="{}")
     severity        = Column(String(20), nullable=False, default="warning")
     is_active       = Column(Boolean, nullable=False, default=True)
+    # Rule classification — added migration 014
+    system_type   = Column(String(20),  nullable=True)   # settlement | vendor | both
+    detector_name = Column(String(100), nullable=True)   # Python function name in detector module
