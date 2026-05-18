@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     env: str = "development"
     frontend_url: str = "http://localhost:80"
 
+    # ── Seller Discovery Engine ───────────────────────────────────────────────
+    anthropic_api_key:              str   = ""    # for AI lead classification (Phase 7)
+    scraper_proxy_url:              str   = ""    # optional proxy for Playwright (Phase 5)
+    discovery_max_leads_per_job:    int   = 500   # hard cap per crawl run
+    discovery_rate_limit_rps:       float = 0.5   # requests/second (1 req per 2s default)
+    discovery_max_concurrent_jobs:  int   = 2     # semaphore size — max parallel Chromium instances
+    discovery_crawl_interval_hours: float = 24.0  # scheduler repeat interval
+
     class Config:
         env_file = ".env"
         case_sensitive = False

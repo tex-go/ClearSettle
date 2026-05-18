@@ -41,6 +41,7 @@ var NAV = [
       { path: '/rules', label: 'Rule Manager', icon: '⚙️' },
       { path: '/recovery', label: 'Recovery Tracker', icon: '🎯', badge: 3, bc: 'rd' },
       { path: '/competitors', label: 'Market Intelligence', icon: '🔭' },
+      { path: '/seller-discovery', label: 'Seller Discovery', icon: '🧲', badge: 'NEW', bc: 'tl' },
     ],
   },
   {

@@ -10,6 +10,7 @@ from app.routers import (
     returns, commission, gst, inventory, cashflow,
     analytics, platforms, reports, dispute_engine, recovery, competitors,
     sp_api, sync, reconciliation, rules, onboarding, api_health, vendor_recon,
+    seller_discovery,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,13 @@ async def lifespan(app: FastAPI):
             logger.info("Database initialised")
         except Exception as exc:
             logger.warning("DB init skipped (Alembic manages schema in prod): %s", exc)
+
+    from app.services.seller_discovery import scheduler as discovery_scheduler
+    await discovery_scheduler.start()
+
     yield
+
+    await discovery_scheduler.stop()
 
 
 app = FastAPI(
@@ -65,6 +72,7 @@ app.include_router(rules.router,           prefix="/rules",           tags=["rul
 app.include_router(onboarding.router,      prefix="/onboarding",      tags=["onboarding"])
 app.include_router(api_health.router,      prefix="/api-health",      tags=["api-health"])
 app.include_router(vendor_recon.router,    prefix="/recon-engine",    tags=["recon-engine"])
+app.include_router(seller_discovery.router, prefix="/seller-discovery", tags=["seller-discovery"])
 
 
 @app.get("/")

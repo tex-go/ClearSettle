@@ -36,6 +36,8 @@ from app.db.models.recon_engine import (
     StgPaymentLine, StgOperationalLine,
     FactReconciliation, LeakageEvent, DimDeductionCode,
 )
+# Seller Discovery Engine
+from app.db.models.seller_lead import DiscoveryKeyword, DiscoveryJob, SellerLead
 
 __all__ = [
     "User",
@@ -73,4 +75,7 @@ __all__ = [
     "FactReconciliation",
     "LeakageEvent",
     "DimDeductionCode",
+    "DiscoveryKeyword",
+    "DiscoveryJob",
+    "SellerLead",
 ]

@@ -24,3 +24,10 @@ anyio==4.4.0
 # File parsing (Reconciliation Engine)
 pandas==2.2.2
 openpyxl==3.1.2
+
+# Seller Discovery Engine — browser automation
+playwright==1.44.0
+playwright-stealth==1.0.6
+
+# Seller Discovery Engine — AI classification (Phase 7)
+anthropic==0.34.2
