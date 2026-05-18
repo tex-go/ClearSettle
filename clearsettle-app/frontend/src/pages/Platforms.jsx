@@ -21,6 +21,7 @@ var PLATFORM_META = {
 
 var STATUS_DOT = {
   connected:     '#0DB07A',
+  configured:    '#0ABFCA',
   oauth_pending: '#E9930D',
   pending:       '#E9930D',
   disconnected:  '#8FA5BD',
@@ -29,13 +30,23 @@ var STATUS_DOT = {
 
 var STATUS_LABEL = {
   connected:     'Connected',
+  configured:    'Credentials saved — OAuth pending',
   oauth_pending: 'Awaiting Amazon auth…',
   pending:       'Pending',
   disconnected:  'Not connected',
   error:         'Connection error',
 }
 
-function SyncJobsTable({ connectionId, onClose }) {
+var DEFAULT_CRED_FORM = {
+  app_id:         '',
+  client_id:      '',
+  client_secret:  '',
+  redirect_uri:   window.location.origin + '/api/sp-api/callback',
+  marketplace_id: 'A21TJRUUN4KGV',
+  region:         'eu',
+}
+
+function SyncJobsTable({ connectionId }) {
   var { data, loading } = useApi('/sp-api/connections/' + connectionId + '/sync-jobs')
   if (loading) return <div className="spinner" style={{ margin: '20px auto' }} />
   var jobs = data || []
@@ -51,8 +62,7 @@ function SyncJobsTable({ connectionId, onClose }) {
           return (
             <div key={j.id} style={{
               padding: '10px 14px', borderRadius: 10,
-              background: '#F8FAFC', border: '1px solid #E2EBF3',
-              fontSize: 12,
+              background: '#F8FAFC', border: '1px solid #E2EBF3', fontSize: 12,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontWeight: 700, textTransform: 'capitalize' }}>{j.job_type}</span>
@@ -71,8 +81,45 @@ function SyncJobsTable({ connectionId, onClose }) {
   )
 }
 
+// ── Credentials field config ───────────────────────────────────────────────
+
+var CRED_FIELDS = [
+  {
+    key: 'app_id',
+    label: 'SP API Application ID',
+    type: 'text',
+    placeholder: 'amzn1.sellerapps.app.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    help: 'Found in Seller Central → Apps & Services → Develop Apps → Your App',
+    required: true,
+  },
+  {
+    key: 'client_id',
+    label: 'LWA Client ID',
+    type: 'text',
+    placeholder: 'amzn1.application-oa2-client.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    help: 'Login with Amazon Client ID from your SP API app settings',
+    required: true,
+  },
+  {
+    key: 'client_secret',
+    label: 'LWA Client Secret',
+    type: 'password',
+    placeholder: 'amzn1.oa2-cs.v1.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    help: 'Keep this secret — stored encrypted in the database',
+    required: true,
+  },
+  {
+    key: 'redirect_uri',
+    label: 'OAuth Redirect URI',
+    type: 'text',
+    placeholder: 'https://yourdomain.com/api/sp-api/callback',
+    help: 'Must exactly match the redirect URI registered in your SP API app',
+    required: true,
+  },
+]
+
 function Platforms() {
-  var { data, loading, refetch } = useApi('/platforms/')
+  var { data, loading } = useApi('/platforms/')
   var addToast = useUIStore(function(s) { return s.addToast })
   var [tab, setTab] = useState('All')
   var [connectModal, setConnectModal] = useState(null)
@@ -82,6 +129,12 @@ function Platforms() {
   var [connecting, setConnecting] = useState(false)
   var [syncing, setSyncing] = useState(null)
   var [searchParams] = useSearchParams()
+
+  // SP API credentials modal state
+  var [credModal, setCredModal] = useState(false)
+  var [credForm, setCredForm] = useState(DEFAULT_CRED_FORM)
+  var [credSaving, setCredSaving] = useState(false)
+  var [credErrors, setCredErrors] = useState({})
 
   // Handle OAuth callback redirect (?connected=amazon&status=success)
   useEffect(function() {
@@ -103,23 +156,74 @@ function Platforms() {
     if (tab === 'All') return true
     if (tab === 'Connected') return p.status === 'connected'
     if (tab === 'Pending') return p.status === 'pending' || p.status === 'oauth_pending'
-    if (tab === 'Not Connected') return p.status === 'disconnected'
+    if (tab === 'Not Connected') return p.status === 'disconnected' || p.status === 'configured'
     return true
   })
 
-  // ── Amazon SP API OAuth connect ────────────────────────────────────────────
-  function handleSpApiConnect() {
+  // ── Amazon SP API OAuth — fast path (credentials already saved) ────────────
+  async function startOAuthFlow() {
     setConnecting(true)
-    api.get('/sp-api/authorize')
-      .then(function(res) {
-        // Redirect browser to Amazon Seller Central
-        window.location.href = res.data.authorization_url
+    try {
+      var res = await api.get('/sp-api/authorize')
+      window.location.href = res.data.authorization_url
+    } catch (err) {
+      setConnecting(false)
+      var status = err?.response?.status
+      var detail = err?.response?.data?.detail || ''
+      var isCredsMissing = (
+        status === 503 ||
+        (typeof detail === 'string' && (
+          detail.toLowerCase().includes('not configured') ||
+          detail.toLowerCase().includes('credentials')
+        ))
+      )
+      if (isCredsMissing) {
+        setCredModal(true)
+      } else if (!err.response) {
+        addToast('Network error — please check your connection', 'error')
+      } else {
+        addToast(detail || 'Failed to initiate Amazon connection', 'error')
+      }
+    }
+  }
+
+  // ── Validate credentials form ─────────────────────────────────────────────
+  function validateCredForm() {
+    var errs = {}
+    CRED_FIELDS.forEach(function(f) {
+      if (f.required && !credForm[f.key].trim()) {
+        errs[f.key] = f.label + ' is required'
+      }
+    })
+    setCredErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  // ── Save credentials then start OAuth ─────────────────────────────────────
+  async function handleSaveCredentialsAndConnect() {
+    if (!validateCredForm()) return
+
+    setCredSaving(true)
+    try {
+      await api.post('/sp-api/config', {
+        app_id:         credForm.app_id.trim(),
+        client_id:      credForm.client_id.trim(),
+        client_secret:  credForm.client_secret.trim(),
+        redirect_uri:   credForm.redirect_uri.trim(),
+        marketplace_id: credForm.marketplace_id,
+        region:         credForm.region,
       })
-      .catch(function(err) {
-        var msg = err.response?.data?.detail || 'Failed to initiate Amazon SP API connection'
-        addToast(msg, 'error')
-        setConnecting(false)
-      })
+      var res = await api.get('/sp-api/authorize')
+      setCredModal(false)
+      window.location.href = res.data.authorization_url
+    } catch (err) {
+      setCredSaving(false)
+      var detail = err?.response?.data?.detail
+      addToast(
+        typeof detail === 'string' ? detail : 'Failed to save credentials. Check all fields and try again.',
+        'error'
+      )
+    }
   }
 
   // ── Generic API key connect ────────────────────────────────────────────────
@@ -190,7 +294,7 @@ function Platforms() {
             if (t === 'All') return true
             if (t === 'Connected') return p.status === 'connected'
             if (t === 'Pending') return p.status === 'pending' || p.status === 'oauth_pending'
-            if (t === 'Not Connected') return p.status === 'disconnected'
+            if (t === 'Not Connected') return p.status === 'disconnected' || p.status === 'configured'
             return true
           }).length
           return (
@@ -211,6 +315,7 @@ function Platforms() {
           var meta = PLATFORM_META[p.id] || { icon: '🏪', label: p.name, sp_api: false }
           var dotColor = STATUS_DOT[p.status] || '#8FA5BD'
           var statusLabel = STATUS_LABEL[p.status] || p.status
+          var isDisconnected = p.status === 'disconnected' || p.status === 'error' || p.status === 'configured'
 
           return (
             <div key={p.id} className="card" style={{ padding: '18px 22px' }}>
@@ -289,16 +394,16 @@ function Platforms() {
                     </>
                   )}
 
-                  {(p.status === 'disconnected' || p.status === 'error') && (
+                  {isDisconnected && (
                     meta.sp_api
                       ? (
                         <button
                           className="btn btn-p btn-sm"
                           disabled={connecting}
-                          onClick={handleSpApiConnect}
+                          onClick={startOAuthFlow}
                           style={{ background: 'linear-gradient(135deg,#FF9900,#FF6600)', border: 'none' }}
                         >
-                          {connecting ? 'Redirecting…' : '🔗 Connect via Amazon'}
+                          {connecting ? 'Please wait…' : '🔗 Connect via Amazon'}
                         </button>
                       )
                       : (
@@ -314,9 +419,10 @@ function Platforms() {
                   {p.status === 'oauth_pending' && (
                     <button
                       className="btn btn-s btn-sm"
-                      onClick={handleSpApiConnect}
+                      disabled={connecting}
+                      onClick={startOAuthFlow}
                     >
-                      Resume Auth →
+                      {connecting ? 'Please wait…' : 'Resume Auth →'}
                     </button>
                   )}
                 </div>
@@ -339,7 +445,138 @@ function Platforms() {
         </div>
       </div>
 
-      {/* Generic Connect Modal */}
+      {/* ── SP API Credentials Modal ──────────────────────────────────────────── */}
+      {credModal && (
+        <Modal
+          open={credModal}
+          title="Amazon SP API — Developer Credentials"
+          sub="Enter your SP API app credentials to enable the OAuth connection"
+          onClose={function() {
+            if (!credSaving) {
+              setCredModal(false)
+              setCredErrors({})
+              setConnecting(false)
+            }
+          }}
+          size="lg"
+          footer={
+            <>
+              <button
+                className="btn btn-s"
+                disabled={credSaving}
+                onClick={function() {
+                  setCredModal(false)
+                  setCredErrors({})
+                  setConnecting(false)
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-p"
+                disabled={credSaving}
+                onClick={handleSaveCredentialsAndConnect}
+                style={{ background: 'linear-gradient(135deg,#FF9900,#FF6600)', border: 'none' }}
+              >
+                {credSaving ? 'Saving & connecting…' : 'Save & Connect via Amazon →'}
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+
+            {/* Info alert */}
+            <div className="ab inf" style={{ marginBottom: 12 }}>
+              <span>ℹ️</span>
+              <div className="ab-body">
+                <div className="ab-title">Where to find these credentials</div>
+                <div className="ab-sub">
+                  Log in to <strong>Seller Central</strong> → Apps &amp; Services → Develop Apps →
+                  select your app → View credentials. Your App ID and LWA credentials are listed there.
+                </div>
+              </div>
+            </div>
+
+            {/* Credential fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {CRED_FIELDS.map(function(f) {
+                return (
+                  <div key={f.key} className="fg">
+                    <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{f.label} {f.required && <span style={{ color: '#E8344A' }}>*</span>}</span>
+                    </label>
+                    <input
+                      type={f.type}
+                      placeholder={f.placeholder}
+                      value={credForm[f.key]}
+                      autoComplete="off"
+                      onChange={function(e) {
+                        var val = e.target.value
+                        setCredForm(function(prev) { return Object.assign({}, prev, { [f.key]: val }) })
+                        if (credErrors[f.key]) {
+                          setCredErrors(function(prev) { return Object.assign({}, prev, { [f.key]: '' }) })
+                        }
+                      }}
+                      style={credErrors[f.key] ? { borderColor: '#E8344A' } : {}}
+                    />
+                    {credErrors[f.key]
+                      ? <div style={{ fontSize: 11, color: '#E8344A', marginTop: 4 }}>{credErrors[f.key]}</div>
+                      : <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 4 }}>{f.help}</div>
+                    }
+                  </div>
+                )
+              })}
+
+              {/* Advanced: marketplace / region */}
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ fontSize: 12, color: '#4B6080', cursor: 'pointer', userSelect: 'none' }}>
+                  Advanced settings (Marketplace &amp; Region)
+                </summary>
+                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                  <div className="fg" style={{ flex: 1 }}>
+                    <label>Marketplace ID</label>
+                    <input
+                      type="text"
+                      value={credForm.marketplace_id}
+                      onChange={function(e) {
+                        var val = e.target.value
+                        setCredForm(function(prev) { return Object.assign({}, prev, { marketplace_id: val }) })
+                      }}
+                    />
+                    <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 4 }}>Default: A21TJRUUN4KGV (Amazon.in)</div>
+                  </div>
+                  <div className="fg" style={{ flex: 1 }}>
+                    <label>Region</label>
+                    <select
+                      value={credForm.region}
+                      onChange={function(e) {
+                        var val = e.target.value
+                        setCredForm(function(prev) { return Object.assign({}, prev, { region: val }) })
+                      }}
+                    >
+                      <option value="eu">EU (India, Europe, Middle East)</option>
+                      <option value="na">NA (North America)</option>
+                      <option value="fe">FE (Far East)</option>
+                    </select>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            {/* Security note */}
+            <div style={{
+              marginTop: 8, padding: '10px 14px', borderRadius: 10,
+              background: 'rgba(13,176,122,.06)', border: '1px solid rgba(13,176,122,.2)',
+              fontSize: 12, color: '#4B6080',
+            }}>
+              🔒 <strong>Your credentials are stored encrypted</strong> (AES-256 Fernet) and never logged.
+              The client secret is used only to exchange OAuth codes for tokens.
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Generic Connect Modal ─────────────────────────────────────────────── */}
       {connectModal && (
         <Modal
           open={!!connectModal}
@@ -377,7 +614,8 @@ function Platforms() {
                     placeholder={f.placeholder}
                     value={connectForm[f.key]}
                     onChange={function(e) {
-                      setConnectForm(Object.assign({}, connectForm, { [f.key]: e.target.value }))
+                      var val = e.target.value
+                      setConnectForm(function(prev) { return Object.assign({}, prev, { [f.key]: val }) })
                     }}
                   />
                 </div>
@@ -387,7 +625,7 @@ function Platforms() {
         </Modal>
       )}
 
-      {/* Configure / Disconnect Modal */}
+      {/* ── Configure / Disconnect Modal ──────────────────────────────────────── */}
       {configModal && (
         <Modal
           open={!!configModal}
@@ -414,13 +652,12 @@ function Platforms() {
           }
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Connection details */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[
                 { label: 'Selling Partner ID', val: configModal.selling_partner_id || '—' },
-                { label: 'Marketplace ID', val: configModal.marketplace_id || '—' },
-                { label: 'Orders Synced', val: (configModal.total_orders_synced || 0).toLocaleString('en-IN') },
-                { label: 'Last Sync', val: configModal.last_sync ? new Date(configModal.last_sync).toLocaleString('en-IN') : 'Never' },
+                { label: 'Marketplace ID',     val: configModal.marketplace_id || '—' },
+                { label: 'Orders Synced',      val: (configModal.total_orders_synced || 0).toLocaleString('en-IN') },
+                { label: 'Last Sync',          val: configModal.last_sync ? new Date(configModal.last_sync).toLocaleString('en-IN') : 'Never' },
               ].map(function(item) {
                 return (
                   <div key={item.label} style={{
@@ -438,7 +675,6 @@ function Platforms() {
               })}
             </div>
 
-            {/* Data sync toggles */}
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#4B6080', marginBottom: 10, textTransform: 'uppercase' }}>
                 Active Data Streams
@@ -467,7 +703,7 @@ function Platforms() {
         </Modal>
       )}
 
-      {/* Sync Jobs History Modal */}
+      {/* ── Sync Jobs History Modal ───────────────────────────────────────────── */}
       {syncJobsModal && (
         <Modal
           open={!!syncJobsModal}

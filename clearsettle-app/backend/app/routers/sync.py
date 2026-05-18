@@ -19,7 +19,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_db, require_db_user
+from app.core.deps import get_db
+from app.core.rbac import require_db_permission
 from app.db.models import PlatformConnection, SyncJob, User
 from app.services.sync import job_manager, registry
 
@@ -111,7 +112,7 @@ async def create_sync_job(
     days_back: int = Query(default=30, ge=1, le=365),
     triggered_by: str = Query(default="manual"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_db_user),
+    current_user: User = Depends(require_db_permission("sync:trigger")),
 ):
     """
     Create a sync job and immediately dispatch it to the background.
@@ -158,7 +159,7 @@ async def list_sync_jobs(
     limit:  int = Query(default=20, le=100),
     offset: int = Query(default=0,  ge=0),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_db_user),
+    current_user: User = Depends(require_db_permission("sync:read")),
 ):
     """List sync jobs scoped to the current user's company."""
     company = _company(current_user)
@@ -182,7 +183,7 @@ async def list_sync_jobs(
 async def get_sync_job(
     job_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_db_user),
+    current_user: User = Depends(require_db_permission("sync:read")),
 ):
     """Return full job detail including all log entries."""
     company = _company(current_user)
@@ -197,7 +198,7 @@ async def retry_sync_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_db_user),
+    current_user: User = Depends(require_db_permission("sync:trigger")),
 ):
     """
     Re-queue a failed or cancelled job.
@@ -234,7 +235,7 @@ async def retry_sync_job(
 async def cancel_sync_job(
     job_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_db_user),
+    current_user: User = Depends(require_db_permission("sync:trigger")),
 ):
     """Cancel a pending job. Running jobs cannot be cancelled in the current architecture."""
     company = _company(current_user)

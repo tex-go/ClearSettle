@@ -51,7 +51,7 @@ def upgrade() -> None:
             server_default=sa.text("NOW()"),
         ),
     )
-    op.create_unique_index("ix_refresh_tokens_hash",    "refresh_tokens", ["token_hash"])
+    op.create_index("ix_refresh_tokens_hash",    "refresh_tokens", ["token_hash"], unique=True)
     op.create_index("ix_refresh_tokens_user_id",         "refresh_tokens", ["user_id"])
     op.create_index("ix_refresh_tokens_expires_revoked", "refresh_tokens", ["expires_at", "revoked"])
 

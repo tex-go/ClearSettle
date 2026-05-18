@@ -9,7 +9,7 @@ from app.routers import (
     auth, dashboard, settlements, bank, disputes,
     returns, commission, gst, inventory, cashflow,
     analytics, platforms, reports, dispute_engine, recovery, competitors,
-    sp_api, sync,
+    sp_api, sync, reconciliation, rules, onboarding, api_health, vendor_recon,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,12 @@ app.include_router(dispute_engine.router, prefix="/dispute-engine", tags=["dispu
 app.include_router(recovery.router,       prefix="/recovery",       tags=["recovery"])
 app.include_router(competitors.router,    prefix="/competitors",    tags=["competitors"])
 app.include_router(sp_api.router,         prefix="/sp-api",         tags=["sp-api"])
-app.include_router(sync.router,           prefix="/sync",            tags=["sync"])
+app.include_router(sync.router,            prefix="/sync",            tags=["sync"])
+app.include_router(reconciliation.router,  prefix="/reconciliation",  tags=["reconciliation"])
+app.include_router(rules.router,           prefix="/rules",           tags=["rules"])
+app.include_router(onboarding.router,      prefix="/onboarding",      tags=["onboarding"])
+app.include_router(api_health.router,      prefix="/api-health",      tags=["api-health"])
+app.include_router(vendor_recon.router,    prefix="/recon-engine",    tags=["recon-engine"])
 
 
 @app.get("/")

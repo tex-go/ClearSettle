@@ -20,3 +20,7 @@ httpx==0.27.0
 
 # Async utilities
 anyio==4.4.0
+
+# File parsing (Reconciliation Engine)
+pandas==2.2.2
+openpyxl==3.1.2

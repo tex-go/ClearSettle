@@ -88,15 +88,20 @@ async def logout(req: LogoutRequest, db: AsyncSession | None = Depends(get_db_op
 
 @router.get("/me", response_model=UserProfile)
 async def me(current_user=Depends(get_current_user)):
+    from app.core.rbac import ROLE_PERMISSIONS, get_user_role
+    role = get_user_role(current_user)
+    permissions = sorted(ROLE_PERMISSIONS.get(role, set()))
+
     if isinstance(current_user, dict):
         return UserProfile(
             id=str(current_user.get("id", "")),
             email=current_user["email"],
             name=current_user.get("name"),
-            role=current_user.get("role", "admin"),
+            role=role,
             company=current_user.get("company"),
             gstin=current_user.get("gstin"),
             city=current_user.get("city"),
+            permissions=permissions,
         )
 
     company = current_user.companies[0] if current_user.companies else None
@@ -104,12 +109,21 @@ async def me(current_user=Depends(get_current_user)):
         id=str(current_user.id),
         email=current_user.email,
         name=current_user.name,
-        role=current_user.role,
+        role=role,
         company=company.name if company else None,
         gstin=company.gstin if company else None,
         city=company.city if company else None,
         industry=company.industry if company else None,
+        permissions=permissions,
     )
+
+
+@router.get("/permissions")
+async def get_permissions(current_user=Depends(get_current_user)):
+    """Return all permission strings granted to the current user's role."""
+    from app.core.rbac import ROLE_PERMISSIONS, get_user_role
+    role = get_user_role(current_user)
+    return {"role": role, "permissions": sorted(ROLE_PERMISSIONS.get(role, set()))}
 
 
 # ── Update profile ────────────────────────────────────────────────────────────

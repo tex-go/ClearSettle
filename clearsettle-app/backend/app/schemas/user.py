@@ -42,6 +42,7 @@ class UserProfile(BaseModel):
     gstin: str | None = None
     city: str | None = None
     industry: str | None = None
+    permissions: list[str] = []
 
 
 class ChangePasswordRequest(BaseModel):
