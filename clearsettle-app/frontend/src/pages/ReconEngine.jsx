@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import useAuthStore from '../store/authStore'
+import { ReconciliationPipeline } from '../components/recon/ReconciliationPipeline'
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const FILE_TYPES = [
@@ -248,7 +250,7 @@ function UploadTab({ token, files, onRefresh }) {
 }
 
 // ── Jobs Tab ──────────────────────────────────────────────────────────────────
-function JobsTab({ token, files, jobs, onRefresh, onSelectJob }) {
+function JobsTab({ token, files, jobs, onRefresh, onSelectJob, onRunJob }) {
   const [creating, setCreating] = useState(false)
   const [running, setRunning]   = useState(null)
   const [form, setForm]         = useState({ name: '', description: '', period_start: '', period_end: '', platform: '', currency: 'INR', file_ids: [] })
@@ -273,11 +275,18 @@ function JobsTab({ token, files, jobs, onRefresh, onSelectJob }) {
     onRefresh()
   }
 
-  async function runJob(jobId) {
+  async function runJob(jobId, jobName) {
     setRunning(jobId)
-    await api(token, `/recon-engine/jobs/${jobId}/run`, { method: 'POST' })
-    setRunning(null)
-    onRefresh()
+    try {
+      // Queue the job — returns immediately with {"status": "queued"}
+      await api(token, `/recon-engine/jobs/${jobId}/run`, { method: 'POST' })
+      // Open the live pipeline visualization overlay
+      onRunJob(jobId, jobName)
+    } catch (e) {
+      // If already running or other conflict, just refresh
+    } finally {
+      setRunning(null)
+    }
   }
 
   const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #D1DDE8', fontSize: 13, color: '#0D1F35', background: '#F7FAFC', boxSizing: 'border-box' }
@@ -427,7 +436,7 @@ function JobsTab({ token, files, jobs, onRefresh, onSelectJob }) {
 
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     {job.status === 'draft' && (
-                      <button onClick={e => { e.stopPropagation(); runJob(job.id) }} disabled={running === job.id} style={{
+                      <button onClick={e => { e.stopPropagation(); runJob(job.id, job.name) }} disabled={running === job.id} style={{
                         padding: '6px 14px', borderRadius: 7, background: 'linear-gradient(135deg,#0ABFCA,#088F99)',
                         color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: 6,
@@ -436,7 +445,7 @@ function JobsTab({ token, files, jobs, onRefresh, onSelectJob }) {
                       </button>
                     )}
                     {job.status === 'failed' && (
-                      <button onClick={e => { e.stopPropagation(); runJob(job.id) }} style={{
+                      <button onClick={e => { e.stopPropagation(); runJob(job.id, job.name) }} style={{
                         padding: '6px 14px', borderRadius: 7, background: 'rgba(232,52,74,.1)',
                         color: '#E8344A', border: '1px solid rgba(232,52,74,.2)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                       }}>↺ Retry</button>
@@ -784,6 +793,9 @@ export default function ReconEngine() {
   const [summary, setSummary]   = useState(null)
   const [loading, setLoading]   = useState(true)
 
+  // Pipeline overlay state
+  const [pipelineJob, setPipelineJob] = useState(null)  // { id, name } | null
+
   const load = useCallback(async function() {
     try {
       const [fl, jl, sm] = await Promise.all([
@@ -803,8 +815,23 @@ export default function ReconEngine() {
 
   useEffect(function() { load() }, [load])
 
-  function handleSelectJob(jobId) {
+  function handleSelectJob() {
     setTab('leakage')
+  }
+
+  // Opens the live pipeline overlay — called after POST /run succeeds
+  function handleRunJob(jobId, jobName) {
+    setPipelineJob({ id: jobId, name: jobName })
+  }
+
+  // Dismiss overlay, refresh list, optionally switch to leakage tab
+  function handlePipelineClose() {
+    setPipelineJob(null)
+    load()
+  }
+
+  function handlePipelineComplete() {
+    load()  // refresh summary + job list in background
   }
 
   const TABS = [
@@ -863,11 +890,25 @@ export default function ReconEngine() {
       ) : (
         <>
           {tab === 'upload'  && <UploadTab    token={token} files={files} onRefresh={load} />}
-          {tab === 'jobs'    && <JobsTab      token={token} files={files} jobs={jobs} onRefresh={load} onSelectJob={handleSelectJob} />}
+          {tab === 'jobs'    && <JobsTab      token={token} files={files} jobs={jobs} onRefresh={load} onSelectJob={handleSelectJob} onRunJob={handleRunJob} />}
           {tab === 'leakage' && <LeakageTab   token={token} jobs={jobs} />}
           {tab === 'codes'   && <DeductionCodesTab token={token} />}
         </>
       )}
+
+      {/* ── Live pipeline overlay ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {pipelineJob && (
+          <ReconciliationPipeline
+            key={pipelineJob.id}
+            jobId={pipelineJob.id}
+            jobName={pipelineJob.name}
+            token={token}
+            onClose={handlePipelineClose}
+            onComplete={handlePipelineComplete}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

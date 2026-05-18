@@ -28,6 +28,11 @@ class ReconFile(Base):
     column_map_json = Column(Text,        nullable=True)
     created_at      = Column(DateTime,    nullable=False, default=datetime.utcnow)
     processed_at    = Column(DateTime,    nullable=True)
+    # Provenance — added migration 014
+    source_type             = Column(String(30),    nullable=True)  # file_upload | api | manual
+    ingestion_method        = Column(String(100),   nullable=True)  # csv_upload | xlsx_upload | amazon_sp_api | ...
+    document_origin         = Column(String(150),   nullable=True)  # "amazon.in" | "flipkart.com" | filename
+    source_confidence_score = Column(Numeric(4, 3), nullable=True)  # 0.000–1.000
 
     job_files = relationship("ReconJobFile", back_populates="file", cascade="all, delete-orphan")
 
@@ -106,6 +111,11 @@ class StgSettlementLine(Base):
     asin             = Column(String(20),  nullable=True)
     raw_row_json     = Column(Text,        nullable=True)
     created_at       = Column(DateTime,    nullable=False, default=datetime.utcnow)
+    # Provenance — added migration 014
+    source_type             = Column(String(30),    nullable=True)
+    ingestion_method        = Column(String(100),   nullable=True)
+    document_origin         = Column(String(150),   nullable=True)
+    source_confidence_score = Column(Numeric(4, 3), nullable=True)
 
     job = relationship("ReconJob", back_populates="settlement_lines")
 
@@ -130,6 +140,11 @@ class StgInvoiceLine(Base):
     vendor_code     = Column(String(100), nullable=True)
     raw_row_json    = Column(Text,        nullable=True)
     created_at      = Column(DateTime,    nullable=False, default=datetime.utcnow)
+    # Provenance — added migration 014
+    source_type             = Column(String(30),    nullable=True)
+    ingestion_method        = Column(String(100),   nullable=True)
+    document_origin         = Column(String(150),   nullable=True)
+    source_confidence_score = Column(Numeric(4, 3), nullable=True)
 
     job = relationship("ReconJob", back_populates="invoice_lines")
 
@@ -152,6 +167,11 @@ class StgChargebackLine(Base):
     dispute_deadline = Column(Date,        nullable=True)
     raw_row_json     = Column(Text,        nullable=True)
     created_at       = Column(DateTime,    nullable=False, default=datetime.utcnow)
+    # Provenance — added migration 014
+    source_type             = Column(String(30),    nullable=True)
+    ingestion_method        = Column(String(100),   nullable=True)
+    document_origin         = Column(String(150),   nullable=True)
+    source_confidence_score = Column(Numeric(4, 3), nullable=True)
 
     job = relationship("ReconJob", back_populates="chargeback_lines")
 
@@ -171,6 +191,11 @@ class StgPaymentLine(Base):
     bank_account    = Column(String(50),  nullable=True)
     raw_row_json    = Column(Text,        nullable=True)
     created_at      = Column(DateTime,    nullable=False, default=datetime.utcnow)
+    # Provenance — added migration 014
+    source_type             = Column(String(30),    nullable=True)
+    ingestion_method        = Column(String(100),   nullable=True)
+    document_origin         = Column(String(150),   nullable=True)
+    source_confidence_score = Column(Numeric(4, 3), nullable=True)
 
     job = relationship("ReconJob", back_populates="payment_lines")
 
@@ -210,6 +235,11 @@ class StgOperationalLine(Base):
     extra_json        = Column(Text,        nullable=True)
     raw_row_json      = Column(Text,        nullable=True)
     created_at        = Column(DateTime,    nullable=False, default=datetime.utcnow)
+    # Provenance — added migration 014
+    source_type             = Column(String(30),    nullable=True)
+    ingestion_method        = Column(String(100),   nullable=True)
+    document_origin         = Column(String(150),   nullable=True)
+    source_confidence_score = Column(Numeric(4, 3), nullable=True)
 
     job = relationship("ReconJob", back_populates="operational_lines")
 
