@@ -38,6 +38,7 @@ from app.db.models.recon_engine import (
 )
 # Seller Discovery Engine
 from app.db.models.seller_lead import DiscoveryKeyword, DiscoveryJob, SellerLead
+from app.db.models.seller_lead_activity import SellerLeadActivity
 
 __all__ = [
     "User",
@@ -78,4 +79,5 @@ __all__ = [
     "DiscoveryKeyword",
     "DiscoveryJob",
     "SellerLead",
+    "SellerLeadActivity",
 ]

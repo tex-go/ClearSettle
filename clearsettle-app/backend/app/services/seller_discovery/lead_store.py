@@ -101,6 +101,9 @@ def lead_to_dict(lead: SellerLead) -> dict:
         # Outreach
         "outreach_status":       lead.outreach_status,
         "outreach_notes":        lead.outreach_notes,
+        # CRM lifecycle
+        "follow_up_at":          _dt(lead.follow_up_at),
+        "assigned_to":           lead.assigned_to,
         # Provenance
         "discovery_source":      lead.discovery_source,
         "discovery_keyword":     lead.discovery_keyword,

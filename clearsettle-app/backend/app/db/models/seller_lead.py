@@ -159,6 +159,10 @@ class SellerLead(Base):
     # pending | ready | contacted | skipped
     outreach_notes  = Column(Text, nullable=True)
 
+    # ── CRM lifecycle (Phase 14) ──────────────────────────────────────────────
+    follow_up_at = Column(DateTime,    nullable=True)   # next scheduled follow-up
+    assigned_to  = Column(String(100), nullable=True)   # team member owning this lead
+
     # ── Discovery provenance ──────────────────────────────────────────────────
     discovery_source  = Column(String(50),  nullable=True)   # hashtag | competitor_followers | direct
     discovery_keyword = Column(String(200), nullable=True)   # e.g. "#ethnicwear"

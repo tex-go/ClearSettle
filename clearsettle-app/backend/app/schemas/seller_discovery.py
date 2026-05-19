@@ -77,18 +77,20 @@ class SellerLeadCreate(BaseModel):
 
 
 class SellerLeadPatch(BaseModel):
-    full_name:             Optional[str]   = Field(default=None, max_length=255)
-    bio:                   Optional[str]   = None
-    website:               Optional[str]   = Field(default=None, max_length=500)
-    category:              Optional[str]   = Field(default=None, max_length=100)
-    profile_image_url:     Optional[str]   = None
-    email:                 Optional[str]   = Field(default=None, max_length=255)
-    whatsapp:              Optional[str]   = Field(default=None, max_length=20)
-    country:               Optional[str]   = Field(default=None, max_length=50)
-    language:              Optional[str]   = Field(default=None, max_length=20)
-    lead_status:           Optional[str]   = None
-    notes:                 Optional[str]   = None
-    tags_json:             Optional[str]   = None
+    full_name:             Optional[str]      = Field(default=None, max_length=255)
+    bio:                   Optional[str]      = None
+    website:               Optional[str]      = Field(default=None, max_length=500)
+    category:              Optional[str]      = Field(default=None, max_length=100)
+    profile_image_url:     Optional[str]      = None
+    email:                 Optional[str]      = Field(default=None, max_length=255)
+    whatsapp:              Optional[str]      = Field(default=None, max_length=20)
+    country:               Optional[str]      = Field(default=None, max_length=50)
+    language:              Optional[str]      = Field(default=None, max_length=20)
+    lead_status:           Optional[str]      = None
+    notes:                 Optional[str]      = None
+    tags_json:             Optional[str]      = None
+    follow_up_at:          Optional[datetime] = None
+    assigned_to:           Optional[str]      = Field(default=None, max_length=100)
     # AI fields — updated by the classifier service
     ai_is_ecommerce:       Optional[bool]  = None
     ai_relevance_score:    Optional[float] = Field(default=None, ge=0, le=1)
@@ -300,3 +302,40 @@ class BulkClassifyRequest(BaseModel):
     """Optional filters for POST /leads/bulk-classify."""
     limit:  int = Field(default=50, ge=1, le=500, description="Max leads to classify")
     source: Optional[str] = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ACTIVITY LOG (Phase 14)
+# ─────────────────────────────────────────────────────────────────────────────
+
+VALID_ACTIVITY_TYPES = {
+    "note", "follow_up", "call_log", "email_log", "whatsapp_log",
+    "tag", "status_change", "classify", "score", "outreach",
+}
+
+
+class ActivityCreate(BaseModel):
+    """Payload for POST /leads/{id}/activity."""
+    activity_type: str           = Field(..., description="note|follow_up|call_log|email_log|whatsapp_log|tag")
+    content:       Optional[str] = Field(default=None, max_length=5000)
+    metadata:      Optional[dict] = None
+    follow_up_at:  Optional[datetime] = None   # only used when activity_type='follow_up'
+
+    @field_validator("activity_type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        allowed = {"note", "follow_up", "call_log", "email_log", "whatsapp_log", "tag"}
+        if v not in allowed:
+            raise ValueError(f"activity_type must be one of {sorted(allowed)}")
+        return v
+
+
+class ActivityOut(BaseModel):
+    id:            str
+    lead_id:       str
+    activity_type: str
+    icon:          str
+    content:       Optional[str]
+    metadata_json: Optional[dict]
+    created_by:    str
+    created_at:    str
