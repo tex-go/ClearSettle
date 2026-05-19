@@ -23,11 +23,13 @@ POST /sp-api/connections/{id}/sync/settlements
 GET  /sp-api/connections/{id}/sync-jobs
 DELETE /sp-api/connections/{id}
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -457,6 +459,132 @@ async def list_connection_sync_jobs(
         }
         for j in jobs
     ]
+
+
+# ── Test connection ───────────────────────────────────────────────────────────
+
+@router.get("/test-connection")
+async def test_connection(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_db_user),
+):
+    """
+    Verify Amazon SP API connectivity for the current user's company.
+
+    Calls GET /sellers/v1/marketplaceParticipations and returns structured
+    connectivity status.  Automatically refreshes the access token if needed.
+
+    Returns:
+        {
+          "status": "connected",
+          "marketplace": "IN",
+          "sp_api_access": true,
+          ...
+        }
+    """
+    company = current_user.companies[0] if current_user.companies else None
+    if not company:
+        raise HTTPException(status_code=400, detail="No company found for this user")
+
+    conn = await _get_or_create_connection(company.id, db)
+
+    if not conn.sp_refresh_token_enc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No refresh token stored. "
+                "Complete the OAuth flow via GET /sp-api/authorize first."
+            ),
+        )
+
+    if conn.status != "connected":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Connection status is '{conn.status}'. "
+                "Must be 'connected' to test. Complete the OAuth flow via GET /sp-api/authorize."
+            ),
+        )
+
+    # Refresh the access token in a thread (get_valid_access_token is synchronous)
+    try:
+        access_token = await asyncio.to_thread(get_valid_access_token, conn)
+        db.add(conn)
+        await db.commit()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Token refresh failed: {exc}")
+
+    endpoint = conn.sp_endpoint or get_settings().sp_api_endpoint or "https://sellingpartnerapi-eu.amazon.com"
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{endpoint}/sellers/v1/marketplaceParticipations",
+                headers={
+                    "x-amz-access-token": access_token,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="SP API request timed out (>30s)")
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Network error reaching SP API: {exc}")
+
+    if resp.status_code == 401:
+        raise HTTPException(
+            status_code=401,
+            detail="SP API rejected the access token. Try refreshing via POST /sp-api/connections/{id}/refresh.",
+        )
+    if resp.status_code == 403:
+        raise HTTPException(
+            status_code=403,
+            detail="SP API returned 403 — check that the app has the Selling Partner Insights role.",
+        )
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"SP API returned HTTP {resp.status_code}: {resp.text[:300]}",
+        )
+
+    payload = resp.json().get("payload", [])
+    target_marketplace_id = conn.sp_marketplace_id or get_settings().sp_api_marketplace_id or "A21TJRUUN4KGV"
+
+    marketplaces = []
+    primary_country = None
+
+    for item in payload:
+        mkt  = item.get("marketplace", {})
+        part = item.get("participation", {})
+        marketplaces.append({
+            "id":                     mkt.get("id"),
+            "country":                mkt.get("countryCode"),
+            "name":                   mkt.get("name"),
+            "currency":               mkt.get("defaultCurrencyCode"),
+            "participating":          part.get("isParticipating"),
+            "has_suspended_listings": part.get("hasSuspendedListings"),
+        })
+        if mkt.get("id") == target_marketplace_id:
+            primary_country = mkt.get("countryCode")
+
+    if not primary_country and marketplaces:
+        primary_country = marketplaces[0]["country"]
+
+    logger.info(
+        "SP API test-connection: seller=%s marketplace=%s marketplaces=%d",
+        conn.sp_selling_partner_id, primary_country, len(marketplaces),
+    )
+
+    return {
+        "status":             "connected",
+        "marketplace":        primary_country,
+        "sp_api_access":      True,
+        "selling_partner_id": conn.sp_selling_partner_id,
+        "connection_id":      str(conn.id),
+        "endpoint":           endpoint,
+        "token_expires_at":   conn.sp_access_token_expires_at,
+        "marketplaces":       marketplaces,
+    }
 
 
 # ── Disconnect ────────────────────────────────────────────────────────────────
