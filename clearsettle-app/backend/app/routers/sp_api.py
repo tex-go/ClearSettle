@@ -533,14 +533,26 @@ async def test_connection(
 
     conn = await _get_or_create_connection(company.id, db)
 
+    # Auto-store refresh token from env var if not yet in DB
     if not conn.sp_refresh_token_enc:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No refresh token stored. "
-                "Complete the OAuth flow via GET /sp-api/authorize first."
-            ),
-        )
+        s = get_settings()
+        if s.sp_api_refresh_token:
+            conn.sp_refresh_token_enc       = encrypt(s.sp_api_refresh_token)
+            conn.sp_access_token_enc        = None
+            conn.sp_access_token_expires_at = None
+            conn.status                     = "connected"
+            conn.updated_at                 = datetime.utcnow()
+            db.add(conn)
+            await db.commit()
+            logger.info("Auto-stored SP_API_REFRESH_TOKEN from env for connection %s", conn.id)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No refresh token stored. "
+                    "Set SP_API_REFRESH_TOKEN in docker-compose.yml or complete the OAuth flow."
+                ),
+            )
 
     if conn.status != "connected":
         raise HTTPException(

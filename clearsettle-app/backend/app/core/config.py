@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Must match the Redirect URI registered in the developer console
     sp_api_redirect_uri: str = ""
 
+    # Refresh token from self-authorization (Solution Provider → Create Token)
+    sp_api_refresh_token: str = ""
+
     # India marketplace
     sp_api_marketplace_id: str = "A21TJRUUN4KGV"
     sp_api_region: str = "eu"        # na | eu | fe  (India is under EU region)
