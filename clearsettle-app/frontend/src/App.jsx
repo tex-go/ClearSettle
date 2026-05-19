@@ -25,6 +25,8 @@ import Competitors from './pages/Competitors'
 import Rules from './pages/Rules'
 import ReconEngine from './pages/ReconEngine'
 import SellerDiscovery from './pages/SellerDiscovery'
+import CashFlowForecast from './pages/CashFlowForecast'
+import MeetingCalendar from './pages/MeetingCalendar'
 
 function ProtectedRoute({ children }) {
   var isAuth = useAuthStore(function(s) { return s.isAuth })
@@ -86,6 +88,8 @@ function App() {
         <Route path="/rules" element={<ProtectedRoute><AppLayout><Rules /></AppLayout></ProtectedRoute>} />
         <Route path="/recon-engine" element={<ProtectedRoute><AppLayout><ReconEngine /></AppLayout></ProtectedRoute>} />
         <Route path="/seller-discovery" element={<ProtectedRoute><AppLayout><SellerDiscovery /></AppLayout></ProtectedRoute>} />
+        <Route path="/forecast" element={<ProtectedRoute><AppLayout><CashFlowForecast /></AppLayout></ProtectedRoute>} />
+        <Route path="/meetings" element={<ProtectedRoute><AppLayout><MeetingCalendar /></AppLayout></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

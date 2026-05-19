@@ -10,7 +10,7 @@ from app.routers import (
     returns, commission, gst, inventory, cashflow,
     analytics, platforms, reports, dispute_engine, recovery, competitors,
     sp_api, sync, reconciliation, rules, onboarding, api_health, vendor_recon,
-    seller_discovery,
+    seller_discovery, forecast, meetings,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,10 @@ async def lifespan(app: FastAPI):
 
     from app.services.seller_discovery import scheduler as discovery_scheduler
     await discovery_scheduler.start()
+
+    import asyncio as _asyncio
+    from app.services.meetings.reminder_store import run_reminder_scheduler
+    _asyncio.create_task(run_reminder_scheduler())
 
     yield
 
@@ -73,6 +77,8 @@ app.include_router(onboarding.router,      prefix="/onboarding",      tags=["onb
 app.include_router(api_health.router,      prefix="/api-health",      tags=["api-health"])
 app.include_router(vendor_recon.router,    prefix="/recon-engine",    tags=["recon-engine"])
 app.include_router(seller_discovery.router, prefix="/seller-discovery", tags=["seller-discovery"])
+app.include_router(forecast.router,         tags=["forecast"])
+app.include_router(meetings.router,         tags=["meetings"])
 
 
 @app.get("/")

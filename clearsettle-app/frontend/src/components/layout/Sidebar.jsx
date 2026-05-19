@@ -23,7 +23,8 @@ var NAV = [
     group: 'Operations',
     items: [
       { path: '/inventory', label: 'Inventory Sync', icon: '📦', badge: 3, bc: 'am' },
-      { path: '/cashflow', label: 'Cash Flow Forecast', icon: '📅' },
+      { path: '/cashflow', label: 'Cash Flow', icon: '📅' },
+      { path: '/forecast', label: 'Cash Flow Forecast', icon: '📈', badge: 'NEW', bc: 'tl' },
       { path: '/analytics', label: 'Profitability', icon: '💰' },
     ],
   },
@@ -42,6 +43,7 @@ var NAV = [
       { path: '/recovery', label: 'Recovery Tracker', icon: '🎯', badge: 3, bc: 'rd' },
       { path: '/competitors', label: 'Market Intelligence', icon: '🔭' },
       { path: '/seller-discovery', label: 'Seller Discovery', icon: '🧲', badge: 'NEW', bc: 'tl' },
+      { path: '/meetings', label: 'Meeting Calendar', icon: '📆' },
     ],
   },
   {
