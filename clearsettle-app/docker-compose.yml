@@ -42,7 +42,7 @@ services:
       # Security — override these in production!
       SECRET_KEY:     clearsettle-dev-secret-change-in-prod
       # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-      ENCRYPTION_KEY: ""
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:-}"
 
       # Amazon SP API — values loaded from clearsettle-app/.env (gitignored)
       SP_API_APP_ID:        "${SP_API_APP_ID:-}"
