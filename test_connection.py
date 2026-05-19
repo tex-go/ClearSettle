@@ -18,11 +18,11 @@ Usage
 
 Expected output
 ---------------
-    → Logging in as demo@clearsettle.in...
-    ✓ Logged in
+    -> Logging in as demo@clearsettle.in...
+    [OK] Logged in
 
-    → Testing Amazon SP-API connection...
-    ✓ Connected!
+    -> Testing Amazon SP-API connection...
+    [OK] Connected!
 
     {
       "status": "connected",
@@ -76,7 +76,7 @@ def run() -> None:
 
     # ── Step 1: Login ─────────────────────────────────────────────────────────
 
-    print(f"→ Logging in as {email}...")
+    print(f"-> Logging in as {email}...")
     try:
         login_resp = httpx.post(
             f"{base_url}/auth/login",
@@ -101,11 +101,11 @@ def run() -> None:
         print("ERROR: No access_token in login response.", file=sys.stderr)
         sys.exit(1)
 
-    print("✓ Logged in\n")
+    print("[OK] Logged in\n")
 
     # ── Step 2: Test SP-API connection ────────────────────────────────────────
 
-    print("→ Testing Amazon SP-API connection...")
+    print("-> Testing Amazon SP-API connection...")
     try:
         test_resp = httpx.get(
             f"{base_url}/sp-api/test-connection",
@@ -132,12 +132,12 @@ def run() -> None:
             "error":       detail,
             "hint":        _explain_http_error(test_resp.status_code, str(detail)),
         }
-        print(f"\n✗ Failed (HTTP {test_resp.status_code})\n", file=sys.stderr)
+        print(f"\n[FAIL] Failed (HTTP {test_resp.status_code})\n", file=sys.stderr)
         print(json.dumps(result, indent=2), file=sys.stderr)
         sys.exit(1)
 
     data = test_resp.json()
-    print("✓ Connected!\n")
+    print("[OK] Connected!\n")
     print(json.dumps(data, indent=2, default=str))
 
 
