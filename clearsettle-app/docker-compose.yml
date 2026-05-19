@@ -44,11 +44,12 @@ services:
       # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
       ENCRYPTION_KEY: ""
 
-      # Amazon SP API — fill in when registered
-      SP_API_APP_ID:        ""
-      SP_API_CLIENT_ID:     ""
-      SP_API_CLIENT_SECRET: ""
-      SP_API_REDIRECT_URI:  "http://localhost:8000/sp-api/callback"
+      # Amazon SP API — values loaded from clearsettle-app/.env (gitignored)
+      SP_API_APP_ID:        "${SP_API_APP_ID:-}"
+      SP_API_CLIENT_ID:     "${SP_API_CLIENT_ID:-}"
+      SP_API_CLIENT_SECRET: "${SP_API_CLIENT_SECRET:-}"
+      SP_API_REDIRECT_URI:  "${SP_API_REDIRECT_URI:-http://localhost:8000/sp-api/callback}"
+      SP_API_REFRESH_TOKEN: "${SP_API_REFRESH_TOKEN:-}"
       FRONTEND_URL:         "http://localhost:80"
 
       ENV: development
