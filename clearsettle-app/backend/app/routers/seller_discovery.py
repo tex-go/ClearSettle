@@ -59,6 +59,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.deps import get_current_user, get_db
 from app.schemas.seller_discovery import (
+    ActivityCreate,
     BulkClassifyRequest,
     DiscoveryJobCreate,
     DiscoveryJobPatch,
@@ -76,6 +77,7 @@ from app.services.seller_discovery import (
     lead_store,
     queue_manager,
 )
+from app.services.seller_discovery import activity_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -209,6 +211,17 @@ async def classify_lead(
         raise HTTPException(status_code=422, detail="Classification skipped — insufficient profile data.")
 
     await apply_score_to_lead(db, lead)
+    actor = getattr(user, "email", None) or "system"
+    await activity_store.add_activity(
+        db, lead_id=lead_id, activity_type="classify",
+        content=f"AI classified — relevance {float(lead.ai_relevance_score or 0)*100:.0f}%, "
+                f"ecommerce={'yes' if lead.ai_is_ecommerce else 'no'}, "
+                f"category={lead.ai_category or '—'}",
+        metadata={"ai_relevance_score": float(lead.ai_relevance_score or 0),
+                  "ai_category": lead.ai_category,
+                  "ai_is_ecommerce": lead.ai_is_ecommerce},
+        created_by=actor,
+    )
     return lead_store.lead_to_dict(lead)
 
 
@@ -251,6 +264,13 @@ async def score_lead(
         raise HTTPException(status_code=404, detail="Lead not found.")
 
     await apply_score_to_lead(db, lead)
+    actor = getattr(user, "email", None) or "system"
+    await activity_store.add_activity(
+        db, lead_id=lead_id, activity_type="score",
+        content=f"Lead scored {float(lead.lead_score or 0):.0f}/100 — priority: {lead.priority_level or 'unscored'}",
+        metadata={"lead_score": float(lead.lead_score or 0), "priority_level": lead.priority_level},
+        created_by=actor,
+    )
     return lead_store.lead_to_dict(lead)
 
 
@@ -275,11 +295,18 @@ async def review_lead(
         raise HTTPException(status_code=409, detail="Lead has been deleted.")
 
     reviewer = getattr(user, "email", None) or getattr(user, "username", "unknown")
+    old_status = lead.lead_status
     try:
         lead = await lead_store.apply_review(db, lead, payload, reviewer=reviewer)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
+    await activity_store.add_activity(
+        db, lead_id=lead_id, activity_type="status_change",
+        content=payload.notes or f"Status changed: {old_status} → {lead.lead_status}",
+        metadata={"old_status": old_status, "new_status": lead.lead_status, "action": payload.action},
+        created_by=reviewer,
+    )
     return lead_store.lead_to_dict(lead)
 
 
@@ -297,7 +324,76 @@ async def update_outreach(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found.")
     lead = await lead_store.patch_outreach(db, lead, payload)
+    actor = getattr(user, "email", None) or "system"
+    parts = []
+    if payload.outreach_status:
+        parts.append(f"status → {payload.outreach_status}")
+    if payload.outreach_notes:
+        parts.append(payload.outreach_notes)
+    await activity_store.add_activity(
+        db, lead_id=lead_id, activity_type="outreach",
+        content=", ".join(parts) or f"Outreach updated",
+        metadata={"outreach_status": payload.outreach_status},
+        created_by=actor,
+    )
     return lead_store.lead_to_dict(lead)
+
+
+# ── Phase 14: Activity / Audit Log ───────────────────────────────────────────
+
+@router.get("/leads/{lead_id}/activity")
+async def list_lead_activity(
+    lead_id:   UUID,
+    page:      int = Query(default=1, ge=1),
+    page_size: int = Query(default=100, ge=1, le=200),
+    db:        AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Return chronological audit trail for a lead (newest first)."""
+    lead = await lead_store.get_lead(db, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found.")
+    items = await activity_store.list_activity(db, lead_id, page=page, page_size=page_size)
+    return [activity_store.activity_to_dict(a) for a in items]
+
+
+@router.post("/leads/{lead_id}/activity", status_code=status.HTTP_201_CREATED)
+async def add_lead_activity(
+    lead_id: UUID,
+    payload: ActivityCreate,
+    db:      AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Add a note, follow-up, call log, email log, WhatsApp log, or tag to a lead.
+
+    When activity_type='follow_up' and follow_up_at is provided, also updates
+    lead.follow_up_at on the lead record.
+    """
+    from datetime import datetime as _dt
+    lead = await lead_store.get_lead(db, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found.")
+
+    meta = dict(payload.metadata or {})
+    if payload.activity_type == "follow_up" and payload.follow_up_at:
+        lead.follow_up_at = payload.follow_up_at
+        lead.updated_at   = _dt.utcnow()
+        db.add(lead)
+        await db.commit()
+        await db.refresh(lead)
+        meta["follow_up_at"] = payload.follow_up_at.isoformat()
+
+    actor = getattr(user, "email", None) or "system"
+    act = await activity_store.add_activity(
+        db,
+        lead_id=lead_id,
+        activity_type=payload.activity_type,
+        content=payload.content,
+        metadata=meta or None,
+        created_by=actor,
+    )
+    return activity_store.activity_to_dict(act)
 
 
 @router.get("/review-queue")

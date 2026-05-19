@@ -118,210 +118,419 @@ const inputStyle = {
   fontSize: 13, color: C.dark, background: C.rowBg, outline: 'none',
 }
 
-// ── Lead Detail Panel ─────────────────────────────────────────────────────────
-function LeadDetail({ lead, token, onClose, onUpdate }) {
-  const [acting, setActing] = useState(null)
-  const [classifying, setClassifying] = useState(false)
-  const [scoring, setScoring]         = useState(false)
-  const [notes, setNotes]             = useState(lead.notes || '')
-  const [savingNotes, setSavingNotes] = useState(false)
-  const [error, setError]             = useState(null)
+// ── Activity type config ──────────────────────────────────────────────────────
+const ACT_TYPES = [
+  { value: 'note',         label: '📝 Note',       placeholder: 'Add a note…' },
+  { value: 'follow_up',    label: '📅 Follow-up',  placeholder: 'Follow-up details…' },
+  { value: 'call_log',     label: '📞 Call',        placeholder: 'Call summary…' },
+  { value: 'email_log',    label: '✉️ Email',       placeholder: 'Email summary…' },
+  { value: 'whatsapp_log', label: '💬 WhatsApp',   placeholder: 'Message summary…' },
+  { value: 'tag',          label: '🏷️ Tag',         placeholder: 'Tag name…' },
+]
+const ACT_BG = {
+  note: 'rgba(10,191,202,.15)', follow_up: 'rgba(233,147,13,.15)',
+  call_log: 'rgba(16,185,129,.15)', email_log: 'rgba(139,92,246,.15)',
+  whatsapp_log: 'rgba(16,185,129,.2)', tag: 'rgba(10,191,202,.1)',
+  status_change: 'rgba(75,96,128,.15)', classify: 'rgba(10,191,202,.12)',
+  score: 'rgba(139,92,246,.12)', outreach: 'rgba(139,92,246,.15)',
+}
 
-  async function doAction(action, extraPayload = {}) {
-    setActing(action)
-    setError(null)
+// ── Lead Detail Panel ─────────────────────────────────────────────────────────
+function LeadDetail({ lead: initLead, token, onClose, onUpdate }) {
+  const [lead, setLead]         = useState(initLead)
+  const [section, setSection]   = useState('overview')  // overview | activity
+  const [acting, setActing]     = useState(null)
+  const [classifying, setClassifying] = useState(false)
+  const [scoring, setScoring]   = useState(false)
+  const [error, setError]       = useState(null)
+
+  // CRM properties
+  const [assignedTo, setAssignedTo] = useState(initLead.assigned_to || '')
+  const [followUpAt, setFollowUpAt] = useState(initLead.follow_up_at ? initLead.follow_up_at.slice(0, 10) : '')
+  const [savingProp, setSavingProp] = useState(null)
+
+  // Tags
+  const [userTags, setUserTags] = useState(() => { try { return JSON.parse(initLead.tags_json || '[]') } catch { return [] } })
+  const [newTag, setNewTag]     = useState('')
+
+  // Activity
+  const [activities, setActivities]   = useState([])
+  const [loadingAct, setLoadingAct]   = useState(true)
+  const [actType, setActType]         = useState('note')
+  const [actContent, setActContent]   = useState('')
+  const [actFuDate, setActFuDate]     = useState('')
+  const [addingAct, setAddingAct]     = useState(false)
+  const [actError, setActError]       = useState(null)
+
+  // load activity once
+  useEffect(() => {
+    api(token, `/seller-discovery/leads/${lead.id}/activity`)
+      .then(setActivities).catch(() => {}).finally(() => setLoadingAct(false))
+  }, [lead.id, token])
+
+  function sync(updated) { setLead(updated); onUpdate(updated) }
+
+  async function doAction(action) {
+    setActing(action); setError(null)
     try {
-      const updated = await api(token, `/seller-discovery/leads/${lead.id}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ action, ...extraPayload }),
-      })
-      onUpdate(updated)
+      const updated = await api(token, `/seller-discovery/leads/${lead.id}/review`, { method: 'POST', body: JSON.stringify({ action }) })
+      sync(updated)
+      // reload activity to show auto-logged status_change
+      api(token, `/seller-discovery/leads/${lead.id}/activity`).then(setActivities).catch(() => {})
     } catch (e) { setError(String(e)) }
     finally { setActing(null) }
   }
 
   async function doClassify() {
-    setClassifying(true)
-    setError(null)
+    setClassifying(true); setError(null)
     try {
       const updated = await api(token, `/seller-discovery/leads/${lead.id}/classify`, { method: 'POST' })
-      onUpdate(updated)
+      sync(updated)
+      api(token, `/seller-discovery/leads/${lead.id}/activity`).then(setActivities).catch(() => {})
     } catch (e) { setError(String(e)) }
     finally { setClassifying(false) }
   }
 
   async function doScore() {
-    setScoring(true)
-    setError(null)
+    setScoring(true); setError(null)
     try {
       const updated = await api(token, `/seller-discovery/leads/${lead.id}/score`, { method: 'POST' })
-      onUpdate(updated)
+      sync(updated)
+      api(token, `/seller-discovery/leads/${lead.id}/activity`).then(setActivities).catch(() => {})
     } catch (e) { setError(String(e)) }
     finally { setScoring(false) }
   }
 
-  async function saveNotes() {
-    setSavingNotes(true)
+  async function saveProp(field, value) {
+    setSavingProp(field)
     try {
-      const updated = await api(token, `/seller-discovery/leads/${lead.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ notes }),
-      })
-      onUpdate(updated)
+      const updated = await api(token, `/seller-discovery/leads/${lead.id}`, { method: 'PATCH', body: JSON.stringify({ [field]: value || null }) })
+      sync(updated)
     } catch (e) { setError(String(e)) }
-    finally { setSavingNotes(false) }
+    finally { setSavingProp(null) }
   }
 
-  const tags = (() => { try { return JSON.parse(lead.ai_tags_json || '[]') } catch { return [] } })()
+  async function addTag() {
+    const tag = newTag.trim()
+    if (!tag) return
+    const next = [...userTags, tag]
+    try {
+      const updated = await api(token, `/seller-discovery/leads/${lead.id}`, { method: 'PATCH', body: JSON.stringify({ tags_json: JSON.stringify(next) }) })
+      sync(updated); setUserTags(next); setNewTag('')
+      const act = await api(token, `/seller-discovery/leads/${lead.id}/activity`, { method: 'POST', body: JSON.stringify({ activity_type: 'tag', content: `Tag added: ${tag}` }) })
+      setActivities(prev => [act, ...prev])
+    } catch (e) { setError(String(e)) }
+  }
+
+  async function removeTag(tag) {
+    const next = userTags.filter(t => t !== tag)
+    try {
+      const updated = await api(token, `/seller-discovery/leads/${lead.id}`, { method: 'PATCH', body: JSON.stringify({ tags_json: JSON.stringify(next) }) })
+      sync(updated); setUserTags(next)
+      const act = await api(token, `/seller-discovery/leads/${lead.id}/activity`, { method: 'POST', body: JSON.stringify({ activity_type: 'tag', content: `Tag removed: ${tag}` }) })
+      setActivities(prev => [act, ...prev])
+    } catch (e) { setError(String(e)) }
+  }
+
+  async function submitActivity(e) {
+    e.preventDefault()
+    const isFollowUp = actType === 'follow_up'
+    if (!actContent.trim() && !isFollowUp) return
+    if (isFollowUp && !actFuDate) { setActError('Choose a follow-up date'); return }
+    setAddingAct(true); setActError(null)
+    try {
+      const body = { activity_type: actType, content: actContent || undefined }
+      if (isFollowUp) body.follow_up_at = new Date(actFuDate).toISOString()
+      const act = await api(token, `/seller-discovery/leads/${lead.id}/activity`, { method: 'POST', body: JSON.stringify(body) })
+      setActivities(prev => [act, ...prev])
+      setActContent(''); setActFuDate('')
+      if (isFollowUp) {
+        setFollowUpAt(actFuDate)
+        setLead(prev => ({ ...prev, follow_up_at: actFuDate }))
+      }
+    } catch (e) { setActError(String(e)) }
+    finally { setAddingAct(false) }
+  }
+
+  const aiTags = (() => { try { return JSON.parse(lead.ai_tags_json || '[]') } catch { return [] } })()
+  const actTypeCfg = ACT_TYPES.find(t => t.value === actType) || ACT_TYPES[0]
+
+  const SectionLabel = ({ label }) => (
+    <div style={{ fontSize: 10, fontWeight: 700, color: C.light, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>{label}</div>
+  )
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, right: 0, bottom: 0, width: 480,
-      background: C.white, boxShadow: '-8px 0 32px rgba(0,0,0,.12)',
-      zIndex: 1000, overflowY: 'auto', display: 'flex', flexDirection: 'column',
-    }}>
-      {/* Header */}
-      <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
-        {lead.profile_image_url && (
-          <img src={lead.profile_image_url} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} onError={e => e.target.style.display='none'} />
-        )}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: C.dark }}>@{lead.username}</div>
-          <div style={{ fontSize: 12, color: C.light }}>
-            {lead.source} · {lead.full_name || 'Unknown'}
-            {lead.country && ` · ${lead.country}`}
-          </div>
-        </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: C.light, cursor: 'pointer' }}>✕</button>
-      </div>
+    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 520, background: C.white, boxShadow: '-8px 0 40px rgba(0,0,0,.15)', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      <div style={{ padding: '20px 24px', flex: 1 }}>
-        {/* Score + Status */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+      {/* ── Header ── */}
+      <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          {lead.profile_image_url
+            ? <img src={lead.profile_image_url} alt="" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} onError={e => e.target.style.display='none'} />
+            : <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(10,191,202,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: C.teal, flexShrink: 0 }}>{lead.username[0]?.toUpperCase()}</div>
+          }
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.dark }}>@{lead.username}</div>
+            <div style={{ fontSize: 11, color: C.light, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {lead.source} · {lead.full_name || 'Unknown'}{lead.country ? ` · ${lead.country}` : ''}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, color: C.light, cursor: 'pointer', padding: 4 }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <ScoreBar score={lead.lead_score} />
           <Badge value={lead.priority_level || 'unscored'} styleMap={PRIORITY_STYLE} />
           <Badge value={lead.lead_status} styleMap={STATUS_STYLE} />
+          {lead.follow_up_at && <span style={{ fontSize: 11, color: C.amber, fontWeight: 600, background: 'rgba(233,147,13,.1)', borderRadius: 6, padding: '2px 8px' }}>📅 {new Date(lead.follow_up_at).toLocaleDateString('en-IN')}</span>}
+          {lead.assigned_to && <span style={{ fontSize: 11, color: C.purple, fontWeight: 600, background: 'rgba(139,92,246,.1)', borderRadius: 6, padding: '2px 8px' }}>👤 {lead.assigned_to}</span>}
         </div>
+      </div>
 
-        {/* Profile stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
-          {[
-            ['Followers', lead.followers_count?.toLocaleString('en-IN')],
-            ['Following', lead.following_count?.toLocaleString('en-IN')],
-            ['Engagement', lead.engagement_rate != null ? `${(lead.engagement_rate * 100).toFixed(2)}%` : null],
-          ].map(([label, val]) => val != null && (
-            <div key={label} style={{ background: C.rowBg, borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: C.light, marginBottom: 2 }}>{label}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>{val}</div>
-            </div>
-          ))}
-        </div>
+      {/* ── Sub-tabs ── */}
+      <div style={{ display: 'flex', background: C.rowBg, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        {[['overview', '📋 Overview'], ['activity', `🕐 Activity${activities.length ? ` (${activities.length})` : ''}`]].map(([id, label]) => (
+          <button key={id} onClick={() => setSection(id)} style={{ flex: 1, padding: '9px 0', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: section === id ? C.white : 'transparent', color: section === id ? C.teal : C.mid, borderBottom: section === id ? `2px solid ${C.teal}` : '2px solid transparent' }}>
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {/* Bio */}
-        {lead.bio && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.mid, textTransform: 'uppercase', marginBottom: 4 }}>Bio</div>
-            <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.5, background: C.rowBg, borderRadius: 8, padding: '10px 12px' }}>{lead.bio}</div>
-          </div>
-        )}
+      {/* ── Scrollable body ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
 
-        {/* Contact + Website */}
-        {(lead.website || lead.email || lead.whatsapp) && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.mid, textTransform: 'uppercase', marginBottom: 6 }}>Contact</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {lead.website && <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: C.teal, textDecoration: 'none' }}>🌐 {lead.website}</a>}
-              {lead.email    && <span style={{ fontSize: 13, color: C.dark }}>✉️ {lead.email}</span>}
-              {lead.whatsapp && <span style={{ fontSize: 13, color: C.dark }}>💬 {lead.whatsapp}</span>}
-            </div>
-          </div>
-        )}
-
-        {/* AI Classification */}
-        {lead.ai_classified_at && (
-          <div style={{ marginBottom: 16, background: 'rgba(10,191,202,.06)', borderRadius: 10, padding: '12px 14px', border: `1px solid rgba(10,191,202,.15)` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.teal, textTransform: 'uppercase', marginBottom: 8 }}>AI Classification</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+        {section === 'overview' ? (
+          <>
+            {/* Profile stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
               {[
-                ['Ecommerce', lead.ai_is_ecommerce ? '✓ Yes' : '✗ No'],
-                ['India Seller', lead.ai_is_india_seller ? '✓ Yes' : '✗ No'],
-                ['Category', lead.ai_category],
-                ['Biz Type', lead.ai_estimated_biz_type],
-                ['Revenue Stage', lead.ai_revenue_stage],
-                ['Relevance', lead.ai_relevance_score != null ? `${(lead.ai_relevance_score * 100).toFixed(0)}%` : null],
-              ].filter(([, v]) => v != null).map(([label, val]) => (
-                <div key={label}>
-                  <div style={{ fontSize: 10, color: C.light }}>{label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{val}</div>
+                ['Followers', lead.followers_count?.toLocaleString('en-IN')],
+                ['Following', lead.following_count?.toLocaleString('en-IN')],
+                ['Engagement', lead.engagement_rate != null ? `${(lead.engagement_rate * 100).toFixed(2)}%` : null],
+              ].map(([label, val]) => val != null && (
+                <div key={label} style={{ background: C.rowBg, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: C.light, textTransform: 'uppercase', fontWeight: 600, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>{val}</div>
                 </div>
               ))}
             </div>
-            {tags.length > 0 && (
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
-                {tags.map((t, i) => <span key={i} style={{ background: 'rgba(10,191,202,.12)', color: C.teal, borderRadius: 6, padding: '2px 8px', fontSize: 11 }}>{t}</span>)}
+
+            {/* Bio */}
+            {lead.bio && <div style={{ marginBottom: 12, background: C.rowBg, borderRadius: 8, padding: '8px 10px' }}><SectionLabel label="Bio" /><div style={{ fontSize: 13, color: C.dark, lineHeight: 1.5 }}>{lead.bio}</div></div>}
+
+            {/* Contact */}
+            {(lead.website || lead.email || lead.whatsapp) && (
+              <div style={{ marginBottom: 14 }}>
+                <SectionLabel label="Contact" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {lead.website && <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: C.teal, textDecoration: 'none' }}>🌐 {lead.website}</a>}
+                  {lead.email    && <span style={{ fontSize: 13, color: C.dark }}>✉️ {lead.email}</span>}
+                  {lead.whatsapp && <span style={{ fontSize: 13, color: C.dark }}>💬 {lead.whatsapp}</span>}
+                </div>
               </div>
             )}
-            {lead.ai_outreach_suggestion && (
-              <div style={{ fontSize: 12, color: C.mid, fontStyle: 'italic', lineHeight: 1.5, borderTop: `1px solid rgba(10,191,202,.15)`, paddingTop: 8 }}>
-                💬 {lead.ai_outreach_suggestion}
+
+            {/* JIRA-style properties */}
+            <div style={{ marginBottom: 14, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '7px 12px', background: C.rowBg, borderBottom: `1px solid ${C.border}`, fontSize: 10, fontWeight: 700, color: C.mid, textTransform: 'uppercase', letterSpacing: '.05em' }}>Properties</div>
+              <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Assigned To */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: C.mid, minWidth: 88 }}>Assigned To</span>
+                  <input value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
+                    onBlur={() => saveProp('assigned_to', assignedTo)}
+                    placeholder="e.g. ranjith" style={{ ...inputStyle, flex: 1, padding: '5px 9px', fontSize: 12 }} />
+                  {savingProp === 'assigned_to' && <Spinner size={14} />}
+                </div>
+                {/* Follow-up date */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: C.mid, minWidth: 88 }}>Follow-up</span>
+                  <input type="date" value={followUpAt} onChange={e => setFollowUpAt(e.target.value)}
+                    onBlur={async () => {
+                      if (followUpAt) {
+                        await saveProp('follow_up_at', new Date(followUpAt + 'T00:00:00').toISOString())
+                        const act = await api(token, `/seller-discovery/leads/${lead.id}/activity`, { method: 'POST', body: JSON.stringify({ activity_type: 'follow_up', content: `Follow-up scheduled for ${followUpAt}`, follow_up_at: new Date(followUpAt + 'T00:00:00').toISOString() }) }).catch(() => null)
+                        if (act) setActivities(prev => [act, ...prev])
+                      }
+                    }}
+                    style={{ ...inputStyle, flex: 1, padding: '5px 9px', fontSize: 12 }} />
+                  {savingProp === 'follow_up_at' && <Spinner size={14} />}
+                </div>
+                {/* Outreach status */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: C.mid, minWidth: 88 }}>Outreach</span>
+                  <select value={lead.outreach_status || 'pending'}
+                    onChange={async e => {
+                      try {
+                        const updated = await api(token, `/seller-discovery/leads/${lead.id}/outreach`, { method: 'PATCH', body: JSON.stringify({ outreach_status: e.target.value }) })
+                        sync(updated)
+                        api(token, `/seller-discovery/leads/${lead.id}/activity`).then(setActivities).catch(() => {})
+                      } catch (err) { setError(String(err)) }
+                    }}
+                    style={{ ...inputStyle, flex: 1, padding: '5px 9px', fontSize: 12 }}>
+                    <option value="pending">⏳ Pending</option>
+                    <option value="ready">✅ Ready</option>
+                    <option value="contacted">📤 Contacted</option>
+                    <option value="skipped">⏭️ Skipped</option>
+                  </select>
+                </div>
+                {/* Tags */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: C.mid, minWidth: 88, paddingTop: 4 }}>Tags</span>
+                  <div style={{ flex: 1 }}>
+                    {userTags.length > 0 && (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+                        {userTags.map((t, i) => (
+                          <span key={i} style={{ background: 'rgba(10,191,202,.1)', color: C.teal, borderRadius: 6, padding: '2px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            {t}
+                            <button onClick={() => removeTag(t)} style={{ background: 'none', border: 'none', color: C.light, cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      <input value={newTag} onChange={e => setNewTag(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                        placeholder="Add tag…" style={{ ...inputStyle, flex: 1, padding: '4px 8px', fontSize: 12 }} />
+                      <button onClick={addTag} disabled={!newTag.trim()} style={{ padding: '4px 10px', borderRadius: 7, background: 'rgba(10,191,202,.12)', color: C.teal, border: 'none', fontSize: 12, cursor: 'pointer' }}>+ Add</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Classification */}
+            {lead.ai_classified_at && (
+              <div style={{ marginBottom: 14, background: 'rgba(10,191,202,.06)', borderRadius: 10, padding: '10px 12px', border: `1px solid rgba(10,191,202,.15)` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.teal, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>AI Classification · {new Date(lead.ai_classified_at).toLocaleDateString('en-IN')}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: aiTags.length || lead.ai_outreach_suggestion ? 8 : 0 }}>
+                  {[
+                    ['eCommerce', lead.ai_is_ecommerce ? '✓ Yes' : '✗ No'],
+                    ['India Seller', lead.ai_is_india_seller ? '✓ Yes' : '✗ No'],
+                    ['Category', lead.ai_category],
+                    ['Biz Type', lead.ai_estimated_biz_type],
+                    ['Revenue Stage', lead.ai_revenue_stage],
+                    ['Relevance', lead.ai_relevance_score != null ? `${(lead.ai_relevance_score * 100).toFixed(0)}%` : null],
+                    ['Confidence', lead.ai_confidence_score != null ? `${(lead.ai_confidence_score * 100).toFixed(0)}%` : null],
+                    ['Fake', lead.ai_is_fake_account ? '⚠️ Suspicious' : null],
+                  ].filter(([, v]) => v != null).map(([label, val]) => (
+                    <div key={label}><div style={{ fontSize: 10, color: C.light }}>{label}</div><div style={{ fontSize: 12, fontWeight: 600, color: C.dark }}>{val}</div></div>
+                  ))}
+                </div>
+                {aiTags.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: lead.ai_outreach_suggestion ? 8 : 0 }}>{aiTags.map((t, i) => <span key={i} style={{ background: 'rgba(10,191,202,.12)', color: C.teal, borderRadius: 6, padding: '1px 7px', fontSize: 11 }}>{t}</span>)}</div>}
+                {lead.ai_outreach_suggestion && <div style={{ fontSize: 12, color: C.mid, fontStyle: 'italic', lineHeight: 1.5, borderTop: `1px solid rgba(10,191,202,.15)`, paddingTop: 8 }}>💬 {lead.ai_outreach_suggestion}</div>}
               </div>
             )}
-          </div>
+
+            {/* Actions */}
+            <div style={{ marginBottom: 14 }}>
+              <SectionLabel label="Actions" />
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button onClick={doClassify} disabled={classifying} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(10,191,202,.12)', color: C.teal, border: `1px solid rgba(10,191,202,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {classifying ? <Spinner size={13} /> : '🤖'} Classify
+                </button>
+                <button onClick={doScore} disabled={scoring} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(139,92,246,.12)', color: C.purple, border: `1px solid rgba(139,92,246,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {scoring ? <Spinner size={13} /> : '⭐'} Score
+                </button>
+                {['new','review_pending','reviewing'].includes(lead.lead_status) && <>
+                  <button onClick={() => doAction('approve')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(16,185,129,.12)', color: C.green, border: `1px solid rgba(16,185,129,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {acting === 'approve' ? <Spinner size={13} /> : '✓ Approve'}
+                  </button>
+                  <button onClick={() => doAction('reject')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(232,52,74,.1)', color: C.red, border: `1px solid rgba(232,52,74,.2)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {acting === 'reject' ? <Spinner size={13} /> : '✕ Reject'}
+                  </button>
+                </>}
+                {['approved','reviewing','review_pending'].includes(lead.lead_status) && (
+                  <button onClick={() => doAction('qualify')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(16,185,129,.15)', color: C.green, border: `1px solid rgba(16,185,129,.3)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {acting === 'qualify' ? <Spinner size={13} /> : '🎯 Qualify'}
+                  </button>
+                )}
+                {['qualified','approved'].includes(lead.lead_status) && (
+                  <button onClick={() => doAction('contact_ready')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(139,92,246,.12)', color: C.purple, border: `1px solid rgba(139,92,246,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {acting === 'contact_ready' ? <Spinner size={13} /> : '📤 Contact Ready'}
+                  </button>
+                )}
+              </div>
+              {error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{error}</div>}
+            </div>
+
+            {/* Meta */}
+            <div style={{ fontSize: 11, color: C.light, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+              Created {new Date(lead.created_at).toLocaleDateString('en-IN')}
+              {lead.reviewed_by && ` · Reviewed by ${lead.reviewed_by}`}
+              {lead.discovery_keyword && ` · via ${lead.discovery_keyword}`}
+            </div>
+          </>
+        ) : (
+          /* ── Activity tab ── */
+          <>
+            {/* Add activity form */}
+            <form onSubmit={submitActivity} style={{ marginBottom: 18, background: C.rowBg, borderRadius: 10, border: `1px solid ${C.border}`, padding: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.dark, marginBottom: 8 }}>Log Activity</div>
+              {/* Type pills */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
+                {ACT_TYPES.map(t => (
+                  <button key={t.value} type="button" onClick={() => setActType(t.value)}
+                    style={{ padding: '3px 10px', borderRadius: 6, border: actType === t.value ? `2px solid ${C.teal}` : `1px solid ${C.border}`, background: actType === t.value ? 'rgba(10,191,202,.1)' : C.white, color: actType === t.value ? C.teal : C.mid, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {/* Follow-up date input */}
+              {actType === 'follow_up' && (
+                <input type="date" value={actFuDate} onChange={e => setActFuDate(e.target.value)} required
+                  style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', marginBottom: 8, fontSize: 12 }} />
+              )}
+              <textarea value={actContent} onChange={e => setActContent(e.target.value)}
+                placeholder={actTypeCfg.placeholder} rows={3}
+                style={{ ...inputStyle, width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: 12, marginBottom: 8 }} />
+              {actError && <div style={{ fontSize: 11, color: C.red, marginBottom: 6 }}>{actError}</div>}
+              <button type="submit" disabled={addingAct || (actType !== 'follow_up' && !actContent.trim())}
+                style={{ padding: '7px 16px', borderRadius: 8, background: 'linear-gradient(135deg,#0ABFCA,#088F99)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {addingAct ? <><Spinner size={13} /> Saving…</> : '+ Log'}
+              </button>
+            </form>
+
+            {/* Timeline */}
+            {loadingAct ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner size={28} /></div>
+            ) : activities.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: C.light, fontSize: 13 }}>No activity yet. Log a note, call, or follow-up to get started.</div>
+            ) : (
+              <div>
+                {activities.map((act, i) => (
+                  <div key={act.id} style={{ display: 'flex', gap: 10, paddingBottom: 16 }}>
+                    {/* Node + line */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: ACT_BG[act.activity_type] || 'rgba(75,96,128,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>{act.icon}</div>
+                      {i < activities.length - 1 && <div style={{ width: 2, flex: 1, background: C.border, marginTop: 4, minHeight: 14 }} />}
+                    </div>
+                    {/* Content */}
+                    <div style={{ flex: 1, paddingTop: 4, minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: C.dark, textTransform: 'capitalize' }}>{act.activity_type.replace('_', ' ')}</span>
+                        {act.metadata_json?.old_status && (
+                          <span style={{ fontSize: 11, color: C.light }}>{act.metadata_json.old_status} → {act.metadata_json.new_status}</span>
+                        )}
+                        {act.metadata_json?.follow_up_at && (
+                          <span style={{ fontSize: 11, color: C.amber, fontWeight: 600 }}>📅 {new Date(act.metadata_json.follow_up_at).toLocaleDateString('en-IN')}</span>
+                        )}
+                        {act.metadata_json?.lead_score != null && (
+                          <span style={{ fontSize: 11, color: C.purple, fontWeight: 600 }}>Score: {act.metadata_json.lead_score?.toFixed(0)}</span>
+                        )}
+                      </div>
+                      {act.content && (
+                        <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.5, background: C.rowBg, borderRadius: 8, padding: '7px 10px', marginBottom: 4, wordBreak: 'break-word' }}>{act.content}</div>
+                      )}
+                      <div style={{ fontSize: 11, color: C.light }}>
+                        {act.created_by} · {new Date(act.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
-
-        {/* Actions */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.mid, textTransform: 'uppercase', marginBottom: 8 }}>Actions</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button onClick={doClassify} disabled={classifying} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(10,191,202,.12)', color: C.teal, border: `1px solid rgba(10,191,202,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              {classifying ? <Spinner size={14} /> : '🤖'} Classify
-            </button>
-            <button onClick={doScore} disabled={scoring} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(139,92,246,.12)', color: C.purple, border: `1px solid rgba(139,92,246,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              {scoring ? <Spinner size={14} /> : '⭐'} Score
-            </button>
-            {['new','review_pending','reviewing'].includes(lead.lead_status) && <>
-              <button onClick={() => doAction('approve')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(16,185,129,.12)', color: C.green, border: `1px solid rgba(16,185,129,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                {acting === 'approve' ? <Spinner size={14} /> : '✓ Approve'}
-              </button>
-              <button onClick={() => doAction('reject')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(232,52,74,.1)', color: C.red, border: `1px solid rgba(232,52,74,.2)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                {acting === 'reject' ? <Spinner size={14} /> : '✕ Reject'}
-              </button>
-            </>}
-            {['approved','reviewing','review_pending'].includes(lead.lead_status) && (
-              <button onClick={() => doAction('qualify')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(16,185,129,.15)', color: C.green, border: `1px solid rgba(16,185,129,.3)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                {acting === 'qualify' ? <Spinner size={14} /> : '🎯 Qualify'}
-              </button>
-            )}
-            {['qualified','approved'].includes(lead.lead_status) && (
-              <button onClick={() => doAction('contact_ready')} disabled={!!acting} style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(139,92,246,.12)', color: C.purple, border: `1px solid rgba(139,92,246,.25)`, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                {acting === 'contact_ready' ? <Spinner size={14} /> : '📤 Contact Ready'}
-              </button>
-            )}
-          </div>
-          {error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{error}</div>}
-        </div>
-
-        {/* Notes */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.mid, textTransform: 'uppercase', marginBottom: 6 }}>Notes</div>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            rows={3}
-            style={{ ...inputStyle, width: '100%', resize: 'vertical', boxSizing: 'border-box' }}
-            placeholder="Add notes…"
-          />
-          <button onClick={saveNotes} disabled={savingNotes} style={{ marginTop: 6, padding: '5px 12px', borderRadius: 7, background: 'rgba(10,191,202,.12)', color: C.teal, border: `1px solid rgba(10,191,202,.2)`, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-            {savingNotes ? 'Saving…' : 'Save Notes'}
-          </button>
-        </div>
-
-        {/* Meta */}
-        <div style={{ fontSize: 11, color: C.light, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-          Created {new Date(lead.created_at).toLocaleDateString('en-IN')}
-          {lead.reviewed_by && ` · Reviewed by ${lead.reviewed_by}`}
-          {lead.discovery_keyword && ` · via ${lead.discovery_keyword}`}
-        </div>
       </div>
     </div>
   )
