@@ -141,6 +141,51 @@ def _credentials_configured(conn: PlatformConnection) -> bool:
     return has_app_id and has_client_id and has_secret
 
 
+# ── Set refresh token manually (Solution Provider / self-auth flow) ───────────
+
+class SetRefreshTokenRequest(BaseModel):
+    refresh_token:      str
+    selling_partner_id: Optional[str] = None
+
+
+@router.post("/set-refresh-token")
+async def set_refresh_token(
+    body: SetRefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_db_user),
+):
+    """
+    Manually store a refresh token obtained via self-authorization
+    (e.g. Solution Provider Portal → Create Token).
+
+    Use this when the standard OAuth consent flow is not available.
+    The token is Fernet-encrypted before storage.
+    """
+    company = current_user.companies[0] if current_user.companies else None
+    if not company:
+        raise HTTPException(status_code=400, detail="No company found for this user")
+
+    conn = await _get_or_create_connection(company.id, db)
+    conn.sp_refresh_token_enc       = encrypt(body.refresh_token.strip())
+    conn.sp_access_token_enc        = None   # force refresh on next use
+    conn.sp_access_token_expires_at = None
+    conn.status                     = "connected"
+    conn.updated_at                 = datetime.utcnow()
+
+    if body.selling_partner_id:
+        conn.sp_selling_partner_id = body.selling_partner_id
+
+    db.add(conn)
+    await db.commit()
+
+    logger.info("Refresh token manually set for connection %s", conn.id)
+    return {
+        "status":        "connected",
+        "connection_id": str(conn.id),
+        "message":       "Refresh token stored. Run GET /sp-api/test-connection to verify.",
+    }
+
+
 # ── Step 0: Configure credentials via UI ─────────────────────────────────────
 
 @router.post("/config")
