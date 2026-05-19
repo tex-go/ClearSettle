@@ -39,6 +39,13 @@ from app.db.models.recon_engine import (
 # Seller Discovery Engine
 from app.db.models.seller_lead import DiscoveryKeyword, DiscoveryJob, SellerLead
 from app.db.models.seller_lead_activity import SellerLeadActivity
+# Cash Flow Forecast + Meeting System
+from app.db.models.cash_flow_snapshot import CashFlowSnapshot
+from app.db.models.meeting import Meeting
+from app.db.models.meeting_participant import MeetingParticipant
+from app.db.models.meeting_note import MeetingNote
+from app.db.models.meeting_reminder import MeetingReminder
+from app.db.models.meeting_status_history import MeetingStatusHistory
 
 __all__ = [
     "User",
@@ -80,4 +87,10 @@ __all__ = [
     "DiscoveryJob",
     "SellerLead",
     "SellerLeadActivity",
+    "CashFlowSnapshot",
+    "Meeting",
+    "MeetingParticipant",
+    "MeetingNote",
+    "MeetingReminder",
+    "MeetingStatusHistory",
 ]
