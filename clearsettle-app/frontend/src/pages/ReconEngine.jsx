@@ -299,7 +299,7 @@ function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack,
     const form = new FormData()
     form.append('file', file)
     try {
-      const res = await api.post('/flipkart/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const res = await api.post('/flipkart/upload', form)
       onFileUploaded(res.data, file)
     } catch (err) {
       setUploadError(err.response?.data?.detail || 'Upload failed. Please try again.')
@@ -421,8 +421,8 @@ function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack,
 function DashboardTab({ summary, charts, reconData }) {
   if (!summary) return <div style={{ padding: '48px 0', textAlign: 'center', color: '#9CA3AF' }}>No summary data available.</div>
 
-  const moneyLeak = reconData?.issues
-    ? reconData.issues.reduce(function(acc, iss) { return acc + Math.abs(Math.min(0, Number(iss.variance) || 0)) }, 0)
+  const moneyLeak = reconData?.items
+    ? reconData.items.reduce(function(acc, iss) { return acc + Math.abs(Math.min(0, Number(iss.variance) || 0)) }, 0)
     : 0
 
   const netEarnings = summary.net_earnings || 0
@@ -448,7 +448,7 @@ function DashboardTab({ summary, charts, reconData }) {
         <HeroCard
           icon="🚨" label="Potential Money Leak" accent={P.red}
           value={moneyLeak > 0 ? inr(moneyLeak, true) : '₹0'}
-          sub={reconData?.stats ? `${reconData.stats.total_issues || 0} anomalies detected` : 'Settlement anomalies'}
+          sub={reconData?.summary ? `${reconData.summary.total_issues || 0} anomalies detected` : 'Settlement anomalies'}
           note="Estimated unrecovered settlement gaps — verify before disputing"
           onClick={function() {}}
         />
@@ -545,7 +545,7 @@ function SKUTab({ reportId }) {
     if (!reportId) return
     setLoading(true)
     api.get(`/flipkart/reports/${reportId}/skus?sort_by=${sortBy}&sort_dir=${sortDir}&limit=50${filterLoss ? '&filter_loss=true' : ''}${filterReturn ? '&filter_high_return=true' : ''}`)
-      .then(function(r) { setSkus(r.data.rows || []) })
+      .then(function(r) { setSkus(r.data.items || []) })
       .finally(function() { setLoading(false) })
   }, [reportId, sortBy, sortDir, filterLoss, filterReturn])
 
@@ -623,22 +623,22 @@ function ReconTab({ reportId }) {
   }, [reportId])
 
   if (loading) return <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
-  if (!data || !data.issues?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No reconciliation issues detected — your settlements look clean!</div>
+  if (!data || !data.items?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No reconciliation issues detected — your settlements look clean!</div>
 
   const severityColor = { critical: P.red, warning: P.amber, info: P.teal }
-  const types = [...new Set(data.issues.map(function(i) { return i.issue_type }))]
-  const filtered = typeFilter ? data.issues.filter(function(i) { return i.issue_type === typeFilter }) : data.issues
+  const types = [...new Set(data.items.map(function(i) { return i.issue_type }))]
+  const filtered = typeFilter ? data.items.filter(function(i) { return i.issue_type === typeFilter }) : data.items
 
   return (
     <div>
       {/* Stats row */}
-      {data.stats && (
+      {data.summary && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
           {[
-            { label: 'Total Issues',   value: data.stats.total_issues,   color: '#374151' },
-            { label: 'Critical',       value: data.stats.critical_count, color: P.red },
-            { label: 'Warning',        value: data.stats.warning_count,  color: P.amber },
-            { label: 'Est. Impact',    value: inr(data.stats.total_variance, true), color: P.red },
+            { label: 'Total Issues',   value: data.summary.total_issues,          color: '#374151' },
+            { label: 'Critical',       value: data.summary.critical_issues,        color: P.red },
+            { label: 'Warning',        value: data.summary.warning_issues,         color: P.amber },
+            { label: 'Est. Impact',    value: inr(data.summary.total_variance_amount, true), color: P.red },
           ].map(function(s) {
             return (
               <div key={s.label} style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 10, padding: '12px 14px' }}>
@@ -824,11 +824,12 @@ function ReconEngine() {
   const [selectedReport, setSelectedReport] = useState(null)
 
   // Upload flow state
-  const [uploading, setUploading]       = useState(false)
-  const [previewData, setPreviewData]   = useState(null)
+  const [uploading, setUploading]         = useState(false)
+  const [previewData, setPreviewData]     = useState(null)
   const [pendingReport, setPendingReport] = useState(null)  // {id, preview, file}
-  const [confirming, setConfirming]     = useState(false)
-  const [processingId, setProcessingId] = useState(null)
+  const [confirming, setConfirming]       = useState(false)
+  const [processingId, setProcessingId]   = useState(null)
+  const [processingFilename, setProcessingFilename] = useState('')
 
   const pollRef = useRef(null)
 
@@ -837,7 +838,7 @@ function ReconEngine() {
     if (!platform) return
     if (platform.id === 'flipkart') {
       api.get('/flipkart/reports').then(function(r) {
-        const list = r.data.reports || []
+        const list = r.data.items || []
         setReports(list)
         // Auto-select latest done report
         const done = list.find(function(r) { return r.status === 'done' })
@@ -893,12 +894,14 @@ function ReconEngine() {
 
   async function handleConfirm() {
     if (!pendingReport) return
+    const reportId = pendingReport.id
+    setProcessingFilename(pendingReport.file?.name || 'your report')
     setConfirming(true)
     try {
-      await api.post('/flipkart/reports/' + pendingReport.id + '/confirm')
+      await api.post('/flipkart/reports/' + reportId + '/confirm')
       setPendingReport(null)
       setConfirming(false)
-      setProcessingId(pendingReport.id)
+      setProcessingId(reportId)
       setView('processing')
     } catch (e) {
       setConfirming(false)
@@ -940,7 +943,7 @@ function ReconEngine() {
 
         {view === 'processing' && platform && (
           <ProcessingView
-            filename={pendingReport?.file?.name || 'your report'}
+            filename={processingFilename || 'your report'}
             onDone={function() {}}
           />
         )}
