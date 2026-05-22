@@ -50,6 +50,7 @@ services:
       SP_API_CLIENT_SECRET: "${SP_API_CLIENT_SECRET:-}"
       SP_API_REDIRECT_URI:  "${SP_API_REDIRECT_URI:-http://localhost:8000/sp-api/callback}"
       SP_API_REFRESH_TOKEN: "${SP_API_REFRESH_TOKEN:-}"
+      SP_API_ENDPOINT:      "${SP_API_ENDPOINT:-https://sellingpartnerapi-eu.amazon.com}"
       FRONTEND_URL:         "http://localhost:80"
 
       ENV: development

@@ -34,20 +34,20 @@ function fmtDate(iso) {
 const PLATFORMS = [
   { id: 'flipkart', label: 'Flipkart', icon: '🛒', live: true,  color: '#FF6B35',
     desc: 'Upload P&L, Settlement Statement and Returns Report from Flipkart Seller Hub' },
-  { id: 'amazon',   label: 'Amazon',   icon: '📦', live: false, color: '#FF9900', desc: 'SP-API integration — coming soon' },
-  { id: 'meesho',   label: 'Meesho',   icon: '🧵', live: false, color: '#7B2D8B', desc: 'Report upload — coming soon' },
+  { id: 'amazon',   label: 'Amazon',   icon: '📦', live: true,  color: '#FF9900',
+    desc: 'Upload Settlement Report (.txt) from Amazon Seller Central for full reconciliation' },
+  { id: 'meesho',   label: 'Meesho',   icon: '🧵', live: true,  color: '#7B2D8B',
+    desc: 'Upload Payment Report (.xlsx) from Meesho Supplier Panel for payment analysis' },
   { id: 'myntra',   label: 'Myntra',   icon: '👗', live: false, color: '#FF3F6C', desc: 'Coming soon' },
   { id: 'ajio',     label: 'Ajio',     icon: '🎽', live: false, color: '#F26522', desc: 'Coming soon' },
   { id: 'nykaa',    label: 'Nykaa',    icon: '💄', live: false, color: '#FC2779', desc: 'Coming soon' },
 ]
 
-// ── Required docs definition ───────────────────────────────────────────────────
-const REQUIRED_DOCS = [
+// ── Per-platform required docs ─────────────────────────────────────────────────
+const FLIPKART_DOCS = [
   {
-    key: 'pl_report',
-    label: 'P&L Report',
-    icon: '📊',
-    accent: P.teal,
+    key: 'pl_report', primary: true,
+    label: 'P&L Report', icon: '📊', accent: P.teal,
     description: 'Profit & Loss breakdown by SKU and order. Core report for fee analysis.',
     accept: '.xlsx,.xls',
     steps: [
@@ -60,10 +60,8 @@ const REQUIRED_DOCS = [
     analysisComing: false,
   },
   {
-    key: 'settlement_statement',
-    label: 'Settlement Statement',
-    icon: '🏦',
-    accent: P.blue,
+    key: 'settlement_statement', primary: false,
+    label: 'Settlement Statement', icon: '🏦', accent: P.blue,
     description: 'Actual bank transfer amounts. Used to verify credits against expected payouts.',
     accept: '.xlsx,.xls,.csv',
     steps: [
@@ -76,10 +74,8 @@ const REQUIRED_DOCS = [
     analysisComing: true,
   },
   {
-    key: 'returns_report',
-    label: 'Returns Report',
-    icon: '↩️',
-    accent: P.amber,
+    key: 'returns_report', primary: false,
+    label: 'Returns Report', icon: '↩️', accent: P.amber,
     description: 'Per-order return reasons and refund amounts. Essential for return rate analysis.',
     accept: '.xlsx,.xls,.csv',
     steps: [
@@ -92,6 +88,85 @@ const REQUIRED_DOCS = [
     analysisComing: true,
   },
 ]
+
+const AMAZON_DOCS = [
+  {
+    key: 'settlement_report', primary: true,
+    label: 'Settlement Report', icon: '📄', accent: '#FF9900',
+    description: 'Flat file settlement report from Amazon Seller Central. Used for full payout reconciliation.',
+    accept: '.txt,.xlsx,.xls,.csv,.tsv',
+    steps: [
+      'Log in to Amazon Seller Central',
+      'Go to Reports → Payments → Settlement Reports',
+      'Select the settlement period you want to analyse',
+      'Click Download → V2 Settlement Report (.txt flat file)',
+      'Upload the downloaded .txt file here',
+    ],
+    analysisComing: false,
+  },
+  {
+    key: 'bank_statement', primary: false,
+    label: 'Bank Statement', icon: '🏦', accent: P.blue,
+    description: 'Bank transaction statement to cross-verify actual credits from Amazon.',
+    accept: '.xlsx,.xls,.csv,.pdf',
+    steps: [
+      'Log in to your bank\'s internet banking',
+      'Download the statement for the period matching your settlement report',
+      'Export as Excel or CSV',
+      'Upload here to enable bank-to-settlement cross-check',
+    ],
+    analysisComing: true,
+  },
+]
+
+const MEESHO_DOCS = [
+  {
+    key: 'payment_report', primary: true,
+    label: 'Payment Report', icon: '💳', accent: '#7B2D8B',
+    description: 'Payment report from Meesho Supplier Panel. Contains all order-level payment details.',
+    accept: '.xlsx,.xls,.csv',
+    steps: [
+      'Log in to Meesho Supplier Panel (supplier.meesho.com)',
+      'Go to Payments → Payment Reports',
+      'Select the payment cycle / date range',
+      'Click Download Report → Excel format',
+      'Upload the downloaded .xlsx file here',
+    ],
+    analysisComing: false,
+  },
+  {
+    key: 'gst_report', primary: false,
+    label: 'GST Report', icon: '🧾', accent: P.teal,
+    description: 'GST tax report from Meesho Supplier Panel for TCS reconciliation.',
+    accept: '.xlsx,.xls,.csv',
+    steps: [
+      'Log in to Meesho Supplier Panel',
+      'Go to Tax → GST Reports',
+      'Download the GST report for the matching period',
+      'Upload here for TCS verification',
+    ],
+    analysisComing: true,
+  },
+]
+
+const PLATFORM_DOCS = {
+  flipkart: FLIPKART_DOCS,
+  amazon:   AMAZON_DOCS,
+  meesho:   MEESHO_DOCS,
+}
+
+// Backward-compat alias used by legacy REQUIRED_DOCS references
+const REQUIRED_DOCS = FLIPKART_DOCS
+
+function getPlatformDocs(platformId) {
+  return PLATFORM_DOCS[platformId] || FLIPKART_DOCS
+}
+
+function getPrimaryDocKey(platformId) {
+  const docs = getPlatformDocs(platformId)
+  const primary = docs.find(function(d) { return d.primary })
+  return primary ? primary.key : docs[0].key
+}
 
 // ── Processing animation stages ────────────────────────────────────────────────
 const STAGES = [
@@ -194,25 +269,29 @@ function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAu
   const [expanded, setExpanded]       = useState({})
   const fileRefs = useRef({})
 
+  const platformDocs   = getPlatformDocs(platform.id)
+  const primaryDocKey  = getPrimaryDocKey(platform.id)
+  const apiPrefix      = '/' + platform.id
+
   const fetchStatus = useCallback(function() {
-    api.get('/flipkart/docs-status')
-      .then(function(r) { setDocsStatus(r.data) })
+    api.get(apiPrefix + '/docs-status')
+      .then(function(r) { setDocsStatus(r.data.docs || r.data) })
       .catch(function() { setDocsStatus(null) })
       .finally(function() { setLoading(false) })
-  }, [])
+  }, [apiPrefix])
 
   useEffect(function() { fetchStatus() }, [fetchStatus])
 
-  // Auto-proceed when all 3 are uploaded (skip if user came here to manage docs)
+  // Auto-proceed when primary doc is done and all are uploaded
   useEffect(function() {
     if (!docsStatus || preventAutoProceed) return
-    const allDone = REQUIRED_DOCS.every(function(d) { return docsStatus[d.key]?.uploaded })
+    const allDone = platformDocs.every(function(d) { return docsStatus[d.key]?.status === 'done' || docsStatus[d.key]?.uploaded })
     if (allDone) onAllUploaded()
-  }, [docsStatus, onAllUploaded, preventAutoProceed])
+  }, [docsStatus, onAllUploaded, preventAutoProceed, platformDocs])
 
   async function handleFile(docKey, file) {
     if (!file) return
-    const doc = REQUIRED_DOCS.find(function(d) { return d.key === docKey })
+    const doc = platformDocs.find(function(d) { return d.key === docKey })
     const validExts = doc.accept.split(',')
     const fname = file.name.toLowerCase()
     if (!validExts.some(function(ext) { return fname.endsWith(ext.trim()) })) {
@@ -225,9 +304,9 @@ function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAu
     form.append('file', file)
     form.append('report_type', docKey)
     try {
-      const res = await api.post('/flipkart/upload', form)
-      // P&L uploads trigger the preview modal so the user can review before confirming
-      if (docKey === 'pl_report' && onPlFileUploaded) {
+      const res = await api.post(apiPrefix + '/upload', form)
+      // Primary doc uploads trigger the preview modal
+      if (docKey === primaryDocKey && onPlFileUploaded) {
         onPlFileUploaded(res.data, file)
       }
       await fetchStatus()
@@ -244,8 +323,11 @@ function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAu
     setExpanded(function(prev) { return { ...prev, [key]: !prev[key] } })
   }
 
-  const uploadedCount = docsStatus ? REQUIRED_DOCS.filter(function(d) { return docsStatus[d.key]?.uploaded }).length : 0
-  const plUploaded = docsStatus?.pl_report?.uploaded
+  const totalDocs = platformDocs.length
+  const uploadedCount = docsStatus
+    ? platformDocs.filter(function(d) { return docsStatus[d.key]?.status === 'done' || docsStatus[d.key]?.uploaded }).length
+    : 0
+  const primaryUploaded = docsStatus?.[primaryDocKey]?.status === 'done' || docsStatus?.[primaryDocKey]?.uploaded
 
   return (
     <div style={{ padding: '8px 0' }}>
@@ -255,25 +337,25 @@ function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAu
         <span style={{ fontSize: 20 }}>{platform.icon}</span>
         <div>
           <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>{platform.label} — Required Documents</div>
-          <div style={{ fontSize: 12, color: '#6B7280' }}>Upload all 3 documents to unlock Settlement Intelligence</div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>Upload required documents to unlock Settlement Intelligence</div>
         </div>
-        <div style={{ marginLeft: 'auto', background: uploadedCount === 3 ? 'rgba(16,185,129,.12)' : 'rgba(233,147,13,.1)', color: uploadedCount === 3 ? P.green : P.amber, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
-          {uploadedCount} / 3 uploaded
+        <div style={{ marginLeft: 'auto', background: uploadedCount === totalDocs ? 'rgba(16,185,129,.12)' : 'rgba(233,147,13,.1)', color: uploadedCount === totalDocs ? P.green : P.amber, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
+          {uploadedCount} / {totalDocs} uploaded
         </div>
       </div>
 
       {/* Progress bar */}
       <div style={{ height: 4, background: '#E5E7EB', borderRadius: 99, marginBottom: 28, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${(uploadedCount / 3) * 100}%`, background: 'linear-gradient(90deg,#0ABFCA,#10B981)', borderRadius: 99, transition: 'width .5s ease' }} />
+        <div style={{ height: '100%', width: `${(uploadedCount / totalDocs) * 100}%`, background: 'linear-gradient(90deg,#0ABFCA,#10B981)', borderRadius: 99, transition: 'width .5s ease' }} />
       </div>
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}><Spinner size={32} /></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {REQUIRED_DOCS.map(function(doc) {
+          {platformDocs.map(function(doc) {
             const status = docsStatus?.[doc.key]
-            const isUploaded = status?.uploaded
+            const isUploaded = status?.status === 'done' || status?.uploaded
             const isUploading = uploadingKey === doc.key
             const isOpen = expanded[doc.key]
             const err = uploadErrors[doc.key]
@@ -389,27 +471,27 @@ function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAu
         </div>
       )}
 
-      {/* Proceed button — requires only P&L */}
+      {/* Proceed button — requires primary doc */}
       <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
-        {uploadedCount < 3 && plUploaded && (
+        {uploadedCount < totalDocs && primaryUploaded && (
           <span style={{ fontSize: 12, color: '#9CA3AF' }}>
-            {3 - uploadedCount} document{3 - uploadedCount > 1 ? 's' : ''} still pending — you can upload them later
+            {totalDocs - uploadedCount} document{totalDocs - uploadedCount > 1 ? 's' : ''} still pending — you can upload them later
           </span>
         )}
         <button
           onClick={onAllUploaded}
-          disabled={!plUploaded}
+          disabled={!primaryUploaded}
           style={{
             padding: '12px 28px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700,
-            background: plUploaded
+            background: primaryUploaded
               ? 'linear-gradient(135deg,#0ABFCA,#088F99)'
               : '#E5E7EB',
-            color: plUploaded ? '#fff' : '#9CA3AF',
-            cursor: plUploaded ? 'pointer' : 'not-allowed',
+            color: primaryUploaded ? '#fff' : '#9CA3AF',
+            cursor: primaryUploaded ? 'pointer' : 'not-allowed',
             transition: 'all .2s',
           }}
         >
-          {plUploaded ? (uploadedCount === 3 ? 'Proceed to Analysis →' : 'Proceed with P&L →') : 'Upload P&L Report to continue'}
+          {primaryUploaded ? (uploadedCount === totalDocs ? 'Proceed to Analysis →' : 'Proceed with primary report →') : 'Upload primary report to continue'}
         </button>
       </div>
     </div>
@@ -662,16 +744,22 @@ function UploadView({ platform, onFileUploaded, onBack, uploading, setUploading 
 }
 
 // ── Analytics: Dashboard Tab ───────────────────────────────────────────────────
-function DashboardTab({ summary, charts, reconData }) {
+function DashboardTab({ summary, charts, reconData, platform }) {
   if (!summary) return <div style={{ padding: '48px 0', textAlign: 'center', color: '#9CA3AF' }}>No summary data available.</div>
 
-  const moneyLeak = reconData?.items
-    ? reconData.items.reduce(function(acc, iss) { return acc + Math.abs(Math.min(0, Number(iss.variance) || 0)) }, 0)
-    : 0
+  const moneyLeak = reconData?.issues
+    ? reconData.issues.reduce(function(acc, iss) { return acc + Math.abs(Number(iss.variance) || 0) }, 0)
+    : reconData?.items
+      ? reconData.items.reduce(function(acc, iss) { return acc + Math.abs(Math.min(0, Number(iss.variance) || 0)) }, 0)
+      : 0
 
-  const netEarnings = summary.net_earnings || 0
-  const totalFees   = summary.total_fees   || 0
-  const margin      = summary.profit_margin_pct
+  const netEarnings    = summary.net_earnings || 0
+  const totalFees      = summary.total_fees ?? summary.total_deductions ?? 0
+  const margin         = summary.profit_margin_pct
+  const amountSettled  = summary.amount_settled ?? summary.amount_deposited ?? summary.amount_paid ?? 0
+  const amountPending  = summary.amount_pending ?? 0
+  const grossSales     = summary.gross_sales ?? summary.customer_paid_total ?? 0
+  const totalIssues    = reconData?.total_issues ?? reconData?.summary?.total_issues ?? 0
 
   return (
     <div>
@@ -685,13 +773,13 @@ function DashboardTab({ summary, charts, reconData }) {
         <HeroCard
           icon="💸" label="Total Charges" accent={P.amber}
           value={inr(totalFees, true)}
-          sub={summary.gross_sales ? `${pct((totalFees / summary.gross_sales) * 100)} of gross sales` : 'Platform fees + taxes'}
+          sub={grossSales ? `${pct((Math.abs(totalFees) / grossSales) * 100)} of gross sales` : 'Platform fees + taxes'}
           note="Commission + shipping + reverse shipping + GST + TCS/TDS"
         />
         <HeroCard
           icon="🚨" label="Potential Money Leak" accent={P.red}
           value={moneyLeak > 0 ? inr(moneyLeak, true) : '₹0'}
-          sub={reconData?.summary ? `${reconData.summary.total_issues || 0} anomalies detected` : 'Settlement anomalies'}
+          sub={`${totalIssues} anomalies detected`}
           note="Estimated unrecovered settlement gaps — verify before disputing"
           onClick={function() {}}
         />
@@ -699,10 +787,10 @@ function DashboardTab({ summary, charts, reconData }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
         {[
-          { label: 'Gross Sales',     value: inr(summary.gross_sales, true),     color: P.teal },
-          { label: 'Net Sales',       value: inr(summary.net_sales, true),        color: P.blue },
-          { label: 'Amount Settled',  value: inr(summary.amount_settled, true),   color: P.green },
-          { label: 'Amount Pending',  value: inr(summary.amount_pending, true),   color: P.amber },
+          { label: 'Gross Sales',     value: inr(grossSales, true),             color: P.teal },
+          { label: 'Net Sales',       value: inr(summary.net_sales, true),      color: P.blue },
+          { label: 'Amount Settled',  value: inr(amountSettled, true),          color: P.green },
+          { label: 'Amount Pending',  value: inr(amountPending, true),          color: P.amber },
           { label: 'Total Orders',    value: summary.total_orders?.toLocaleString() || '0', color: P.navy },
         ].map(function(k) {
           return (
@@ -746,25 +834,96 @@ function DashboardTab({ summary, charts, reconData }) {
             </div>
           )}
 
-          {charts.revenue_waterfall && charts.revenue_waterfall.length > 0 && (
+          {(charts.revenue_waterfall || charts.waterfall) && (charts.revenue_waterfall || charts.waterfall).length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 14, padding: '18px 20px' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Revenue Waterfall</div>
               <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 14 }}>Gross Sales → deductions → Net Earnings</div>
               <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={charts.revenue_waterfall} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                <BarChart data={charts.revenue_waterfall || charts.waterfall} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9CA3AF' }} tickLine={false} />
                   <YAxis hide />
                   <Tooltip formatter={function(v) { return inr(v) }} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {charts.revenue_waterfall.map(function(entry, i) {
-                      return <Cell key={i} fill={entry.type === 'negative' ? P.red : entry.type === 'subtotal' ? P.blue : P.teal} />
+                      return <Cell key={i} fill={entry.type === 'negative' || entry.type === 'decrease' ? P.red : entry.type === 'subtotal' ? P.blue : P.teal} />
                     })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Analytics: Orders Tab ─────────────────────────────────────────────────────
+function OrdersTab({ reportId, platformId }) {
+  const [orders, setOrders] = useState([])
+  const [total, setTotal]   = useState(0)
+  const [page, setPage]     = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch]   = useState('')
+
+  useEffect(function() {
+    if (!reportId) return
+    setLoading(true)
+    const params = `?page=${page}&page_size=50${search ? '&search=' + encodeURIComponent(search) : ''}`
+    api.get(`/${platformId}/reports/${reportId}/orders${params}`)
+      .then(function(r) { setOrders(r.data.orders || []); setTotal(r.data.total || 0) })
+      .finally(function() { setLoading(false) })
+  }, [reportId, platformId, page, search])
+
+  if (loading) return <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+        <input
+          type="text" placeholder="Search by Order ID or SKU..."
+          value={search}
+          onChange={function(e) { setSearch(e.target.value); setPage(1) }}
+          style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, width: 280, outline: 'none' }}
+        />
+        <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 'auto' }}>{total.toLocaleString()} orders</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#F9FAFB' }}>
+              {['Order ID', 'Date', 'SKU', 'Gross', 'Net', 'Commission', 'Status'].map(function(h) {
+                return <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', whiteSpace: 'nowrap' }}>{h}</th>
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map(function(row, i) {
+              const netVal = row.net_amount ?? row.net_payment ?? row.net_earnings ?? 0
+              const grossVal = row.gross_amount ?? row.customer_paid ?? 0
+              const statusVal = row.order_status ?? row.transaction_type ?? '—'
+              const dateVal = row.posted_date ?? row.order_date ?? row.payment_date
+              return (
+                <tr key={row.id || i} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                  <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: P.navy, fontWeight: 600 }}>{row.order_id || '—'}</td>
+                  <td style={{ padding: '9px 12px', color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtDate(dateVal)}</td>
+                  <td style={{ padding: '9px 12px', color: '#374151', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.sku || row.sku_code || '—'}</td>
+                  <td style={{ padding: '9px 12px', fontWeight: 600, color: P.teal }}>{inr(grossVal, true)}</td>
+                  <td style={{ padding: '9px 12px', fontWeight: 600, color: Number(netVal) < 0 ? P.red : P.green }}>{inr(netVal, true)}</td>
+                  <td style={{ padding: '9px 12px', color: P.amber }}>{inr(row.commission, true)}</td>
+                  <td style={{ padding: '9px 12px' }}><Badge label={statusVal} color="gray" /></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {total > 50 && (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14 }}>
+          <button onClick={function() { setPage(function(p) { return Math.max(1, p - 1) }) }} disabled={page === 1} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: page === 1 ? '#9CA3AF' : P.navy, cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>← Prev</button>
+          <span style={{ padding: '6px 14px', fontSize: 12, color: '#6B7280' }}>Page {page} of {Math.ceil(total / 50)}</span>
+          <button onClick={function() { setPage(function(p) { return p + 1 }) }} disabled={page >= Math.ceil(total / 50)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: page >= Math.ceil(total / 50) ? '#9CA3AF' : P.navy, cursor: page >= Math.ceil(total / 50) ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>Next →</button>
         </div>
       )}
     </div>
@@ -848,7 +1007,7 @@ function SKUTab({ reportId }) {
 }
 
 // ── Analytics: Reconciliation Tab ──────────────────────────────────────────────
-function ReconTab({ reportId }) {
+function ReconTab({ reportId, platformId }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState('')
@@ -856,27 +1015,34 @@ function ReconTab({ reportId }) {
   useEffect(function() {
     if (!reportId) return
     setLoading(true)
-    api.get(`/flipkart/reports/${reportId}/reconciliation`)
+    api.get(`/${platformId}/reports/${reportId}/reconciliation`)
       .then(function(r) { setData(r.data) })
       .finally(function() { setLoading(false) })
-  }, [reportId])
+  }, [reportId, platformId])
 
   if (loading) return <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
-  if (!data || !data.items?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No reconciliation issues detected — your settlements look clean!</div>
+
+  // Handle both Flipkart format (data.items) and Amazon/Meesho format (data.issues)
+  const allIssues = data?.issues || data?.items || []
+  if (!allIssues.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No reconciliation issues detected — your settlements look clean!</div>
 
   const severityColor = { critical: P.red, warning: P.amber, info: P.teal }
-  const types = [...new Set(data.items.map(function(i) { return i.issue_type }))]
-  const filtered = typeFilter ? data.items.filter(function(i) { return i.issue_type === typeFilter }) : data.items
+  const types = [...new Set(allIssues.map(function(i) { return i.issue_type }))]
+  const filtered = typeFilter ? allIssues.filter(function(i) { return i.issue_type === typeFilter }) : allIssues
+
+  const criticalCount = allIssues.filter(function(i) { return i.severity === 'critical' }).length
+  const warningCount  = allIssues.filter(function(i) { return i.severity === 'warning' }).length
+  const totalVariance = data.total_variance ?? allIssues.reduce(function(a, i) { return a + Math.abs(Number(i.variance) || 0) }, 0)
 
   return (
     <div>
-      {data.summary && (
+      {allIssues.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
           {[
-            { label: 'Total Issues',   value: data.summary.total_issues,               color: '#374151' },
-            { label: 'Critical',       value: data.summary.critical_issues,             color: P.red },
-            { label: 'Warning',        value: data.summary.warning_issues,              color: P.amber },
-            { label: 'Est. Impact',    value: inr(data.summary.total_variance_amount, true), color: P.red },
+            { label: 'Total Issues',   value: allIssues.length,                   color: '#374151' },
+            { label: 'Critical',       value: criticalCount,                       color: P.red },
+            { label: 'Warning',        value: warningCount,                        color: P.amber },
+            { label: 'Est. Impact',    value: inr(totalVariance, true),            color: P.red },
           ].map(function(s) {
             return (
               <div key={s.label} style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 10, padding: '12px 14px' }}>
@@ -923,16 +1089,16 @@ function ReconTab({ reportId }) {
 }
 
 // ── Analytics: Insights Tab ────────────────────────────────────────────────────
-function InsightsTab({ reportId }) {
+function InsightsTab({ reportId, platformId }) {
   const [insights, setInsights] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(function() {
     if (!reportId) return
-    api.get(`/flipkart/reports/${reportId}/insights`)
+    api.get(`/${platformId}/reports/${reportId}/insights`)
       .then(function(r) { setInsights(r.data.insights || []) })
       .finally(function() { setLoading(false) })
-  }, [reportId])
+  }, [reportId, platformId])
 
   if (loading) return <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
   if (!insights.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No insights generated yet.</div>
@@ -948,7 +1114,7 @@ function InsightsTab({ reportId }) {
           <div key={i} style={{ background: '#fff', border: '1px solid #E8EFF6', borderLeft: `4px solid ${c}`, borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 12 }}>
             <span style={{ fontSize: 20, flexShrink: 0 }}>{iconMap[ins.type] || ins.icon}</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', lineHeight: 1.5 }}>{ins.message}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', lineHeight: 1.5 }}>{ins.message || ins.description}</div>
               {ins.data && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                   {Object.entries(ins.data).map(function([k, v]) {
@@ -975,14 +1141,17 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
   const [reconData, setReconData] = useState(null)
   const [loadingData, setLoadingData] = useState(false)
 
+  const pid = platform.id
+  const primaryKey = getPrimaryDocKey(pid)
+
   useEffect(function() {
     if (!selectedReport?.id) return
     setLoadingData(true)
     setSummary(null); setCharts(null); setReconData(null)
     Promise.all([
-      api.get(`/flipkart/reports/${selectedReport.id}/summary`),
-      api.get(`/flipkart/reports/${selectedReport.id}/charts`),
-      api.get(`/flipkart/reports/${selectedReport.id}/reconciliation`),
+      api.get(`/${pid}/reports/${selectedReport.id}/summary`),
+      api.get(`/${pid}/reports/${selectedReport.id}/charts`),
+      api.get(`/${pid}/reports/${selectedReport.id}/reconciliation`),
     ])
       .then(function([sRes, cRes, rRes]) {
         setSummary(sRes.data)
@@ -990,17 +1159,20 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
         setReconData(rRes.data)
       })
       .finally(function() { setLoadingData(false) })
-  }, [selectedReport?.id])
+  }, [selectedReport?.id, pid])
+
+  const hasSKUs = pid === 'flipkart'
 
   const TABS = [
-    { id: 'dashboard', label: 'Dashboard',       icon: '⚡' },
-    { id: 'skus',      label: 'SKU Analysis',    icon: '📦' },
-    { id: 'recon',     label: 'Reconciliation',  icon: '🔬' },
-    { id: 'insights',  label: 'Insights',        icon: '💡' },
+    { id: 'dashboard', label: 'Dashboard',      icon: '⚡' },
+    ...(hasSKUs ? [{ id: 'skus', label: 'SKU Analysis', icon: '📦' }] : []),
+    { id: 'orders',    label: 'Orders',         icon: '📋' },
+    { id: 'recon',     label: 'Reconciliation', icon: '🔬' },
+    { id: 'insights',  label: 'Insights',       icon: '💡' },
   ]
 
-  // Only show P&L reports in the dropdown
-  const plReports = reports.filter(function(r) { return r.report_type === 'pl_report' || !r.report_type })
+  // Only show primary-type reports in the dropdown
+  const plReports = reports.filter(function(r) { return r.report_type === primaryKey || !r.report_type })
 
   return (
     <div>
@@ -1045,10 +1217,11 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
         <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
       ) : (
         <>
-          {tab === 'dashboard'  && <DashboardTab summary={summary} charts={charts} reconData={reconData} />}
-          {tab === 'skus'       && <SKUTab reportId={selectedReport?.id} />}
-          {tab === 'recon'      && <ReconTab reportId={selectedReport?.id} />}
-          {tab === 'insights'   && <InsightsTab reportId={selectedReport?.id} />}
+          {tab === 'dashboard'  && <DashboardTab summary={summary} charts={charts} reconData={reconData} platform={platform} />}
+          {tab === 'skus'       && hasSKUs && <SKUTab reportId={selectedReport?.id} />}
+          {tab === 'orders'     && <OrdersTab reportId={selectedReport?.id} platformId={pid} />}
+          {tab === 'recon'      && <ReconTab reportId={selectedReport?.id} platformId={pid} />}
+          {tab === 'insights'   && <InsightsTab reportId={selectedReport?.id} platformId={pid} />}
         </>
       )}
     </div>
@@ -1074,27 +1247,27 @@ function ReconEngine() {
 
   const fetchReports = useCallback(function() {
     if (!platform) return
-    if (platform.id === 'flipkart') {
-      api.get('/flipkart/reports').then(function(r) {
-        const list = r.data.items || []
-        setReports(list)
-        const plDone = list.find(function(rep) { return rep.status === 'done' && (rep.report_type === 'pl_report' || !rep.report_type) })
-        if (plDone) {
-          setSelectedReport(plDone)
-          // Auto-go to analytics if on upload or docs_gate and a processed report exists
-          setView(function(v) { return (v === 'upload' || v === 'docs_gate') && !managingDocs ? 'analytics' : v })
-        }
+    const primaryKey = getPrimaryDocKey(platform.id)
+    api.get('/' + platform.id + '/reports').then(function(r) {
+      const list = r.data.reports || r.data.items || []
+      setReports(list)
+      const primaryDone = list.find(function(rep) {
+        return rep.status === 'done' && (rep.report_type === primaryKey || !rep.report_type)
       })
-    }
-  }, [platform])
+      if (primaryDone) {
+        setSelectedReport(primaryDone)
+        setView(function(v) { return (v === 'upload' || v === 'docs_gate') && !managingDocs ? 'analytics' : v })
+      }
+    })
+  }, [platform, managingDocs])
 
   useEffect(function() { fetchReports() }, [fetchReports])
 
   // Poll processing status
   useEffect(function() {
-    if (!processingId) return
+    if (!processingId || !platform) return
     pollRef.current = setInterval(function() {
-      api.get('/flipkart/reports/' + processingId).then(function(r) {
+      api.get('/' + platform.id + '/reports/' + processingId).then(function(r) {
         const status = r.data.status
         if (status === 'done') {
           clearInterval(pollRef.current)
@@ -1113,7 +1286,7 @@ function ReconEngine() {
       })
     }, 2000)
     return function() { clearInterval(pollRef.current) }
-  }, [processingId, fetchReports])
+  }, [processingId, platform, fetchReports])
 
   function handlePlatformSelect(p) {
     setPlatform(p)
@@ -1148,12 +1321,12 @@ function ReconEngine() {
   }
 
   async function handleConfirm() {
-    if (!pendingReport) return
+    if (!pendingReport || !platform) return
     const reportId = pendingReport.id
     setProcessingFilename(pendingReport.file?.name || 'your report')
     setConfirming(true)
     try {
-      await api.post('/flipkart/reports/' + reportId + '/confirm')
+      await api.post('/' + platform.id + '/reports/' + reportId + '/confirm')
       setPendingReport(null)
       setConfirming(false)
       setProcessingId(reportId)
