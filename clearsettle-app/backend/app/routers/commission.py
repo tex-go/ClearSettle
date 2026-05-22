@@ -53,9 +53,10 @@ async def get_commissions(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
+    _empty_summary = {"total_overcharge": 0.0, "flagged_count": 0, "affected_orders": 0}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"items": _MOCK, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     # Total referral fees charged per platform + sku
     fee_q = (
@@ -77,7 +78,7 @@ async def get_commissions(
     fee_rows = (await db.execute(fee_q)).all()
 
     if not fee_rows:
-        return {"items": _MOCK, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     # Gross revenue per platform + sku (shipments only)
     rev_q = (

@@ -88,8 +88,9 @@ async def get_gst_overview(
     Returns per-platform taxable sales, TCS deducted, ITC claimable, and
     reconciliation status.  Falls back to demo data when no DB is configured.
     """
+    _empty = {"items": [], "summary": {"total_tcs": 0.0, "total_itc": 0.0, "total_tds": 0.0, "unreconciled": 0, "claimable": 0.0}}
     if db is None or not _is_db_user(user):
-        return _mock_summary()
+        return _empty
 
     from app.db.models.monthly_tax_summary import MonthlyTaxSummary
     from sqlalchemy import select, func

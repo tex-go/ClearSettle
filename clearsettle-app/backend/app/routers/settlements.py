@@ -189,7 +189,11 @@ async def list_settlements(
     Falls back to demo data when the database is not configured.
     """
     if db is None or not _is_db_user(user):
-        return _mock_list(status, platform, search, page, page_size)
+        from app.schemas.settlements import SettlementSummaryOut
+        return SettlementListResponse(
+            items=[], total=0, page=page, page_size=page_size, total_pages=1,
+            summary=SettlementSummaryOut(total_settlements=0, closed_count=0, open_count=0, processing_count=0, total_gross=0, total_fees=0, total_net=0, pending_amount=0, total_transactions=0),
+        )
 
     return await settlement_queries.list_settlements(
         db,
@@ -280,10 +284,7 @@ async def get_settlement(
     (e.g., "AMZN-2026-0448") for backward compatibility.
     """
     if db is None or not _is_db_user(user):
-        item = next((s for s in SETTLEMENTS if s["id"] == settlement_id), None)
-        if not item:
-            raise HTTPException(status_code=404, detail="Settlement not found.")
-        return _mock_detail(item)
+        raise HTTPException(status_code=404, detail="Settlement not found.")
 
     cid = _company_id(user)
 

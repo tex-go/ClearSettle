@@ -81,9 +81,10 @@ async def get_disputes(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
+    _empty_summary = {"total_amount": 0.0, "open_count": 0, "won_count": 0, "won_amount": 0.0}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"items": _mock_disputes, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     rows = (await db.execute(
         select(DiscrepancyEvent)
@@ -93,7 +94,7 @@ async def get_disputes(
     )).scalars().all()
 
     if not rows:
-        return {"items": _mock_disputes, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     items = [_disc_to_item(d) for d in rows]
     won = [i for i in items if i["status"] == "won"]

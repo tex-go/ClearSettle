@@ -114,7 +114,14 @@ async def get_summary(
     Falls back to demo data when the database is not configured.
     """
     if db is None or not _is_db_user(user):
-        return _mock_summary(platform)
+        return {
+            "cache_ttl_seconds": 0,
+            "settlements": {"total": 0, "closed_count": 0, "open_count": 0, "processing_count": 0, "total_gross": 0.0, "total_fees": 0.0, "total_net_paid": 0.0, "pending_amount": 0.0, "total_orders": 0},
+            "payouts": {"transferred": 0.0, "pending": 0.0, "failed": 0.0},
+            "reconciliation": {"clean": 0, "warning": 0, "critical": 0, "error": 0, "total_runs": 0, "unresolved_discrepancies": 0, "total_variance": 0.0},
+            "revenue_trend": [],
+            "platform_share": [],
+        }
 
     result = await analytics_queries.get_dashboard_summary(
         db, _company_id(user), platform=platform

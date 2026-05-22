@@ -245,6 +245,7 @@ function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAu
   }
 
   const uploadedCount = docsStatus ? REQUIRED_DOCS.filter(function(d) { return docsStatus[d.key]?.uploaded }).length : 0
+  const plUploaded = docsStatus?.pl_report?.uploaded
 
   return (
     <div style={{ padding: '8px 0' }}>
@@ -388,22 +389,27 @@ function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAu
         </div>
       )}
 
-      {/* Proceed button */}
-      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+      {/* Proceed button — requires only P&L */}
+      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
+        {uploadedCount < 3 && plUploaded && (
+          <span style={{ fontSize: 12, color: '#9CA3AF' }}>
+            {3 - uploadedCount} document{3 - uploadedCount > 1 ? 's' : ''} still pending — you can upload them later
+          </span>
+        )}
         <button
           onClick={onAllUploaded}
-          disabled={uploadedCount < 3}
+          disabled={!plUploaded}
           style={{
             padding: '12px 28px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700,
-            background: uploadedCount === 3
+            background: plUploaded
               ? 'linear-gradient(135deg,#0ABFCA,#088F99)'
               : '#E5E7EB',
-            color: uploadedCount === 3 ? '#fff' : '#9CA3AF',
-            cursor: uploadedCount === 3 ? 'pointer' : 'not-allowed',
+            color: plUploaded ? '#fff' : '#9CA3AF',
+            cursor: plUploaded ? 'pointer' : 'not-allowed',
             transition: 'all .2s',
           }}
         >
-          {uploadedCount === 3 ? 'Proceed to Analysis →' : `Upload ${3 - uploadedCount} more document${3 - uploadedCount > 1 ? 's' : ''} to continue`}
+          {plUploaded ? (uploadedCount === 3 ? 'Proceed to Analysis →' : 'Proceed with P&L →') : 'Upload P&L Report to continue'}
         </button>
       </div>
     </div>
@@ -549,8 +555,8 @@ function ProcessingView({ filename }) {
   )
 }
 
-// ── Upload View (P&L re-upload) ────────────────────────────────────────────────
-function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack, uploading, setUploading }) {
+// ── Upload View ────────────────────────────────────────────────────────────────
+function UploadView({ platform, onFileUploaded, onBack, uploading, setUploading }) {
   const fileRef = useRef()
   const [dragging, setDragging] = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -568,9 +574,15 @@ function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack,
     form.append('report_type', 'pl_report')
     try {
       const res = await api.post('/flipkart/upload', form)
-      onFileUploaded(res.data, file)
+      if (res.data.duplicate) {
+        // Same file already processed — go directly to analytics via the existing report
+        onFileUploaded(res.data, file)
+      } else {
+        onFileUploaded(res.data, file)
+      }
     } catch (err) {
-      setUploadError(err.response?.data?.detail || 'Upload failed. Please try again.')
+      const detail = err.response?.data?.detail || err.message || 'Upload failed'
+      setUploadError(detail)
       setUploading(false)
     }
   }
@@ -581,100 +593,68 @@ function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack,
     handleFile(e.dataTransfer.files[0])
   }
 
-  const plReports = reports.filter(function(r) { return r.report_type === 'pl_report' || !r.report_type })
-
   return (
     <div style={{ padding: '24px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
         <button onClick={onBack} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#6B7280', cursor: 'pointer' }}>← Back</button>
         <span style={{ fontSize: 20 }}>{platform.icon}</span>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>Upload New P&L Report</div>
-          <div style={{ fontSize: 12, color: '#6B7280' }}>Seller Hub → Reports → P&L Report → Download Excel</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>{platform.label} P&L Report</div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>Upload to detect payout anomalies and money leakage</div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20 }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>Upload P&L Report</div>
-          <div
-            onDragOver={function(e) { e.preventDefault(); setDragging(true) }}
-            onDragLeave={function() { setDragging(false) }}
-            onDrop={onDrop}
-            onClick={function() { !uploading && fileRef.current?.click() }}
-            style={{
-              border: `2px dashed ${dragging ? P.teal : '#D1D5DB'}`,
-              borderRadius: 14, padding: '36px 24px',
-              textAlign: 'center',
-              background: dragging ? 'rgba(10,191,202,.05)' : '#FAFAFA',
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              transition: 'all .15s',
-            }}
-          >
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={function(e) { handleFile(e.target.files[0]) }} />
-            {uploading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                <Spinner size={32} />
-                <div style={{ fontSize: 13, color: P.teal, fontWeight: 600 }}>Uploading & reading file...</div>
-              </div>
-            ) : (
-              <>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Drop your Flipkart P&L report here</div>
-                <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12 }}>or click to browse — .xlsx / .xls</div>
-                <div style={{ display: 'inline-block', padding: '7px 16px', borderRadius: 8, background: P.navy, color: '#fff', fontSize: 12, fontWeight: 600 }}>Choose File</div>
-              </>
-            )}
-          </div>
-          {uploadError && <div style={{ marginTop: 8, fontSize: 12, color: P.red }}>{uploadError}</div>}
-          <div style={{ marginTop: 14, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '10px 12px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#0369A1', marginBottom: 4 }}>Where to download?</div>
-            <div style={{ fontSize: 11, color: '#0369A1', lineHeight: 1.6 }}>
-              Seller Hub → Reports → P&L Report → Select date range → Download Excel
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>
-            Previous P&L Reports ({plReports.length})
-          </div>
-          {plReports.length === 0 ? (
-            <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '32px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
-              No P&L reports uploaded yet.
+      {/* Centred upload zone */}
+      <div style={{ maxWidth: 480, margin: '0 auto' }}>
+        <div
+          onDragOver={function(e) { e.preventDefault(); setDragging(true) }}
+          onDragLeave={function() { setDragging(false) }}
+          onDrop={onDrop}
+          onClick={function() { !uploading && fileRef.current?.click() }}
+          style={{
+            border: `2px dashed ${dragging ? P.teal : '#D1D5DB'}`,
+            borderRadius: 18, padding: '52px 32px',
+            textAlign: 'center',
+            background: dragging ? 'rgba(10,191,202,.05)' : '#FAFAFA',
+            cursor: uploading ? 'not-allowed' : 'pointer',
+            transition: 'all .15s',
+          }}
+        >
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={function(e) { handleFile(e.target.files[0]); e.target.value = '' }} />
+          {uploading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <Spinner size={40} />
+              <div style={{ fontSize: 14, color: P.teal, fontWeight: 600 }}>Reading your report...</div>
+              <div style={{ fontSize: 12, color: '#9CA3AF' }}>Parsing sheets and orders</div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {plReports.map(function(r) {
-                return (
-                  <div
-                    key={r.id}
-                    onClick={function() { r.status === 'done' && onSelectReport(r) }}
-                    style={{
-                      background: '#fff', border: '1px solid #E8EFF6',
-                      borderRadius: 12, padding: '12px 14px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      cursor: r.status === 'done' ? 'pointer' : 'default',
-                      transition: 'box-shadow .15s',
-                    }}
-                    onMouseEnter={e => r.status === 'done' && (e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.08)')}
-                    onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-                  >
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: P.navy }}>{r.original_name}</div>
-                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
-                        {r.report_period || '—'} · {r.row_count_orders || 0} orders · {fmtDate(r.uploaded_at)}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {statusBadge(r.status)}
-                      {r.status === 'done' && <span style={{ fontSize: 13, color: P.teal }}>→</span>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <>
+              <div style={{ fontSize: 52, marginBottom: 16, lineHeight: 1 }}>📊</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: P.navy, marginBottom: 6 }}>Drop your P&L report here</div>
+              <div style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 20 }}>or click to browse files</div>
+              <div style={{ display: 'inline-block', padding: '10px 24px', borderRadius: 10, background: 'linear-gradient(135deg,#0ABFCA,#088F99)', color: '#fff', fontSize: 13, fontWeight: 700 }}>Choose .xlsx / .xls</div>
+            </>
           )}
+        </div>
+
+        {uploadError && (
+          <div style={{ marginTop: 12, background: 'rgba(232,52,74,.06)', border: '1px solid rgba(232,52,74,.2)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: P.red, lineHeight: 1.5 }}>
+            <strong>Upload failed:</strong> {uploadError}
+          </div>
+        )}
+
+        <div style={{ marginTop: 16, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 12, padding: '12px 16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#0369A1', marginBottom: 6 }}>Where to download your P&L Report</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {['Log in to Flipkart Seller Hub', 'Go to Reports → P&L Report', 'Select date range (monthly recommended)', 'Click Download → Excel format'].map(function(step, i) {
+              return (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(3,105,161,.15)', color: '#0369A1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
+                  <span style={{ fontSize: 11, color: '#0369A1', lineHeight: 1.5 }}>{step}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -1098,9 +1078,11 @@ function ReconEngine() {
       api.get('/flipkart/reports').then(function(r) {
         const list = r.data.items || []
         setReports(list)
-        const plDone = list.find(function(r) { return r.status === 'done' && (r.report_type === 'pl_report' || !r.report_type) })
-        if (plDone && !selectedReport) {
+        const plDone = list.find(function(rep) { return rep.status === 'done' && (rep.report_type === 'pl_report' || !rep.report_type) })
+        if (plDone) {
           setSelectedReport(plDone)
+          // Auto-go to analytics if currently on upload view and we have a processed report
+          setView(function(v) { return v === 'upload' ? 'analytics' : v })
         }
       })
     }
@@ -1138,7 +1120,7 @@ function ReconEngine() {
     setReports([])
     setSelectedReport(null)
     setManagingDocs(false)
-    setView('docs_gate')
+    setView('upload')
   }
 
   function handleAllDocsUploaded() {
@@ -1154,7 +1136,14 @@ function ReconEngine() {
 
   function handleFileUploaded(response, file) {
     setUploading(false)
-    setPendingReport({ id: response.id, file, preview: response.preview })
+    if (response.duplicate && response.status === 'done') {
+      // Already processed — fetch reports and go straight to analytics
+      fetchReports()
+      return
+    }
+    if (response.status === 'awaiting_confirmation') {
+      setPendingReport({ id: response.id, file, preview: response.preview })
+    }
     fetchReports()
   }
 
@@ -1206,12 +1195,10 @@ function ReconEngine() {
         {view === 'upload' && platform && (
           <UploadView
             platform={platform}
-            reports={reports}
             uploading={uploading}
             setUploading={setUploading}
             onFileUploaded={handleFileUploaded}
-            onSelectReport={function(r) { setSelectedReport(r); setView('analytics') }}
-            onBack={function() { setManagingDocs(true); setView('docs_gate') }}
+            onBack={function() { setPlatform(null); setView('platform_select') }}
           />
         )}
 
