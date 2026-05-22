@@ -39,6 +39,11 @@ from app.db.models.recon_engine import (
 # Seller Discovery Engine
 from app.db.models.seller_lead import DiscoveryKeyword, DiscoveryJob, SellerLead
 from app.db.models.seller_lead_activity import SellerLeadActivity
+# Flipkart P&L Report Ingestion (Session 11)
+from app.db.models.flipkart_report import (
+    FlipkartReport, FlipkartSummary, FlipkartSkuPL,
+    FlipkartOrderPL, FlipkartReconIssue,
+)
 # Cash Flow Forecast + Meeting System
 from app.db.models.cash_flow_snapshot import CashFlowSnapshot
 from app.db.models.meeting import Meeting
@@ -93,4 +98,9 @@ __all__ = [
     "MeetingNote",
     "MeetingReminder",
     "MeetingStatusHistory",
+    "FlipkartReport",
+    "FlipkartSummary",
+    "FlipkartSkuPL",
+    "FlipkartOrderPL",
+    "FlipkartReconIssue",
 ]

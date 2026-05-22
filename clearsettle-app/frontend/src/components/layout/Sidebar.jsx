@@ -36,6 +36,12 @@ var NAV = [
     ],
   },
   {
+    group: 'Marketplaces',
+    items: [
+      { path: '/flipkart', label: 'Flipkart Intelligence', icon: '🛒', badge: 'NEW', bc: 'tl' },
+    ],
+  },
+  {
     group: 'Intelligence',
     items: [
       { path: '/dispute-engine', label: 'Dispute Rule Engine', icon: '🤖', badge: 8, bc: 'tl' },
