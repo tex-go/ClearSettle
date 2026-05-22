@@ -90,7 +90,16 @@ def enrich_summary(
     if total_fees:
         s["total_fees"] = total_fees
 
-    # Profit margin %
+    # Fallback: compute net_earnings when parser didn't extract it
+    # Formula: net_sales - total_fees  (covers most Flipkart report layouts)
+    if not _d(s.get("net_earnings")) and s.get("net_sales"):
+        net_s = _d(s.get("net_sales"))
+        fees  = _d(s.get("total_fees") or total_fees)
+        computed = net_s - fees
+        if computed != 0:
+            s["net_earnings"] = computed
+
+    # Profit margin %  (net_earnings / gross_sales × 100)
     gross = _d(s.get("gross_sales"))
     earn  = _d(s.get("net_earnings"))
     if gross and gross != 0:

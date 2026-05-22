@@ -28,6 +28,16 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("DB init skipped (Alembic manages schema in prod): %s", exc)
 
+        # Load RBAC permissions from DB into memory cache
+        try:
+            from app.db.database import AsyncSessionLocal
+            from app.core.rbac import load_rbac_from_db
+            if AsyncSessionLocal:
+                async with AsyncSessionLocal() as session:
+                    await load_rbac_from_db(session)
+        except Exception as exc:
+            logger.warning("RBAC DB load failed at startup — static fallback active: %s", exc)
+
     from app.services.seller_discovery import scheduler as discovery_scheduler
     await discovery_scheduler.start()
 
