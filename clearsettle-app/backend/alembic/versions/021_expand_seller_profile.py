@@ -48,7 +48,6 @@ def upgrade() -> None:
         "active_platforms",
         postgresql.JSONB(astext_type=sa.Text()),
         nullable=True,
-        server_default="'[]'::jsonb",
     ))
     op.add_column("companies", sa.Column("bank_name",            sa.String(100), nullable=True))
     op.add_column("companies", sa.Column("bank_account_number",  sa.String(50),  nullable=True))
