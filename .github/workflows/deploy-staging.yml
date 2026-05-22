@@ -1,8 +1,10 @@
 name: Deploy — Staging
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI — Test & Lint"]
     branches: [dev]
+    types: [completed]
 
 concurrency:
   group: deploy-staging
@@ -16,6 +18,7 @@ jobs:
   build-and-deploy:
     name: Build & Deploy to Staging
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       id-token: write
