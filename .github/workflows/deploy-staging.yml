@@ -1,0 +1,78 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [dev]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true    # cancel older staging deploys if a new push arrives
+
+env:
+  REGISTRY: ${{ secrets.GCP_REGISTRY }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Staging
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_CI_SA_EMAIL }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION || 'asia-south1' }}-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push backend (staging tag)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./clearsettle-app/backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/clearsettle-backend:staging-${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/clearsettle-backend:staging
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/clearsettle-backend:buildcache
+          cache-to:   type=registry,ref=${{ env.REGISTRY }}/clearsettle-backend:buildcache,mode=max
+
+      - name: Build & push frontend (staging tag)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./clearsettle-app/frontend
+          push: true
+          build-args: |
+            VITE_API_URL=https://${{ secrets.STAGING_DOMAIN }}/api
+          tags: |
+            ${{ env.REGISTRY }}/clearsettle-frontend:staging-${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/clearsettle-frontend:staging
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/clearsettle-frontend:buildcache
+          cache-to:   type=registry,ref=${{ env.REGISTRY }}/clearsettle-frontend:buildcache,mode=max
+
+      - name: Deploy to staging VM
+        uses: google-github-actions/ssh-compute@v1
+        with:
+          instance_name: ${{ secrets.GCP_STAGING_VM_NAME }}
+          zone:          ${{ secrets.GCP_VM_ZONE }}
+          ssh_private_key: ${{ secrets.GCP_DEPLOY_SSH_KEY }}
+          command: |
+            set -euo pipefail
+            cd /opt/clearsettle
+            gcloud auth configure-docker ${{ secrets.GCP_REGION || 'asia-south1' }}-docker.pkg.dev --quiet
+            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=staging-${{ env.IMAGE_TAG }}|" .env.prod
+            REGISTRY=${{ env.REGISTRY }} IMAGE_TAG=staging-${{ env.IMAGE_TAG }} \
+              docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+            REGISTRY=${{ env.REGISTRY }} IMAGE_TAG=staging-${{ env.IMAGE_TAG }} \
+              docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+            docker image prune -f --filter "until=72h"
+            echo "Staging deploy complete: ${{ env.IMAGE_TAG }}"
