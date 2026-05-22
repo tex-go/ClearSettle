@@ -90,9 +90,10 @@ async def get_recovery(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
+    _empty_summary = {"total_amount": 0.0, "won_amount": 0.0, "open_amount": 0.0, "won_count": 0, "open_count": 0, "commission_earned": 0.0}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"items": _mock_recovery, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     rows = (await db.execute(
         select(DiscrepancyEvent)
@@ -102,7 +103,7 @@ async def get_recovery(
     )).scalars().all()
 
     if not rows:
-        return {"items": _mock_recovery, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     items = [_disc_to_recovery(d) for d in rows]
     won_items  = [r for r in items if r["status"] == "won"]

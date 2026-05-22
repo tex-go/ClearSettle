@@ -47,9 +47,10 @@ async def get_cashflow(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
+    _empty_summary = {"expected_total": 0.0, "upcoming_count": 0, "next_settlement": None}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"events": _MOCK, "summary": _mock_summary()}
+        return {"events": [], "summary": _empty_summary}
 
     # Transferred payouts → type "paid"
     paid_rows = (await db.execute(
@@ -74,7 +75,7 @@ async def get_cashflow(
     )).scalars().all()
 
     if not paid_rows and not pending_rows:
-        return {"events": _MOCK, "summary": _mock_summary()}
+        return {"events": [], "summary": _empty_summary}
 
     events = []
 

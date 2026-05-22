@@ -70,9 +70,10 @@ async def get_returns(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
+    _empty_summary = {"total_count": 0, "total_deducted": 0.0, "disputed_count": 0, "by_reason": {}}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"items": _MOCK, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     rows = (await db.execute(
         select(SettlementTransaction)
@@ -85,12 +86,12 @@ async def get_returns(
     )).scalars().all()
 
     if not rows:
-        # Try Flipkart P&L data before falling back to mock
+        # Try Flipkart P&L data before returning empty
         from app.services.analytics.queries import get_flipkart_returns
         fk_result = await get_flipkart_returns(db, cid)
         if fk_result:
             return fk_result
-        return {"items": _MOCK, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     items = [_tx_to_return(tx, i + 1) for i, tx in enumerate(rows)]
     total_deducted = sum(r["total"] for r in items)

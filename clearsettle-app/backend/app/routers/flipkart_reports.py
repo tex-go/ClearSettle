@@ -18,6 +18,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import uuid
@@ -384,6 +385,9 @@ async def upload_report(
     Upload a Flipkart report file.
     - report_type=pl_report: quick-parse preview; call POST /reports/{id}/confirm to start full ingestion.
     - report_type=settlement_statement | returns_report: file stored as-is; status=uploaded.
+
+    Duplicate detection: if the same file bytes (SHA-256) were already uploaded for this company
+    and report_type, the existing report is returned instead of creating a new one.
     """
     company_id = _company_id(user)
 
@@ -398,9 +402,45 @@ async def upload_report(
             detail=f"Unsupported file type. Allowed: {', '.join(allowed_exts)}",
         )
 
-    file_bytes = await file.read()
+    try:
+        file_bytes = await file.read()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read uploaded file: {exc}")
+
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
     if len(file_bytes) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large. Maximum 50 MB.")
+
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    # ── Duplicate detection ───────────────────────────────────────────────────
+    try:
+        existing = (await db.execute(
+            select(FlipkartReport)
+            .where(
+                FlipkartReport.company_id == company_id,
+                FlipkartReport.file_hash == file_hash,
+                FlipkartReport.status != "failed",
+            )
+            .order_by(desc(FlipkartReport.uploaded_at))
+            .limit(1)
+        )).scalar_one_or_none()
+    except Exception:
+        existing = None  # column may not exist yet if migration pending
+
+    if existing is not None:
+        logger.info("Duplicate upload detected for company %s, hash %s — returning existing report %s", company_id, file_hash[:8], existing.id)
+        return {
+            "id":            str(existing.id),
+            "original_name": existing.original_name,
+            "file_size_bytes": existing.file_size_bytes,
+            "report_type":   existing.report_type or report_type,
+            "status":        existing.status,
+            "duplicate":     True,
+            "preview":       {},
+            "message":       "This file was already uploaded. Returning existing report.",
+        }
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     ext = ".csv" if fname_lower.endswith(".csv") else ".xlsx"
@@ -411,18 +451,23 @@ async def upload_report(
 
     # ── Non-PL uploads: store file, skip parsing ──────────────────────────────
     if report_type != "pl_report":
-        report = FlipkartReport(
-            id              = uuid.uuid4(),
-            company_id      = company_id,
-            filename        = stored_name,
-            original_name   = file.filename,
-            file_size_bytes = len(file_bytes),
-            report_type     = report_type,
-            status          = "uploaded",
-        )
-        db.add(report)
-        await db.commit()
-        await db.refresh(report)
+        try:
+            report = FlipkartReport(
+                id              = uuid.uuid4(),
+                company_id      = company_id,
+                filename        = stored_name,
+                original_name   = file.filename,
+                file_size_bytes = len(file_bytes),
+                file_hash       = file_hash,
+                report_type     = report_type,
+                status          = "uploaded",
+            )
+            db.add(report)
+            await db.commit()
+            await db.refresh(report)
+        except Exception as exc:
+            logger.exception("DB error saving non-PL report for company %s", company_id)
+            raise HTTPException(status_code=422, detail=f"Database error: {exc}. Run 'alembic upgrade head' to apply pending migrations.")
         label = _DOC_TYPE_LABELS.get(report_type, report_type)
         return {
             "id":            str(report.id),
@@ -431,7 +476,7 @@ async def upload_report(
             "report_type":   report_type,
             "status":        "uploaded",
             "preview":       {},
-            "message":       f"{label} uploaded successfully. We'll add analysis for this in the next update.",
+            "message":       f"{label} uploaded successfully.",
         }
 
     # ── P&L upload: quick-parse preview, await confirmation ───────────────────
@@ -448,18 +493,23 @@ async def upload_report(
     except Exception as exc:
         preview = {"parse_errors": [str(exc)[:200]]}
 
-    report = FlipkartReport(
-        id              = uuid.uuid4(),
-        company_id      = company_id,
-        filename        = stored_name,
-        original_name   = file.filename,
-        file_size_bytes = len(file_bytes),
-        report_type     = "pl_report",
-        status          = "awaiting_confirmation",
-    )
-    db.add(report)
-    await db.commit()
-    await db.refresh(report)
+    try:
+        report = FlipkartReport(
+            id              = uuid.uuid4(),
+            company_id      = company_id,
+            filename        = stored_name,
+            original_name   = file.filename,
+            file_size_bytes = len(file_bytes),
+            file_hash       = file_hash,
+            report_type     = "pl_report",
+            status          = "awaiting_confirmation",
+        )
+        db.add(report)
+        await db.commit()
+        await db.refresh(report)
+    except Exception as exc:
+        logger.exception("DB error saving P&L report for company %s", company_id)
+        raise HTTPException(status_code=422, detail=f"Database error: {exc}. The server may need 'alembic upgrade head' to apply pending migrations.")
 
     return {
         "id":            str(report.id),

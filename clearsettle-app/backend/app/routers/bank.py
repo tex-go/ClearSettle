@@ -57,9 +57,10 @@ async def get_bank(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
+    _empty_summary = {"total_amount": 0.0, "matched_count": 0, "partial_count": 0, "unmatched_count": 0, "unmatched_amount": 0.0, "partial_variance": 0.0}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"items": _MOCK, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     # Transferred payouts = matched bank credits
     payout_rows = (await db.execute(
@@ -85,7 +86,7 @@ async def get_bank(
     )).scalars().all()
 
     if not payout_rows and not pending_rows:
-        return {"items": _MOCK, "summary": _mock_summary()}
+        return {"items": [], "summary": _empty_summary}
 
     items = []
     for i, (payout, settlement) in enumerate(payout_rows):
