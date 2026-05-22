@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import api from '../utils/api'
 import useAuthStore from '../store/authStore'
 
@@ -33,7 +33,15 @@ function Login() {
     api.post('/auth/login', { email: email, password: password })
       .then(function(res) {
         login(res.data.access_token, res.data.user)
-        navigate('/onboarding')
+        var role = res.data.user && res.data.user.role
+        if (role === 'superadmin') {
+          navigate('/admin')
+        } else if (role === 'seller') {
+          localStorage.setItem('cs_onboarded', 'true')
+          navigate('/')
+        } else {
+          navigate('/onboarding')
+        }
       })
       .catch(function(err) {
         setError(err.response ? err.response.data.detail : 'Login failed. Check backend is running.')
@@ -81,7 +89,7 @@ function Login() {
             Recover every rupee you're owed
           </div>
           <div style={{ fontSize: 14, color: '#4B6080', marginBottom: 32, lineHeight: 1.6 }}>
-            The only reconciliation platform built specifically for Tirupur textile sellers on Indian marketplaces.
+            Detect ecommerce settlement discrepancies and identify potential money leakage across all Indian marketplaces.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {FEATURES.map(function(f, i) {
@@ -173,7 +181,7 @@ function Login() {
           <div
             onClick={fillDemo}
             style={{
-              marginTop: 20, padding: '10px 14px', borderRadius: 10,
+              marginTop: 16, padding: '10px 14px', borderRadius: 10,
               background: 'rgba(10,191,202,.08)',
               border: '1px solid rgba(10,191,202,.2)',
               cursor: 'pointer', textAlign: 'center',
@@ -185,6 +193,13 @@ function Login() {
             <div style={{ fontSize: 12, color: '#4B6080', fontFamily: 'JetBrains Mono, monospace' }}>
               demo@clearsettle.in / demo123
             </div>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#4B6080' }}>
+            New to ClearSettle?{' '}
+            <Link to="/register" style={{ color: '#0ABFCA', fontWeight: 700, textDecoration: 'none' }}>
+              Create a free account
+            </Link>
           </div>
         </div>
       </div>
