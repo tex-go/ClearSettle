@@ -1,7 +1,13 @@
 """
 Role-Based Access Control for ClearSettle.
 
-Permission matrix and FastAPI dependency factories for enforcing authorization.
+Permissions live in the database (roles / permissions / role_permissions tables).
+On startup, `load_rbac_from_db()` populates an in-memory cache so every request
+is a pure dict lookup — no per-request DB round-trip.
+
+The static PERMISSIONS dict below is the **fallback** used in mock-data mode (no DB).
+Call `reload_rbac_cache(session)` after any runtime permission change.
+
 Audit events are emitted to the "clearsettle.audit" logger as structured JSON.
 """
 from __future__ import annotations
@@ -16,45 +22,90 @@ from app.core.deps import get_current_user, require_db_user
 
 logger = logging.getLogger("clearsettle.audit")
 
-# ── Permission → allowed roles ────────────────────────────────────────────────
+# ── Static fallback (used when DB is unavailable / mock mode) ─────────────────
 
 PERMISSIONS: dict[str, frozenset[str]] = {
-    "dashboard:read":             frozenset({"admin", "member", "finance", "ca"}),
-    "analytics:read":             frozenset({"admin", "member", "finance", "ca"}),
-    "settlements:read":           frozenset({"admin", "member", "finance", "ca", "viewer"}),
-    "settlements:dispute":        frozenset({"admin", "member"}),
-    "reconciliation:read":        frozenset({"admin", "member", "finance", "ca"}),
-    "reconciliation:run":         frozenset({"admin", "member"}),
-    "reconciliation:resolve":     frozenset({"admin", "member"}),
-    "reconciliation:rules:read":  frozenset({"admin", "member", "finance", "ca"}),
-    "reconciliation:rules:write": frozenset({"admin"}),
+    "dashboard:read":             frozenset({"admin", "member", "finance", "ca", "seller"}),
+    "analytics:read":             frozenset({"admin", "member", "finance", "ca", "seller"}),
+    "settlements:read":           frozenset({"admin", "member", "finance", "ca", "viewer", "seller"}),
+    "settlements:dispute":        frozenset({"admin", "member", "seller"}),
+    "reconciliation:read":        frozenset({"admin", "member", "finance", "ca", "seller"}),
+    "reconciliation:run":         frozenset({"admin", "member", "seller"}),
+    "reconciliation:resolve":     frozenset({"admin", "member", "seller"}),
+    "reconciliation:rules:read":  frozenset({"admin", "member", "finance", "ca", "seller"}),
+    "reconciliation:rules:write": frozenset({"admin", "seller"}),
     "reconciliation:seed":        frozenset({"admin"}),
-    "platforms:read":             frozenset({"admin", "member"}),
-    "platforms:write":            frozenset({"admin"}),
-    "sync:read":                  frozenset({"admin", "member"}),
-    "sync:trigger":               frozenset({"admin", "member"}),
-    "reports:read":               frozenset({"admin", "member", "finance", "ca"}),
-    "disputes:read":              frozenset({"admin", "member", "finance", "ca"}),
-    "disputes:write":             frozenset({"admin", "member"}),
-    "admin:users":                frozenset({"admin"}),
-    "admin:roles":                frozenset({"admin"}),
-    # Rule engine (Session 8)
-    "rules:read":                 frozenset({"admin", "member", "finance", "ca"}),
+    "platforms:read":             frozenset({"admin", "member", "seller"}),
+    "platforms:write":            frozenset({"admin", "seller"}),
+    "sync:read":                  frozenset({"admin", "member", "seller"}),
+    "sync:trigger":               frozenset({"admin", "member", "seller"}),
+    "reports:read":               frozenset({"admin", "member", "finance", "ca", "seller"}),
+    "disputes:read":              frozenset({"admin", "member", "finance", "ca", "seller"}),
+    "disputes:write":             frozenset({"admin", "member", "seller"}),
+    "admin:users":                frozenset({"admin", "superadmin"}),
+    "admin:roles":                frozenset({"admin", "superadmin"}),
+    "rules:read":                 frozenset({"admin", "member", "finance", "ca", "seller"}),
     "rules:write":                frozenset({"admin"}),
-    "rules:test":                 frozenset({"admin", "member"}),
-    # Onboarding (Session 9)
-    "onboarding:read":            frozenset({"admin", "member"}),
-    "onboarding:write":           frozenset({"admin", "member"}),
+    "rules:test":                 frozenset({"admin", "member", "seller"}),
+    "onboarding:read":            frozenset({"admin", "member", "seller"}),
+    "onboarding:write":           frozenset({"admin", "member", "seller"}),
 }
 
-# ── Role → permissions (derived from PERMISSIONS) ────────────────────────────
+# ── In-memory DB cache ────────────────────────────────────────────────────────
+# Populated at startup by load_rbac_from_db(); None means "not yet loaded".
+# Structure mirrors PERMISSIONS: permission_name → frozenset of role names.
+_perm_cache: dict[str, frozenset[str]] | None = None
 
-_ALL_ROLES: frozenset[str] = frozenset({"admin", "member", "finance", "ca", "viewer"})
 
-ROLE_PERMISSIONS: dict[str, set[str]] = {role: set() for role in _ALL_ROLES}
-for _perm, _roles in PERMISSIONS.items():
-    for _role in _roles:
-        ROLE_PERMISSIONS[_role].add(_perm)
+def _active_permissions() -> dict[str, frozenset[str]]:
+    """Return the DB cache when available, else the static fallback."""
+    return _perm_cache if _perm_cache is not None else PERMISSIONS
+
+
+# ── DB loading ────────────────────────────────────────────────────────────────
+
+async def load_rbac_from_db(session) -> None:
+    """
+    Load all active role→permission mappings from the DB into the in-memory cache.
+    Called once at startup; also callable via the admin reload endpoint.
+    """
+    global _perm_cache
+    try:
+        from sqlalchemy import select
+        from app.db.models.rbac import Role, Permission, RolePermission
+
+        stmt = (
+            select(Permission.name, Role.name)
+            .join(RolePermission, Permission.id == RolePermission.permission_id)
+            .join(Role, Role.id == RolePermission.role_id)
+            .where(Role.is_active.is_(True))
+        )
+        result = await session.execute(stmt)
+        rows = result.all()
+
+        cache: dict[str, set[str]] = {}
+        for perm_name, role_name in rows:
+            cache.setdefault(perm_name, set()).add(role_name)
+        _perm_cache = {k: frozenset(v) for k, v in cache.items()}
+        logger.info(
+            "RBAC cache loaded from DB: %d permissions across %d roles",
+            len(_perm_cache),
+            len({r for roles in _perm_cache.values() for r in roles}),
+        )
+    except Exception as exc:
+        logger.warning("RBAC DB load failed — using static fallback: %s", exc)
+        _perm_cache = None
+
+
+async def reload_rbac_cache(session) -> dict:
+    """Reload the permission cache and return stats (for admin endpoint)."""
+    await load_rbac_from_db(session)
+    cache = _perm_cache or PERMISSIONS
+    return {
+        "source":      "database" if _perm_cache is not None else "static_fallback",
+        "permissions": len(cache),
+        "roles":       sorted({r for roles in cache.values() for r in roles}),
+    }
 
 
 # ── Core helpers ──────────────────────────────────────────────────────────────
@@ -69,13 +120,13 @@ def get_user_role(user) -> str:
 def check_permission(user, permission: str) -> bool:
     """Return True if the user's role grants the given permission."""
     role = get_user_role(user)
-    return role in PERMISSIONS.get(permission, frozenset())
+    return role in _active_permissions().get(permission, frozenset())
 
 
 def _check_permission(user, permission: str) -> None:
     """Raise HTTP 403 with a structured body if the user lacks the permission."""
-    role = get_user_role(user)
-    allowed = PERMISSIONS.get(permission, frozenset())
+    role    = get_user_role(user)
+    allowed = _active_permissions().get(permission, frozenset())
     if role not in allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -85,7 +136,7 @@ def _check_permission(user, permission: str) -> None:
                     f"{sorted(allowed)}"
                 ),
                 "required_roles": sorted(allowed),
-                "your_role": role,
+                "your_role":      role,
             },
         )
 
@@ -95,7 +146,7 @@ def audit_log(
     action: str,
     *,
     resource_id: Any = None,
-    company_id: Any = None,
+    company_id:  Any = None,
     extra: dict | None = None,
 ) -> None:
     """Emit a structured audit event to the clearsettle.audit logger."""
@@ -110,7 +161,7 @@ def audit_log(
         "role":        get_user_role(user),
         "action":      action,
         "resource_id": str(resource_id) if resource_id is not None else None,
-        "company_id":  str(company_id) if company_id is not None else None,
+        "company_id":  str(company_id)  if company_id  is not None else None,
     }
     if extra:
         payload.update(extra)
@@ -149,3 +200,11 @@ def require_db_permission(permission: str):
         _check_permission(user, permission)
         return user
     return _dep
+
+
+# ── Role → permissions helper (derived from active source) ───────────────────
+
+def get_role_permissions(role: str) -> set[str]:
+    """Return the set of permission names granted to a role."""
+    src = _active_permissions()
+    return {perm for perm, roles in src.items() if role in roles}

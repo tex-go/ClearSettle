@@ -1,914 +1,979 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { AnimatePresence } from 'framer-motion'
-import useAuthStore from '../store/authStore'
-import { ReconciliationPipeline } from '../components/recon/ReconciliationPipeline'
+import {
+  PieChart, Pie, Cell, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from 'recharts'
+import api from '../utils/api'
 
-// ── constants ─────────────────────────────────────────────────────────────────
-const FILE_TYPES = [
-  { value: 'settlement',       label: 'Settlement Report',        icon: '📄', desc: 'Main payout & deduction summary' },
-  { value: 'invoice',          label: 'Invoice Report',           icon: '🧾', desc: 'Expected receivable amounts' },
-  { value: 'chargeback',       label: 'Chargeback / Deductions',  icon: '⚠️', desc: 'Operational penalty analysis' },
-  { value: 'payment_advice',   label: 'Payment / Remittance',     icon: '🏦', desc: 'Actual bank payment validation' },
-  { value: 'po',               label: 'Purchase Orders (PO)',      icon: '📋', desc: 'Base order commitment' },
-  { value: 'asn',              label: 'ASN (Shipment Notice)',     icon: '🚚', desc: 'Shipment declaration validation' },
-  { value: 'pod',              label: 'Proof of Delivery (POD)',   icon: '✅', desc: 'Physical delivery proof' },
-  { value: 'receiving',        label: 'Receiving Report',         icon: '📦', desc: 'Warehouse receiving validation' },
-  { value: 'otif',             label: 'OTIF Compliance',          icon: '⏱️', desc: 'SLA penalty reports' },
-  { value: 'return',           label: 'Returns Report',           icon: '↩️', desc: 'Customer return deductions' },
-  { value: 'damage',           label: 'Damage / Unsellable',      icon: '🔴', desc: 'Inventory loss deductions' },
-  { value: 'shortage',         label: 'Shortage Claims',          icon: '📉', desc: 'Missing inventory claims' },
-  { value: 'dispute_recovery', label: 'Dispute Recovery',         icon: '⚖️', desc: 'Track recovered leakage' },
-  { value: 'sku_master',       label: 'SKU Master',               icon: '🏷️', desc: 'Cross-system entity mapping' },
+// ── Palette ────────────────────────────────────────────────────────────────────
+const P = {
+  teal: '#0ABFCA', navy: '#0D1F35', green: '#10B981',
+  red: '#E8344A', amber: '#E9930D', purple: '#8B5CF6',
+  blue: '#3B82F6', bg: '#F1F5F9',
+}
+const PIE_COLORS = [P.teal, P.amber, P.red, P.purple, P.blue, P.green, '#F97316', '#EC4899']
+
+// ── Formatters ─────────────────────────────────────────────────────────────────
+function inr(n, compact) {
+  const num = Number(n) || 0
+  if (compact) {
+    if (num >= 1e7) return '₹' + (num / 1e7).toFixed(1) + ' Cr'
+    if (num >= 1e5) return '₹' + (num / 1e5).toFixed(1) + 'L'
+    if (num >= 1e3) return '₹' + (num / 1e3).toFixed(1) + 'K'
+    return '₹' + num.toFixed(0)
+  }
+  return '₹' + num.toLocaleString('en-IN', { maximumFractionDigits: 0 })
+}
+function pct(n) { return n == null ? '—' : Number(n).toFixed(1) + '%' }
+function fmtDate(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// ── Platforms config ───────────────────────────────────────────────────────────
+const PLATFORMS = [
+  { id: 'flipkart', label: 'Flipkart', icon: '🛒', live: true,  color: '#FF6B35',
+    desc: 'Upload P&L report from Flipkart Seller Hub',
+    docs: [{ key: 'pl_report', label: 'P&L Report (Excel)', hint: 'Seller Hub → Reports → P&L Report → Download' }] },
+  { id: 'amazon',   label: 'Amazon',   icon: '📦', live: false, color: '#FF9900', desc: 'SP-API integration — coming soon' },
+  { id: 'meesho',   label: 'Meesho',   icon: '🧵', live: false, color: '#7B2D8B', desc: 'Report upload — coming soon' },
+  { id: 'myntra',   label: 'Myntra',   icon: '👗', live: false, color: '#FF3F6C', desc: 'Coming soon' },
+  { id: 'ajio',     label: 'Ajio',     icon: '🎽', live: false, color: '#F26522', desc: 'Coming soon' },
+  { id: 'nykaa',    label: 'Nykaa',    icon: '💄', live: false, color: '#FC2779', desc: 'Coming soon' },
 ]
 
-const LEAKAGE_TYPES = {
-  SHORT:            { label: 'Shortage Leakage',         color: '#E8344A', icon: '📉' },
-  DUPLICATE:        { label: 'Duplicate Deductions',     color: '#E9930D', icon: '🔁' },
-  OTIF:             { label: 'Invalid OTIF Penalty',     color: '#F59E0B', icon: '⏱️' },
-  ACCRUAL:          { label: 'Accrual Mismatch',         color: '#8B5CF6', icon: '🔄' },
-  COOP:             { label: 'Unauthorized Co-Op',       color: '#EC4899', icon: '🤝' },
-  RETURN:           { label: 'Return Leakage',           color: '#06B6D4', icon: '↩️' },
-  DAMAGE:           { label: 'Damage Overstatement',     color: '#F97316', icon: '🔴' },
-  TIMING:           { label: 'Payment Timing',           color: '#10B981', icon: '⏰' },
-  TAX:              { label: 'Tax Mismatch',             color: '#3B82F6', icon: '🧾' },
-  DISPUTE_RECOVERY: { label: 'Unrecovered Disputes',    color: '#EF4444', icon: '⚖️' },
+// ── Processing animation stages ────────────────────────────────────────────────
+const STAGES = [
+  { icon: '📤', label: 'Reading document structure...' },
+  { icon: '🔍', label: 'Parsing order & SKU data...' },
+  { icon: '💰', label: 'Calculating Profit & Loss...' },
+  { icon: '🔬', label: 'Running reconciliation engine...' },
+  { icon: '💡', label: 'Generating insights...' },
+]
+
+// ── Mini UI components ─────────────────────────────────────────────────────────
+function Spinner({ size = 20 }) {
+  return <div style={{ width: size, height: size, borderRadius: '50%', border: '3px solid rgba(10,191,202,.2)', borderTopColor: P.teal, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
 }
 
-const SEVERITY_COLORS = {
-  critical: { bg: 'rgba(232,52,74,.15)', color: '#E8344A', border: 'rgba(232,52,74,.3)' },
-  warning:  { bg: 'rgba(233,147,13,.15)', color: '#E9930D', border: 'rgba(233,147,13,.3)' },
-  info:     { bg: 'rgba(10,191,202,.15)', color: '#0ABFCA', border: 'rgba(10,191,202,.3)' },
+function Badge({ label, color }) {
+  const c = { green: { bg: 'rgba(16,185,129,.12)', fg: '#10B981' }, red: { bg: 'rgba(232,52,74,.12)', fg: '#E8344A' }, amber: { bg: 'rgba(233,147,13,.12)', fg: '#E9930D' }, teal: { bg: 'rgba(10,191,202,.12)', fg: '#0ABFCA' }, gray: { bg: '#F3F4F6', fg: '#6B7280' } }
+  const s = c[color || 'teal']
+  return <span style={{ background: s.bg, color: s.fg, borderRadius: 8, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{label}</span>
 }
 
-const STATUS_COLORS = {
-  open:     { bg: 'rgba(232,52,74,.12)', color: '#E8344A' },
-  disputed: { bg: 'rgba(233,147,13,.12)', color: '#E9930D' },
-  resolved: { bg: 'rgba(16,185,129,.12)', color: '#10B981' },
-  waived:   { bg: 'rgba(139,92,246,.12)', color: '#8B5CF6' },
+function statusBadge(status) {
+  const map = { done: 'green', failed: 'red', processing: 'amber', pending: 'amber', awaiting_confirmation: 'teal', default: 'gray' }
+  return <Badge label={status?.replace('_', ' ') || '—'} color={map[status] || map.default} />
 }
 
-const JOB_STATUS_COLORS = {
-  draft:     { bg: 'rgba(75,96,128,.15)', color: '#8FA5BD' },
-  queued:    { bg: 'rgba(10,191,202,.15)', color: '#0ABFCA' },
-  running:   { bg: 'rgba(233,147,13,.15)', color: '#E9930D' },
-  completed: { bg: 'rgba(16,185,129,.15)', color: '#10B981' },
-  failed:    { bg: 'rgba(232,52,74,.15)', color: '#E8344A' },
-}
-
-const fmt = n => n == null ? '—' : `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-const fmtPct = n => n == null ? '—' : `${Number(n).toFixed(2)}%`
-
-function api(token, path, opts = {}) {
-  return fetch(`/api${path}`, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
-  }).then(r => r.json())
-}
-
-// ── mini components ───────────────────────────────────────────────────────────
-function Badge({ type, label, style = {} }) {
-  const s = SEVERITY_COLORS[type] || SEVERITY_COLORS.info
-  return (
-    <span style={{
-      ...s, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
-      border: `1px solid ${s.border || 'transparent'}`, ...style,
-    }}>{label || type}</span>
-  )
-}
-
-function StatusBadge({ status, colors = STATUS_COLORS }) {
-  const s = colors[status] || colors.open || { bg: '#eee', color: '#333' }
-  return (
-    <span style={{
-      ...s, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700,
-    }}>{status}</span>
-  )
-}
-
-function StatCard({ label, value, sub, color = '#0ABFCA', onClick }) {
+// ── Hero KPI card ──────────────────────────────────────────────────────────────
+function HeroCard({ icon, label, value, sub, accent, note, onClick }) {
   return (
     <div onClick={onClick} style={{
-      background: '#fff', borderRadius: 12, padding: '20px 24px',
-      border: '1px solid #E8EFF6', flex: 1, minWidth: 160,
+      background: '#fff', border: '1px solid #E8EFF6',
+      borderRadius: 16, padding: '20px 22px',
+      borderLeft: `4px solid ${accent}`,
+      flex: 1, minWidth: 0,
       cursor: onClick ? 'pointer' : 'default',
       transition: 'box-shadow .15s',
     }}
-    onMouseEnter={e => onClick && (e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,.08)')}
-    onMouseLeave={e => onClick && (e.currentTarget.style.boxShadow = 'none')}
-    >
-      <div style={{ fontSize: 11, color: '#8FA5BD', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 4 }}>{sub}</div>}
+    onMouseEnter={e => onClick && (e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,.08)')}
+    onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 20 }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#8FA5BD', textTransform: 'uppercase', letterSpacing: '.07em' }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 13, color: '#6B7280', marginTop: 6 }}>{sub}</div>}
+      {note && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 8, lineHeight: 1.4 }}>{note}</div>}
     </div>
   )
 }
 
-function Spinner() {
-  return <div style={{ width: 20, height: 20, border: '3px solid rgba(10,191,202,.2)', borderTop: '3px solid #0ABFCA', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+// ── Platform Select View ───────────────────────────────────────────────────────
+function PlatformSelect({ onSelect }) {
+  return (
+    <div style={{ minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <div style={{ fontSize: 28, fontWeight: 800, color: P.navy, marginBottom: 10 }}>Settlement Intelligence</div>
+        <div style={{ fontSize: 15, color: '#6B7280', maxWidth: 480, lineHeight: 1.6 }}>
+          Select your marketplace. We'll analyse your reports to detect potential payout anomalies and money leakage.
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, width: '100%', maxWidth: 600 }}>
+        {PLATFORMS.map(function(p) {
+          return (
+            <button
+              key={p.id}
+              onClick={function() { p.live && onSelect(p) }}
+              title={!p.live ? 'Coming soon' : ''}
+              style={{
+                padding: '24px 16px',
+                borderRadius: 14,
+                background: p.live ? '#fff' : '#F9FAFB',
+                border: p.live ? '1.5px solid #E8EFF6' : '1.5px solid #F3F4F6',
+                cursor: p.live ? 'pointer' : 'not-allowed',
+                opacity: p.live ? 1 : 0.55,
+                transition: 'all .18s',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+              }}
+              onMouseEnter={e => p.live && (e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,.1)')}
+              onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+            >
+              <span style={{ fontSize: 30 }}>{p.icon}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: p.live ? P.navy : '#9CA3AF' }}>{p.label}</span>
+              {!p.live && <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600 }}>COMING SOON</span>}
+            </button>
+          )
+        })}
+      </div>
+      <div style={{ marginTop: 32, fontSize: 11, color: '#9CA3AF', textAlign: 'center', maxWidth: 420, lineHeight: 1.6 }}>
+        All figures shown are <em>estimated potential discrepancies</em> based on your uploaded data.
+        Verify before raising disputes. ClearSettle does not guarantee recovery.
+      </div>
+    </div>
+  )
 }
 
-// ── Upload Tab ────────────────────────────────────────────────────────────────
-function UploadTab({ token, files, onRefresh }) {
-  const [dragging, setDragging]   = useState(false)
-  const [fileType, setFileType]   = useState('settlement')
-  const [uploading, setUploading] = useState(false)
-  const [error, setError]         = useState(null)
-  const inputRef = useRef()
+// ── Preview Modal ──────────────────────────────────────────────────────────────
+function PreviewModal({ file, preview, onConfirm, onCancel, confirming }) {
+  const sheets = preview?.sheets_found || []
+  const orders = preview?.estimated_orders || 0
+  const skus   = preview?.estimated_skus   || 0
+  const errors = preview?.parse_errors     || []
 
-  async function handleUpload(file) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(13,31,53,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, padding: '32px 28px', boxShadow: '0 24px 80px rgba(0,0,0,.22)' }}>
+        <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(10,191,202,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>📊</div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: P.navy }}>Document Preview</div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>Review before analysis begins</div>
+          </div>
+        </div>
+
+        {/* File info */}
+        <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: P.navy, marginBottom: 4 }}>{file?.name}</div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>
+            {file ? (file.size / 1024).toFixed(0) + ' KB' : ''}
+          </div>
+        </div>
+
+        {/* What we found */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>What we found</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {sheets.length > 0 && sheets.map(function(sheet) {
+              return (
+                <div key={sheet} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: P.green, fontSize: 14 }}>✓</span>
+                  <span style={{ fontSize: 13, color: '#374151' }}>{sheet} sheet detected</span>
+                </div>
+              )
+            })}
+            {orders > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: P.green, fontSize: 14 }}>✓</span>
+                <span style={{ fontSize: 13, color: '#374151' }}><strong>{orders.toLocaleString()}</strong> orders found</span>
+              </div>
+            )}
+            {skus > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: P.green, fontSize: 14 }}>✓</span>
+                <span style={{ fontSize: 13, color: '#374151' }}><strong>{skus}</strong> SKUs detected</span>
+              </div>
+            )}
+            {errors.length > 0 && errors.map(function(err, i) {
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: P.amber, fontSize: 14 }}>⚠</span>
+                  <span style={{ fontSize: 12, color: P.amber }}>{err}</span>
+                </div>
+              )
+            })}
+            {!sheets.length && !orders && !skus && !errors.length && (
+              <div style={{ fontSize: 13, color: '#6B7280' }}>File uploaded. Ready to analyse.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Disclaimer */}
+        <div style={{ background: 'rgba(10,191,202,.06)', border: '1px solid rgba(10,191,202,.15)', borderRadius: 10, padding: '10px 12px', marginBottom: 20, fontSize: 11, color: '#6B7280', lineHeight: 1.6 }}>
+          <span style={{ color: P.teal, fontWeight: 700 }}>Note: </span>
+          All figures generated are <em>estimated potential discrepancies</em>. Verify before raising disputes with Flipkart.
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel} disabled={confirming} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={confirming} style={{ flex: 2, padding: '11px', borderRadius: 10, border: 'none', background: confirming ? 'rgba(10,191,202,.4)' : 'linear-gradient(135deg,#0ABFCA,#088F99)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: confirming ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {confirming ? <><Spinner size={16} /> Starting...</> : 'Proceed with Analysis →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Processing Animation ───────────────────────────────────────────────────────
+function ProcessingView({ filename, onDone }) {
+  const [stage, setStage] = useState(0)
+  const [progress, setProgress] = useState(8)
+
+  useEffect(function() {
+    const timings = [700, 1100, 900, 1100, 800]
+    let idx = 0
+    function advance() {
+      if (idx >= STAGES.length) return
+      idx++
+      setStage(idx)
+      setProgress(Math.round((idx / STAGES.length) * 85))
+      if (idx < STAGES.length) {
+        setTimeout(advance, timings[idx] || 900)
+      }
+    }
+    const t = setTimeout(advance, timings[0])
+    return function() { clearTimeout(t) }
+  }, [])
+
+  return (
+    <div style={{ minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+      <div style={{ width: '100%', maxWidth: 440, textAlign: 'center' }}>
+        {/* Animated icon */}
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(10,191,202,.1)', border: '3px solid rgba(10,191,202,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 24px', animation: 'pulse 2s ease-in-out infinite' }}>
+          🔬
+        </div>
+
+        <div style={{ fontSize: 20, fontWeight: 800, color: P.navy, marginBottom: 6 }}>Analysing your report</div>
+        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 28 }}>{filename}</div>
+
+        {/* Progress bar */}
+        <div style={{ height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden', marginBottom: 28 }}>
+          <div style={{ height: '100%', width: progress + '%', background: 'linear-gradient(90deg,#0ABFCA,#088F99)', borderRadius: 99, transition: 'width .6s ease' }} />
+        </div>
+
+        {/* Stage list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+          {STAGES.map(function(s, i) {
+            const done    = i < stage
+            const active  = i === stage
+            const pending = i > stage
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: pending ? 0.35 : 1, transition: 'opacity .3s' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: done ? 'rgba(16,185,129,.12)' : active ? 'rgba(10,191,202,.12)' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
+                  {done ? '✓' : active ? <Spinner size={14} /> : s.icon}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: done ? P.green : active ? P.navy : '#9CA3AF' }}>
+                  {s.label}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ marginTop: 28, fontSize: 12, color: '#9CA3AF' }}>This usually takes 3–5 seconds</div>
+      </div>
+    </div>
+  )
+}
+
+// ── Upload View ────────────────────────────────────────────────────────────────
+function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack, uploading, setUploading }) {
+  const fileRef = useRef()
+  const [dragging, setDragging] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+
+  async function handleFile(file) {
     if (!file) return
+    if (!file.name.toLowerCase().match(/\.(xlsx|xls)$/)) {
+      setUploadError('Only .xlsx and .xls files are supported')
+      return
+    }
+    setUploadError('')
     setUploading(true)
-    setError(null)
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('file_type', fileType)
+    const form = new FormData()
+    form.append('file', file)
     try {
-      const res = await fetch('/api/recon-engine/files/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      })
-      if (!res.ok) throw new Error((await res.json()).detail || 'Upload failed')
-      onRefresh()
-    } catch (e) {
-      setError(e.message)
-    } finally {
+      const res = await api.post('/flipkart/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      onFileUploaded(res.data, file)
+    } catch (err) {
+      setUploadError(err.response?.data?.detail || 'Upload failed. Please try again.')
       setUploading(false)
     }
   }
 
-  async function deleteFile(id) {
-    if (!window.confirm('Delete this file?')) return
-    await fetch(`/api/recon-engine/files/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    onRefresh()
+  function onDrop(e) {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    handleFile(file)
   }
 
   return (
-    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-      {/* Upload card */}
-      <div style={{ flex: '0 0 340px', background: '#fff', borderRadius: 14, padding: 24, border: '1px solid #E8EFF6' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 15, color: '#0D1F35', fontWeight: 700 }}>Upload File</h3>
-
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080', display: 'block', marginBottom: 6 }}>File Type</label>
-          <select value={fileType} onChange={e => setFileType(e.target.value)} style={{
-            width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #D1DDE8',
-            fontSize: 13, color: '#0D1F35', background: '#F7FAFC',
-          }}>
-            {FILE_TYPES.map(ft => (
-              <option key={ft.value} value={ft.value}>{ft.icon} {ft.label}</option>
-            ))}
-          </select>
-          <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 4 }}>
-            {FILE_TYPES.find(f => f.value === fileType)?.desc}
-          </div>
-        </div>
-
-        {/* Drop zone */}
-        <div
-          onDragOver={e => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={e => { e.preventDefault(); setDragging(false); handleUpload(e.dataTransfer.files[0]) }}
-          onClick={() => inputRef.current?.click()}
-          style={{
-            border: `2px dashed ${dragging ? '#0ABFCA' : '#D1DDE8'}`,
-            borderRadius: 12, padding: '32px 20px', textAlign: 'center',
-            cursor: 'pointer', background: dragging ? 'rgba(10,191,202,.04)' : '#F7FAFC',
-            transition: 'all .15s', marginBottom: 12,
-          }}
-        >
-          <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
-          <div style={{ fontSize: 13, color: '#4B6080', fontWeight: 500 }}>
-            {uploading ? 'Uploading…' : 'Drop file here or click to browse'}
-          </div>
-          <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 4 }}>CSV, XLSX, TXT supported</div>
-          <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls,.txt" style={{ display: 'none' }}
-            onChange={e => handleUpload(e.target.files[0])} />
-        </div>
-
-        {error && <div style={{ color: '#E8344A', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-
-        {/* Supported types grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 4 }}>
-          {FILE_TYPES.map(ft => (
-            <div key={ft.value} onClick={() => setFileType(ft.value)} style={{
-              padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
-              background: fileType === ft.value ? 'rgba(10,191,202,.12)' : '#F7FAFC',
-              border: `1px solid ${fileType === ft.value ? '#0ABFCA' : '#E8EFF6'}`,
-              fontSize: 11, color: fileType === ft.value ? '#0ABFCA' : '#4B6080',
-            }}>
-              {ft.icon} {ft.label}
-            </div>
-          ))}
+    <div style={{ padding: '24px 0' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <button onClick={onBack} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#6B7280', cursor: 'pointer' }}>← Back</button>
+        <span style={{ fontSize: 20 }}>{platform.icon}</span>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>{platform.label} Settlement Intelligence</div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>{platform.desc}</div>
         </div>
       </div>
 
-      {/* File list */}
-      <div style={{ flex: 1, minWidth: 300 }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 15, color: '#0D1F35', fontWeight: 700 }}>
-          Uploaded Files ({files.length})
-        </h3>
-        {files.length === 0 ? (
-          <div style={{ background: '#fff', borderRadius: 12, padding: 40, textAlign: 'center', border: '1px solid #E8EFF6', color: '#8FA5BD', fontSize: 13 }}>
-            No files uploaded yet
+      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20 }}>
+        {/* Upload zone */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>Upload Report</div>
+          <div
+            onDragOver={function(e) { e.preventDefault(); setDragging(true) }}
+            onDragLeave={function() { setDragging(false) }}
+            onDrop={onDrop}
+            onClick={function() { !uploading && fileRef.current?.click() }}
+            style={{
+              border: `2px dashed ${dragging ? P.teal : '#D1D5DB'}`,
+              borderRadius: 14, padding: '36px 24px',
+              textAlign: 'center',
+              background: dragging ? 'rgba(10,191,202,.05)' : '#FAFAFA',
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              transition: 'all .15s',
+            }}
+          >
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={function(e) { handleFile(e.target.files[0]) }} />
+            {uploading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                <Spinner size={32} />
+                <div style={{ fontSize: 13, color: P.teal, fontWeight: 600 }}>Uploading & reading file...</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Drop your {platform.label} report here</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12 }}>or click to browse — .xlsx / .xls</div>
+                <div style={{ display: 'inline-block', padding: '7px 16px', borderRadius: 8, background: P.navy, color: '#fff', fontSize: 12, fontWeight: 600 }}>Choose File</div>
+              </>
+            )}
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {files.map(f => {
-              const ft = FILE_TYPES.find(t => t.value === f.file_type)
-              return (
-                <div key={f.id} style={{
-                  background: '#fff', borderRadius: 10, padding: '12px 16px',
-                  border: '1px solid #E8EFF6', display: 'flex', alignItems: 'center', gap: 12,
-                }}>
-                  <div style={{ fontSize: 22, flexShrink: 0 }}>{ft?.icon || '📄'}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0D1F35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {f.original_name}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 2 }}>
-                      {ft?.label} · {f.row_count != null ? `${f.row_count} rows` : 'parsing…'}
-                      {f.file_size_bytes && ` · ${(f.file_size_bytes / 1024).toFixed(1)} KB`}
-                    </div>
-                  </div>
-                  <StatusBadge status={f.status} colors={{ processed: { bg: 'rgba(16,185,129,.12)', color: '#10B981' }, pending: { bg: 'rgba(75,96,128,.12)', color: '#8FA5BD' }, failed: { bg: 'rgba(232,52,74,.12)', color: '#E8344A' } }} />
-                  <button onClick={() => deleteFile(f.id)} style={{
-                    background: 'rgba(232,52,74,.1)', color: '#E8344A', border: 'none',
-                    borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer',
-                  }}>✕</button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+          {uploadError && <div style={{ marginTop: 8, fontSize: 12, color: P.red }}>{uploadError}</div>}
 
-// ── Jobs Tab ──────────────────────────────────────────────────────────────────
-function JobsTab({ token, files, jobs, onRefresh, onSelectJob, onRunJob }) {
-  const [creating, setCreating] = useState(false)
-  const [running, setRunning]   = useState(null)
-  const [form, setForm]         = useState({ name: '', description: '', period_start: '', period_end: '', platform: '', currency: 'INR', file_ids: [] })
-
-  function toggleFile(id) {
-    setForm(prev => ({
-      ...prev,
-      file_ids: prev.file_ids.includes(id) ? prev.file_ids.filter(i => i !== id) : [...prev.file_ids, id],
-    }))
-  }
-
-  async function createJob() {
-    if (!form.name) return
-    setCreating(true)
-    const body = { ...form }
-    if (!body.period_start) delete body.period_start
-    if (!body.period_end)   delete body.period_end
-    if (!body.platform)     delete body.platform
-    await api(token, '/recon-engine/jobs', { method: 'POST', body: JSON.stringify(body) })
-    setCreating(false)
-    setForm({ name: '', description: '', period_start: '', period_end: '', platform: '', currency: 'INR', file_ids: [] })
-    onRefresh()
-  }
-
-  async function runJob(jobId, jobName) {
-    setRunning(jobId)
-    try {
-      // Queue the job — returns immediately with {"status": "queued"}
-      await api(token, `/recon-engine/jobs/${jobId}/run`, { method: 'POST' })
-      // Open the live pipeline visualization overlay
-      onRunJob(jobId, jobName)
-    } catch (e) {
-      // If already running or other conflict, just refresh
-    } finally {
-      setRunning(null)
-    }
-  }
-
-  const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #D1DDE8', fontSize: 13, color: '#0D1F35', background: '#F7FAFC', boxSizing: 'border-box' }
-
-  return (
-    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-      {/* Create job form */}
-      <div style={{ flex: '0 0 340px', background: '#fff', borderRadius: 14, padding: 24, border: '1px solid #E8EFF6' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 15, color: '#0D1F35', fontWeight: 700 }}>Create Reconciliation Job</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080', display: 'block', marginBottom: 4 }}>Job Name *</label>
-            <input style={inputStyle} placeholder="e.g. Q1 2026 Settlement Recon" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080', display: 'block', marginBottom: 4 }}>Period Start</label>
-              <input type="date" style={inputStyle} value={form.period_start} onChange={e => setForm(p => ({ ...p, period_start: e.target.value }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080', display: 'block', marginBottom: 4 }}>Period End</label>
-              <input type="date" style={inputStyle} value={form.period_end} onChange={e => setForm(p => ({ ...p, period_end: e.target.value }))} />
+          {/* Download hint */}
+          <div style={{ marginTop: 14, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#0369A1', marginBottom: 4 }}>Where to download?</div>
+            <div style={{ fontSize: 11, color: '#0369A1', lineHeight: 1.6 }}>
+              {platform.docs[0]?.hint}
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080', display: 'block', marginBottom: 4 }}>Platform</label>
-              <select style={inputStyle} value={form.platform} onChange={e => setForm(p => ({ ...p, platform: e.target.value }))}>
-                <option value="">Generic</option>
-                <option value="amazon">Amazon</option>
-                <option value="flipkart">Flipkart</option>
-                <option value="meesho">Meesho</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080', display: 'block', marginBottom: 4 }}>Currency</label>
-              <select style={inputStyle} value={form.currency} onChange={e => setForm(p => ({ ...p, currency: e.target.value }))}>
-                <option value="INR">INR</option>
-                <option value="USD">USD</option>
-              </select>
-            </div>
-          </div>
+        </div>
 
-          {/* File selector */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080', display: 'block', marginBottom: 6 }}>
-              Select Files ({form.file_ids.length} selected)
-            </label>
-            <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {files.length === 0 && <div style={{ fontSize: 12, color: '#8FA5BD' }}>Upload files first</div>}
-              {files.map(f => {
-                const ft = FILE_TYPES.find(t => t.value === f.file_type)
-                const selected = form.file_ids.includes(f.id)
+        {/* Previous reports */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>
+            Previous Reports ({reports.length})
+          </div>
+          {reports.length === 0 ? (
+            <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '32px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+              No reports uploaded yet. Upload your first report above.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {reports.map(function(r) {
                 return (
-                  <div key={f.id} onClick={() => toggleFile(f.id)} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                    borderRadius: 8, cursor: 'pointer',
-                    background: selected ? 'rgba(10,191,202,.1)' : '#F7FAFC',
-                    border: `1px solid ${selected ? '#0ABFCA' : '#E8EFF6'}`,
-                  }}>
-                    <div style={{ width: 14, height: 14, borderRadius: 3, background: selected ? '#0ABFCA' : '#D1DDE8', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12 }}>{ft?.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: '#0D1F35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</div>
-                      <div style={{ fontSize: 10, color: '#8FA5BD' }}>{ft?.label}</div>
+                  <div
+                    key={r.id}
+                    onClick={function() { r.status === 'done' && onSelectReport(r) }}
+                    style={{
+                      background: '#fff', border: '1px solid #E8EFF6',
+                      borderRadius: 12, padding: '12px 14px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      cursor: r.status === 'done' ? 'pointer' : 'default',
+                      transition: 'box-shadow .15s',
+                    }}
+                    onMouseEnter={e => r.status === 'done' && (e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.08)')}
+                    onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: P.navy }}>{r.original_name}</div>
+                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                        {r.report_period || '—'} · {r.row_count_orders || 0} orders · {fmtDate(r.uploaded_at)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {statusBadge(r.status)}
+                      {r.status === 'done' && <span style={{ fontSize: 13, color: P.teal }}>→</span>}
                     </div>
                   </div>
                 )
               })}
             </div>
-          </div>
-
-          <button onClick={createJob} disabled={!form.name || creating} style={{
-            width: '100%', padding: 10, borderRadius: 8, fontWeight: 700, fontSize: 13,
-            background: form.name ? 'linear-gradient(135deg,#0ABFCA,#088F99)' : '#E8EFF6',
-            color: form.name ? '#fff' : '#8FA5BD', border: 'none', cursor: form.name ? 'pointer' : 'not-allowed',
-          }}>
-            {creating ? 'Creating…' : '+ Create Job'}
-          </button>
+          )}
         </div>
-      </div>
-
-      {/* Jobs list */}
-      <div style={{ flex: 1, minWidth: 300 }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 15, color: '#0D1F35', fontWeight: 700 }}>
-          Reconciliation Jobs ({jobs.length})
-        </h3>
-        {jobs.length === 0 ? (
-          <div style={{ background: '#fff', borderRadius: 12, padding: 40, textAlign: 'center', border: '1px solid #E8EFF6', color: '#8FA5BD', fontSize: 13 }}>
-            No jobs yet — create one to start reconciling
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {jobs.map(job => {
-              const sc = JOB_STATUS_COLORS[job.status] || JOB_STATUS_COLORS.draft
-              return (
-                <div key={job.id} style={{
-                  background: '#fff', borderRadius: 12, padding: '16px 20px',
-                  border: '1px solid #E8EFF6',
-                  cursor: job.status === 'completed' ? 'pointer' : 'default',
-                  transition: 'box-shadow .15s',
-                }}
-                onClick={() => job.status === 'completed' && onSelectJob(job.id)}
-                onMouseEnter={e => job.status === 'completed' && (e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,.06)')}
-                onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0D1F35' }}>{job.name}</div>
-                        <span style={{ ...sc, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{job.status}</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: '#8FA5BD' }}>
-                        {job.period_start && job.period_end && `${job.period_start} → ${job.period_end} · `}
-                        {job.platform || 'Generic'} · {job.currency}
-                        {job.created_at && ` · Created ${new Date(job.created_at).toLocaleDateString('en-IN')}`}
-                      </div>
-                    </div>
-                    {job.status === 'completed' && (
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: '#E8344A' }}>{fmt(job.total_leakage)}</div>
-                        <div style={{ fontSize: 10, color: '#8FA5BD' }}>total leakage</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {job.status === 'completed' && (
-                    <div style={{ display: 'flex', gap: 20, marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: '#8FA5BD' }}>Expected</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0D1F35' }}>{fmt(job.expected_payout)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: '#8FA5BD' }}>Actual</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0D1F35' }}>{fmt(job.actual_payout)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: '#8FA5BD' }}>Variance</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: job.variance_amount > 0 ? '#E8344A' : '#10B981' }}>{fmt(job.variance_amount)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: '#8FA5BD' }}>Leakage Events</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0D1F35' }}>{job.leakage_count || 0}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                    {job.status === 'draft' && (
-                      <button onClick={e => { e.stopPropagation(); runJob(job.id, job.name) }} disabled={running === job.id} style={{
-                        padding: '6px 14px', borderRadius: 7, background: 'linear-gradient(135deg,#0ABFCA,#088F99)',
-                        color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 6,
-                      }}>
-                        {running === job.id ? <Spinner /> : '▶'} Run Engine
-                      </button>
-                    )}
-                    {job.status === 'failed' && (
-                      <button onClick={e => { e.stopPropagation(); runJob(job.id, job.name) }} style={{
-                        padding: '6px 14px', borderRadius: 7, background: 'rgba(232,52,74,.1)',
-                        color: '#E8344A', border: '1px solid rgba(232,52,74,.2)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      }}>↺ Retry</button>
-                    )}
-                    {job.status === 'completed' && (
-                      <button onClick={e => { e.stopPropagation(); onSelectJob(job.id) }} style={{
-                        padding: '6px 14px', borderRadius: 7, background: 'rgba(10,191,202,.1)',
-                        color: '#0ABFCA', border: '1px solid rgba(10,191,202,.2)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      }}>View Report →</button>
-                    )}
-                    {job.error_message && (
-                      <div style={{ fontSize: 11, color: '#E8344A', padding: '6px 0' }}>{job.error_message}</div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
     </div>
   )
 }
 
-// ── Leakage Tab ───────────────────────────────────────────────────────────────
-function LeakageTab({ token, jobs }) {
-  const [selectedJobId, setSelectedJobId] = useState(null)
-  const [leakageData, setLeakageData]     = useState(null)
-  const [jobDetail, setJobDetail]         = useState(null)
-  const [loading, setLoading]             = useState(false)
-  const [filterType, setFilterType]       = useState('')
-  const [filterSev, setFilterSev]         = useState('')
-  const [filterStatus, setFilterStatus]   = useState('')
-  const [expandedEvent, setExpandedEvent] = useState(null)
-  const [patching, setPatching]           = useState(null)
+// ── Analytics: Dashboard Tab ───────────────────────────────────────────────────
+function DashboardTab({ summary, charts, reconData }) {
+  if (!summary) return <div style={{ padding: '48px 0', textAlign: 'center', color: '#9CA3AF' }}>No summary data available.</div>
 
-  const completedJobs = jobs.filter(j => j.status === 'completed')
+  const moneyLeak = reconData?.issues
+    ? reconData.issues.reduce(function(acc, iss) { return acc + Math.abs(Math.min(0, Number(iss.variance) || 0)) }, 0)
+    : 0
 
-  useEffect(function() {
-    if (!selectedJobId) return
-    setLoading(true)
-    Promise.all([
-      api(token, `/recon-engine/jobs/${selectedJobId}`),
-      api(token, `/recon-engine/jobs/${selectedJobId}/leakage?limit=200`),
-    ]).then(([jd, ld]) => {
-      setJobDetail(jd)
-      setLeakageData(ld)
-    }).finally(() => setLoading(false))
-  }, [selectedJobId])
-
-  async function updateStatus(eventId, newStatus) {
-    setPatching(eventId)
-    await api(token, `/recon-engine/leakage/${eventId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: newStatus }),
-    })
-    const ld = await api(token, `/recon-engine/jobs/${selectedJobId}/leakage?limit=200`)
-    setLeakageData(ld)
-    setPatching(null)
-  }
-
-  const filteredEvents = (leakageData?.items || []).filter(e => {
-    if (filterType && e.leakage_type !== filterType) return false
-    if (filterSev  && e.severity       !== filterSev)  return false
-    if (filterStatus && e.status       !== filterStatus) return false
-    return true
-  })
-
-  const leakageByType = {}
-  ;(leakageData?.items || []).forEach(e => {
-    leakageByType[e.leakage_type] = (leakageByType[e.leakage_type] || 0) + (e.amount || 0)
-  })
-
-  if (completedJobs.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: 60, color: '#8FA5BD' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
-        <div style={{ fontSize: 15, fontWeight: 600 }}>No completed jobs yet</div>
-        <div style={{ fontSize: 13, marginTop: 4 }}>Create and run a reconciliation job to see leakage analysis</div>
-      </div>
-    )
-  }
+  const netEarnings = summary.net_earnings || 0
+  const totalFees   = summary.total_fees   || 0
+  const margin      = summary.profit_margin_pct
 
   return (
     <div>
-      {/* Job selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: '#4B6080' }}>Select Job:</label>
-        <select value={selectedJobId || ''} onChange={e => setSelectedJobId(e.target.value || null)} style={{
-          padding: '8px 12px', borderRadius: 8, border: '1px solid #D1DDE8',
-          fontSize: 13, color: '#0D1F35', background: '#fff', minWidth: 240,
-        }}>
-          <option value="">-- Select a completed job --</option>
-          {completedJobs.map(j => (
-            <option key={j.id} value={j.id}>{j.name} ({j.period_start || 'No period'})</option>
-          ))}
-        </select>
-        {loading && <Spinner />}
+      {/* THREE HERO KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+        <HeroCard
+          icon="💰" label="Profit / Loss" accent={netEarnings >= 0 ? P.green : P.red}
+          value={inr(netEarnings, true)}
+          sub={margin != null ? `Margin: ${pct(margin)} of gross sales` : 'Margin not available'}
+          note="Net earnings after all platform deductions"
+        />
+        <HeroCard
+          icon="💸" label="Total Charges" accent={P.amber}
+          value={inr(totalFees, true)}
+          sub={summary.gross_sales ? `${pct((totalFees / summary.gross_sales) * 100)} of gross sales` : 'Platform fees + taxes'}
+          note="Commission + shipping + reverse shipping + GST + TCS/TDS"
+        />
+        <HeroCard
+          icon="🚨" label="Potential Money Leak" accent={P.red}
+          value={moneyLeak > 0 ? inr(moneyLeak, true) : '₹0'}
+          sub={reconData?.stats ? `${reconData.stats.total_issues || 0} anomalies detected` : 'Settlement anomalies'}
+          note="Estimated unrecovered settlement gaps — verify before disputing"
+          onClick={function() {}}
+        />
       </div>
 
-      {!selectedJobId && <div style={{ background: '#fff', borderRadius: 12, padding: 40, textAlign: 'center', border: '1px solid #E8EFF6', color: '#8FA5BD' }}>Select a job above to view leakage analysis</div>}
-
-      {selectedJobId && jobDetail && (
-        <>
-          {/* Payout summary row */}
-          {jobDetail.fact && (
-            <div style={{ background: 'linear-gradient(135deg,#0D1F35,#1A3355)', borderRadius: 14, padding: '20px 24px', marginBottom: 20, color: '#fff' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#0ABFCA', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                Payout Reconciliation Summary
-              </div>
-              <div style={{ display: 'flex', gap: 30, flexWrap: 'wrap' }}>
-                {[
-                  ['Invoice Value', jobDetail.fact.total_invoice_value, '#fff'],
-                  ['Expected Payout', jobDetail.fact.expected_payout, '#0ABFCA'],
-                  ['Actual Payout', jobDetail.fact.actual_payout, '#fff'],
-                  ['Variance', jobDetail.fact.variance_amount, jobDetail.fact.variance_amount > 0 ? '#E8344A' : '#10B981'],
-                  ['Total Leakage', jobDetail.fact.total_leakage, '#E8344A'],
-                  ['Disputable', jobDetail.fact.disputable_amount, '#E9930D'],
-                ].map(([label, val, color]) => (
-                  <div key={label}>
-                    <div style={{ fontSize: 11, color: '#4B6080', marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color }}>{fmt(val)}</div>
-                  </div>
-                ))}
-              </div>
+      {/* Secondary KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: 'Gross Sales',     value: inr(summary.gross_sales, true),     color: P.teal },
+          { label: 'Net Sales',       value: inr(summary.net_sales, true),        color: P.blue },
+          { label: 'Amount Settled',  value: inr(summary.amount_settled, true),   color: P.green },
+          { label: 'Amount Pending',  value: inr(summary.amount_pending, true),   color: P.amber },
+          { label: 'Total Orders',    value: summary.total_orders?.toLocaleString() || '0', color: P.navy },
+        ].map(function(k) {
+          return (
+            <div key={k.label} style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{k.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: k.color }}>{k.value}</div>
             </div>
-          )}
+          )
+        })}
+      </div>
 
-          {/* Leakage by type breakdown */}
-          {Object.keys(leakageByType).length > 0 && (
-            <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-              {Object.entries(leakageByType).sort((a, b) => b[1] - a[1]).map(([type, amount]) => {
-                const info = LEAKAGE_TYPES[type] || { label: type, color: '#8FA5BD', icon: '⚠️' }
-                return (
-                  <div key={type} onClick={() => setFilterType(filterType === type ? '' : type)} style={{
-                    background: '#fff', borderRadius: 10, padding: '10px 14px',
-                    border: `2px solid ${filterType === type ? info.color : '#E8EFF6'}`,
-                    cursor: 'pointer', minWidth: 130, transition: 'all .15s',
-                  }}>
-                    <div style={{ fontSize: 18, marginBottom: 4 }}>{info.icon}</div>
-                    <div style={{ fontSize: 11, color: '#8FA5BD', fontWeight: 600 }}>{info.label}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: info.color }}>{fmt(amount)}</div>
-                    <div style={{ fontSize: 10, color: '#8FA5BD' }}>
-                      {(leakageData?.items || []).filter(e => e.leakage_type === type).length} events
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Filters */}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1DDE8', fontSize: 12, color: '#0D1F35' }}>
-              <option value="">All Types</option>
-              {Object.entries(LEAKAGE_TYPES).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
-            </select>
-            <select value={filterSev} onChange={e => setFilterSev(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1DDE8', fontSize: 12, color: '#0D1F35' }}>
-              <option value="">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="warning">Warning</option>
-              <option value="info">Info</option>
-            </select>
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1DDE8', fontSize: 12, color: '#0D1F35' }}>
-              <option value="">All Statuses</option>
-              <option value="open">Open</option>
-              <option value="disputed">Disputed</option>
-              <option value="resolved">Resolved</option>
-              <option value="waived">Waived</option>
-            </select>
-            <div style={{ fontSize: 12, color: '#8FA5BD', marginLeft: 'auto' }}>
-              {filteredEvents.length} events · {fmt(filteredEvents.reduce((s, e) => s + (e.amount || 0), 0))}
-            </div>
-          </div>
-
-          {/* Events list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filteredEvents.length === 0 && (
-              <div style={{ background: '#fff', borderRadius: 12, padding: 40, textAlign: 'center', border: '1px solid #E8EFF6', color: '#8FA5BD' }}>
-                No leakage events found for current filters
-              </div>
-            )}
-            {filteredEvents.map(ev => {
-              const info = LEAKAGE_TYPES[ev.leakage_type] || { label: ev.leakage_type, color: '#8FA5BD', icon: '⚠️' }
-              const sc   = SEVERITY_COLORS[ev.severity] || SEVERITY_COLORS.info
-              const isOpen = expandedEvent === ev.id
-
-              return (
-                <div key={ev.id} style={{
-                  background: '#fff', borderRadius: 12, border: `1px solid #E8EFF6`,
-                  overflow: 'hidden', transition: 'box-shadow .15s',
-                }}>
-                  <div onClick={() => setExpandedEvent(isOpen ? null : ev.id)} style={{
-                    padding: '14px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
-                  }}>
-                    <div style={{ fontSize: 22, flexShrink: 0 }}>{info.icon}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4, alignItems: 'center' }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: info.color }}>{info.label}</span>
-                        <Badge type={ev.severity} label={ev.severity} />
-                        <StatusBadge status={ev.status} />
-                        {ev.is_disputable && <span style={{ background: 'rgba(16,185,129,.12)', color: '#10B981', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>Disputable</span>}
+      {/* Charts row */}
+      {charts && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {/* Fee Breakdown pie */}
+          {charts.fee_breakdown && charts.fee_breakdown.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 14, padding: '18px 20px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Fee Breakdown</div>
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 14 }}>Platform deductions by category</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <ResponsiveContainer width={160} height={160}>
+                  <PieChart>
+                    <Pie data={charts.fee_breakdown} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={2}>
+                      {charts.fee_breakdown.map(function(_, i) { return <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} /> })}
+                    </Pie>
+                    <Tooltip formatter={function(v) { return inr(v) }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ flex: 1 }}>
+                  {charts.fee_breakdown.slice(0, 6).map(function(f, i) {
+                    return (
+                      <div key={f.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                          <span style={{ fontSize: 11, color: '#374151' }}>{f.name}</span>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: P.navy }}>{inr(f.value, true)}</span>
                       </div>
-                      <div style={{ fontSize: 13, color: '#4B6080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.description}</div>
-                      {(ev.po_number || ev.invoice_number || ev.sku) && (
-                        <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 2 }}>
-                          {ev.po_number && `PO: ${ev.po_number}`}
-                          {ev.invoice_number && ` · INV: ${ev.invoice_number}`}
-                          {ev.sku && ` · SKU: ${ev.sku}`}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#E8344A' }}>{fmt(ev.amount)}</div>
-                      {ev.recovery_potential && <div style={{ fontSize: 11, color: '#10B981' }}>↑ {fmt(ev.recovery_potential)}</div>}
-                    </div>
-                    <div style={{ fontSize: 16, color: '#8FA5BD' }}>{isOpen ? '▲' : '▼'}</div>
-                  </div>
-
-                  {isOpen && (
-                    <div style={{ padding: '0 18px 18px', borderTop: '1px solid #F1F5F9' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingTop: 14 }}>
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#4B6080', marginBottom: 6, textTransform: 'uppercase' }}>Root Cause</div>
-                          <div style={{ fontSize: 13, color: '#0D1F35', lineHeight: 1.5 }}>{ev.root_cause || '—'}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#4B6080', marginBottom: 6, textTransform: 'uppercase' }}>Recovery Recommendation</div>
-                          <div style={{ fontSize: 13, color: '#0D1F35', lineHeight: 1.5 }}>{ev.recovery_recommendation || '—'}</div>
-                        </div>
-                      </div>
-
-                      {ev.evidence_json && JSON.parse(ev.evidence_json).length > 0 && (
-                        <div style={{ marginTop: 14 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#4B6080', marginBottom: 6, textTransform: 'uppercase' }}>Required Evidence</div>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                            {JSON.parse(ev.evidence_json).map((e, i) => (
-                              <span key={i} style={{ background: '#F1F5F9', color: '#4B6080', borderRadius: 6, padding: '4px 10px', fontSize: 12 }}>{e}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {['disputed', 'resolved', 'waived'].map(s => (
-                          <button key={s} disabled={ev.status === s || patching === ev.id} onClick={() => updateStatus(ev.id, s)} style={{
-                            padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none',
-                            ...STATUS_COLORS[s], opacity: ev.status === s ? 0.5 : 1,
-                          }}>
-                            {s.charAt(0).toUpperCase() + s.slice(1)}
-                          </button>
-                        ))}
-                        {ev.status !== 'open' && (
-                          <button disabled={patching === ev.id} onClick={() => updateStatus(ev.id, 'open')} style={{
-                            padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none',
-                            background: '#F1F5F9', color: '#4B6080',
-                          }}>Reopen</button>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    )
+                  })}
                 </div>
-              )
-            })}
-          </div>
-        </>
+              </div>
+            </div>
+          )}
+
+          {/* Revenue Waterfall */}
+          {charts.revenue_waterfall && charts.revenue_waterfall.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 14, padding: '18px 20px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Revenue Waterfall</div>
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 14 }}>Gross Sales → deductions → Net Earnings</div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={charts.revenue_waterfall} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9CA3AF' }} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip formatter={function(v) { return inr(v) }} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {charts.revenue_waterfall.map(function(entry, i) {
+                      return <Cell key={i} fill={entry.type === 'negative' ? P.red : entry.type === 'subtotal' ? P.blue : P.teal} />
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
-// ── Deduction Codes Tab ───────────────────────────────────────────────────────
-function DeductionCodesTab({ token }) {
-  const [codes, setCodes] = useState([])
-  const [filter, setFilter] = useState('')
+// ── Analytics: SKU Tab ─────────────────────────────────────────────────────────
+function SKUTab({ reportId }) {
+  const [skus, setSkus] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [sortBy, setSortBy] = useState('net_earnings')
+  const [sortDir, setSortDir] = useState('desc')
+  const [filterLoss, setFilterLoss] = useState(false)
+  const [filterReturn, setFilterReturn] = useState(false)
 
   useEffect(function() {
-    api(token, '/recon-engine/deduction-codes').then(r => setCodes(r.items || []))
-  }, [])
+    if (!reportId) return
+    setLoading(true)
+    api.get(`/flipkart/reports/${reportId}/skus?sort_by=${sortBy}&sort_dir=${sortDir}&limit=50${filterLoss ? '&filter_loss=true' : ''}${filterReturn ? '&filter_high_return=true' : ''}`)
+      .then(function(r) { setSkus(r.data.rows || []) })
+      .finally(function() { setLoading(false) })
+  }, [reportId, sortBy, sortDir, filterLoss, filterReturn])
 
-  const CAT_COLORS = {
-    fee: '#0ABFCA', penalty: '#E8344A', chargeback: '#E9930D',
-    coop: '#8B5CF6', adjustment: '#10B981', tax: '#3B82F6',
-    return: '#EC4899', shortage: '#F97316',
-  }
+  const cols = [
+    { key: 'sku_code', label: 'SKU' },
+    { key: 'gross_sales', label: 'Gross Sales', fmt: function(v) { return inr(v, true) } },
+    { key: 'net_sales', label: 'Net Sales', fmt: function(v) { return inr(v, true) } },
+    { key: 'net_earnings', label: 'Net Earnings', fmt: function(v) { return inr(v, true) }, color: function(v) { return v < 0 ? P.red : P.green } },
+    { key: 'margin_pct', label: 'Margin', fmt: pct, color: function(v) { return v < 0 ? P.red : v < 5 ? P.amber : P.green } },
+    { key: 'total_fees', label: 'Total Fees', fmt: function(v) { return inr(v, true) } },
+    { key: 'return_rate_pct', label: 'Return %', fmt: pct, color: function(v) { return v > 30 ? P.red : v > 15 ? P.amber : '#374151' } },
+    { key: 'total_orders', label: 'Orders' },
+  ]
 
-  const filtered = codes.filter(c =>
-    !filter || c.code.toLowerCase().includes(filter.toLowerCase()) || c.name.toLowerCase().includes(filter.toLowerCase())
-  )
+  if (loading) return <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
-        <input
-          placeholder="Search codes…"
-          value={filter} onChange={e => setFilter(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1DDE8', fontSize: 13, flex: 1, maxWidth: 300 }}
-        />
-        <div style={{ fontSize: 12, color: '#8FA5BD' }}>{filtered.length} codes</div>
-      </div>
-
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8EFF6', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px 90px 80px', gap: 0, background: '#F7FAFC', padding: '10px 16px', borderBottom: '1px solid #E8EFF6' }}>
-          {['Code', 'Name', 'Category', 'Severity', 'Dispute?'].map(h => (
-            <div key={h} style={{ fontSize: 11, fontWeight: 700, color: '#4B6080', textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</div>
-          ))}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <button onClick={function() { setFilterLoss(!filterLoss) }} style={{ padding: '6px 12px', borderRadius: 8, background: filterLoss ? 'rgba(232,52,74,.12)' : '#F3F4F6', border: filterLoss ? '1px solid rgba(232,52,74,.3)' : '1px solid transparent', color: filterLoss ? P.red : '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          Loss-making SKUs only
+        </button>
+        <button onClick={function() { setFilterReturn(!filterReturn) }} style={{ padding: '6px 12px', borderRadius: 8, background: filterReturn ? 'rgba(233,147,13,.12)' : '#F3F4F6', border: filterReturn ? '1px solid rgba(233,147,13,.3)' : '1px solid transparent', color: filterReturn ? P.amber : '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          High return rate only
+        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280' }}>
+          {skus.length} SKUs
         </div>
-        {filtered.map((c, i) => (
-          <div key={c.id} style={{
-            display: 'grid', gridTemplateColumns: '90px 1fr 100px 90px 80px',
-            padding: '12px 16px', borderBottom: i < filtered.length - 1 ? '1px solid #F1F5F9' : 'none',
-            alignItems: 'center',
-          }}>
-            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: '#0D1F35' }}>{c.code}</div>
-            <div>
-              <div style={{ fontSize: 13, color: '#0D1F35', fontWeight: 500 }}>{c.name}</div>
-              <div style={{ fontSize: 11, color: '#8FA5BD', marginTop: 2 }}>{c.description}</div>
-            </div>
-            <div>
-              <span style={{
-                background: `${CAT_COLORS[c.category] || '#8FA5BD'}20`,
-                color: CAT_COLORS[c.category] || '#8FA5BD',
-                borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700,
-              }}>{c.category}</span>
-            </div>
-            <Badge type={c.severity_level === 'critical' ? 'critical' : c.severity_level === 'warning' ? 'warning' : 'info'} label={c.severity_level} />
-            <div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: c.is_dispute_allowed ? '#10B981' : '#8FA5BD' }}>
-                {c.is_dispute_allowed ? '✓ Yes' : '✗ No'}
-              </span>
-            </div>
-          </div>
-        ))}
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#F9FAFB' }}>
+              {cols.map(function(c) {
+                return (
+                  <th key={c.key} onClick={function() { if (sortBy === c.key) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortBy(c.key); setSortDir('desc') } }} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', cursor: 'pointer', whiteSpace: 'nowrap', background: sortBy === c.key ? '#F0F9FF' : '#F9FAFB' }}>
+                    {c.label} {sortBy === c.key ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {skus.map(function(row, i) {
+              return (
+                <tr key={row.id || i} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                  {cols.map(function(c) {
+                    const val = row[c.key]
+                    const display = c.fmt ? c.fmt(val) : (val ?? '—')
+                    const color = c.color ? c.color(val) : '#374151'
+                    return <td key={c.key} style={{ padding: '9px 12px', color, fontWeight: c.key === 'sku_code' ? 600 : 400, whiteSpace: 'nowrap', maxWidth: c.key === 'sku_code' ? 160 : 'none', overflow: 'hidden', textOverflow: 'ellipsis' }}>{display}</td>
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
-export default function ReconEngine() {
-  const token   = useAuthStore(s => s.token)
-  const [tab, setTab]           = useState('upload')
-  const [files, setFiles]       = useState([])
-  const [jobs, setJobs]         = useState([])
-  const [summary, setSummary]   = useState(null)
-  const [loading, setLoading]   = useState(true)
+// ── Analytics: Reconciliation Tab ──────────────────────────────────────────────
+function ReconTab({ reportId }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [typeFilter, setTypeFilter] = useState('')
 
-  // Pipeline overlay state
-  const [pipelineJob, setPipelineJob] = useState(null)  // { id, name } | null
+  useEffect(function() {
+    if (!reportId) return
+    setLoading(true)
+    api.get(`/flipkart/reports/${reportId}/reconciliation`)
+      .then(function(r) { setData(r.data) })
+      .finally(function() { setLoading(false) })
+  }, [reportId])
 
-  const load = useCallback(async function() {
-    try {
-      const [fl, jl, sm] = await Promise.all([
-        api(token, '/recon-engine/files'),
-        api(token, '/recon-engine/jobs'),
-        api(token, '/recon-engine/summary'),
-      ])
-      setFiles(fl.items || [])
-      setJobs(jl.items || [])
-      setSummary(sm)
-    } catch (e) {
-      // ignore
-    } finally {
-      setLoading(false)
-    }
-  }, [token])
+  if (loading) return <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
+  if (!data || !data.issues?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No reconciliation issues detected — your settlements look clean!</div>
 
-  useEffect(function() { load() }, [load])
+  const severityColor = { critical: P.red, warning: P.amber, info: P.teal }
+  const types = [...new Set(data.issues.map(function(i) { return i.issue_type }))]
+  const filtered = typeFilter ? data.issues.filter(function(i) { return i.issue_type === typeFilter }) : data.issues
 
-  function handleSelectJob() {
-    setTab('leakage')
-  }
+  return (
+    <div>
+      {/* Stats row */}
+      {data.stats && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+          {[
+            { label: 'Total Issues',   value: data.stats.total_issues,   color: '#374151' },
+            { label: 'Critical',       value: data.stats.critical_count, color: P.red },
+            { label: 'Warning',        value: data.stats.warning_count,  color: P.amber },
+            { label: 'Est. Impact',    value: inr(data.stats.total_variance, true), color: P.red },
+          ].map(function(s) {
+            return (
+              <div key={s.label} style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' }}>{s.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: s.color, marginTop: 4 }}>{s.value ?? '—'}</div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
-  // Opens the live pipeline overlay — called after POST /run succeeds
-  function handleRunJob(jobId, jobName) {
-    setPipelineJob({ id: jobId, name: jobName })
-  }
+      {/* Type filter chips */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+        <button onClick={function() { setTypeFilter('') }} style={{ padding: '4px 12px', borderRadius: 8, background: !typeFilter ? P.navy : '#F3F4F6', color: !typeFilter ? '#fff' : '#6B7280', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer' }}>All</button>
+        {types.map(function(t) {
+          return <button key={t} onClick={function() { setTypeFilter(t) }} style={{ padding: '4px 12px', borderRadius: 8, background: typeFilter === t ? P.navy : '#F3F4F6', color: typeFilter === t ? '#fff' : '#6B7280', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer' }}>{t.replace(/_/g, ' ')}</button>
+        })}
+      </div>
 
-  // Dismiss overlay, refresh list, optionally switch to leakage tab
-  function handlePipelineClose() {
-    setPipelineJob(null)
-    load()
-  }
+      {/* Issues list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filtered.slice(0, 50).map(function(iss) {
+          const sc = severityColor[iss.severity] || P.teal
+          return (
+            <div key={iss.id} style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 12, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: sc, background: sc + '18', padding: '2px 8px', borderRadius: 6, textTransform: 'uppercase' }}>{iss.severity}</span>
+                  <span style={{ fontSize: 11, color: '#6B7280' }}>{iss.issue_type?.replace(/_/g, ' ')}</span>
+                  {iss.order_id && <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'monospace' }}>{iss.order_id}</span>}
+                </div>
+                <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>{iss.description}</div>
+              </div>
+              {iss.variance != null && (
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: iss.variance < 0 ? P.red : P.green }}>{inr(Math.abs(iss.variance), true)}</div>
+                  <div style={{ fontSize: 10, color: '#9CA3AF' }}>potential gap</div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
-  function handlePipelineComplete() {
-    load()  // refresh summary + job list in background
-  }
+// ── Analytics: Insights Tab ────────────────────────────────────────────────────
+function InsightsTab({ reportId }) {
+  const [insights, setInsights] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(function() {
+    if (!reportId) return
+    api.get(`/flipkart/reports/${reportId}/insights`)
+      .then(function(r) { setInsights(r.data.insights || []) })
+      .finally(function() { setLoading(false) })
+  }, [reportId])
+
+  if (loading) return <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
+  if (!insights.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No insights generated yet.</div>
+
+  const iconMap = { critical: '🚨', warning: '⚠️', info: 'ℹ️', positive: '✅' }
+  const colorMap = { critical: P.red, warning: P.amber, info: P.teal, positive: P.green }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {insights.map(function(ins, i) {
+        const c = colorMap[ins.type] || P.teal
+        return (
+          <div key={i} style={{ background: '#fff', border: '1px solid #E8EFF6', borderLeft: `4px solid ${c}`, borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 12 }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>{iconMap[ins.type] || ins.icon}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', lineHeight: 1.5 }}>{ins.message}</div>
+              {ins.data && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  {Object.entries(ins.data).map(function([k, v]) {
+                    return <span key={k} style={{ background: '#F3F4F6', borderRadius: 6, padding: '2px 8px', fontSize: 11, color: '#6B7280' }}>{k}: {String(v)}</span>
+                  })}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: c, background: c + '15', padding: '3px 8px', borderRadius: 6, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>
+              {ins.type?.toUpperCase()}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Analytics View (full tabbed dashboard) ─────────────────────────────────────
+function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNewUpload }) {
+  const [tab, setTab] = useState('dashboard')
+  const [summary, setSummary] = useState(null)
+  const [charts, setCharts] = useState(null)
+  const [reconData, setReconData] = useState(null)
+  const [loadingData, setLoadingData] = useState(false)
+
+  useEffect(function() {
+    if (!selectedReport?.id) return
+    setLoadingData(true)
+    setSummary(null); setCharts(null); setReconData(null)
+    Promise.all([
+      api.get(`/flipkart/reports/${selectedReport.id}/summary`),
+      api.get(`/flipkart/reports/${selectedReport.id}/charts`),
+      api.get(`/flipkart/reports/${selectedReport.id}/reconciliation`),
+    ])
+      .then(function([sRes, cRes, rRes]) {
+        setSummary(sRes.data)
+        setCharts(cRes.data)
+        setReconData(rRes.data)
+      })
+      .finally(function() { setLoadingData(false) })
+  }, [selectedReport?.id])
 
   const TABS = [
-    { id: 'upload',   label: 'Upload Files',    icon: '📁' },
-    { id: 'jobs',     label: 'Jobs',            icon: '⚙️' },
-    { id: 'leakage',  label: 'Leakage Report',  icon: '🔍' },
-    { id: 'codes',    label: 'Deduction Codes', icon: '📖' },
+    { id: 'dashboard', label: 'Dashboard',       icon: '⚡' },
+    { id: 'skus',      label: 'SKU Analysis',    icon: '📦' },
+    { id: 'recon',     label: 'Reconciliation',  icon: '🔬' },
+    { id: 'insights',  label: 'Insights',        icon: '💡' },
   ]
 
   return (
-    <div style={{ padding: '24px 28px', minHeight: '100vh', background: '#F1F5F9' }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    <div>
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 18 }}>{platform.icon}</span>
+        <div style={{ fontSize: 16, fontWeight: 800, color: P.navy }}>{platform.label} Intelligence</div>
 
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <div style={{ fontSize: 24 }}>🔬</div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0D1F35' }}>Reconciliation Engine</h1>
-          <span style={{ background: 'rgba(10,191,202,.15)', color: '#0ABFCA', borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700 }}>PRODUCTION GRADE</span>
-        </div>
-        <div style={{ fontSize: 13, color: '#4B6080' }}>
-          Multi-file ingestion · ETL pipeline · 10 leakage detectors · Root cause analysis · Expected vs Actual payout
+        {/* Report selector */}
+        <select
+          value={selectedReport?.id || ''}
+          onChange={function(e) {
+            const r = reports.find(function(r) { return r.id === e.target.value })
+            if (r) onSelectReport(r)
+          }}
+          style={{ marginLeft: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, color: P.navy, background: '#fff' }}
+        >
+          {reports.filter(function(r) { return r.status === 'done' }).map(function(r) {
+            return <option key={r.id} value={r.id}>{r.original_name} — {r.report_period || fmtDate(r.uploaded_at)}</option>
+          })}
+        </select>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={onNewUpload} style={{ padding: '7px 14px', borderRadius: 8, background: '#F3F4F6', border: 'none', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            + Upload New Report
+          </button>
         </div>
       </div>
-
-      {/* Summary stats */}
-      {summary && (
-        <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
-          <StatCard label="Total Jobs"        value={summary.total_jobs}    sub={`${summary.completed_jobs} completed`} color="#0ABFCA" />
-          <StatCard label="Total Leakage"     value={fmt(summary.total_leakage)}  sub="across all jobs" color="#E8344A" onClick={() => setTab('leakage')} />
-          <StatCard label="Disputable Amount" value={fmt(summary.total_disputable)} sub="can be recovered" color="#E9930D" onClick={() => setTab('leakage')} />
-          <StatCard label="Open Events"       value={summary.open_events}   sub="require action" color="#F97316" onClick={() => setTab('leakage')} />
-          <StatCard label="Files Uploaded"    value={summary.total_files}   sub="across all jobs" color="#8B5CF6" onClick={() => setTab('upload')} />
-        </div>
-      )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 24, background: '#fff', borderRadius: 12, padding: 4, width: 'fit-content', border: '1px solid #E8EFF6' }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            padding: '8px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: 600,
-            background: tab === t.id ? 'linear-gradient(135deg,#0ABFCA,#088F99)' : 'transparent',
-            color: tab === t.id ? '#fff' : '#4B6080',
-            display: 'flex', alignItems: 'center', gap: 6,
-            transition: 'all .15s',
-          }}>
-            <span>{t.icon}</span> {t.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid #E8EFF6', marginBottom: 20 }}>
+        {TABS.map(function(t) {
+          return (
+            <button key={t.id} onClick={function() { setTab(t.id) }} style={{ padding: '8px 16px', borderRadius: '8px 8px 0 0', border: 'none', background: tab === t.id ? '#fff' : 'transparent', color: tab === t.id ? P.navy : '#6B7280', fontSize: 13, fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer', borderBottom: tab === t.id ? '2px solid ' + P.teal : '2px solid transparent', marginBottom: -2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {t.icon} {t.label}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Tab content */}
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><Spinner /></div>
+      {loadingData ? (
+        <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div>
       ) : (
         <>
-          {tab === 'upload'  && <UploadTab    token={token} files={files} onRefresh={load} />}
-          {tab === 'jobs'    && <JobsTab      token={token} files={files} jobs={jobs} onRefresh={load} onSelectJob={handleSelectJob} onRunJob={handleRunJob} />}
-          {tab === 'leakage' && <LeakageTab   token={token} jobs={jobs} />}
-          {tab === 'codes'   && <DeductionCodesTab token={token} />}
+          {tab === 'dashboard'  && <DashboardTab summary={summary} charts={charts} reconData={reconData} />}
+          {tab === 'skus'       && <SKUTab reportId={selectedReport?.id} />}
+          {tab === 'recon'      && <ReconTab reportId={selectedReport?.id} />}
+          {tab === 'insights'   && <InsightsTab reportId={selectedReport?.id} />}
         </>
       )}
-
-      {/* ── Live pipeline overlay ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {pipelineJob && (
-          <ReconciliationPipeline
-            key={pipelineJob.id}
-            jobId={pipelineJob.id}
-            jobName={pipelineJob.name}
-            token={token}
-            onClose={handlePipelineClose}
-            onComplete={handlePipelineComplete}
-          />
-        )}
-      </AnimatePresence>
     </div>
   )
 }
+
+// ── Main Component ─────────────────────────────────────────────────────────────
+function ReconEngine() {
+  const [platform, setPlatform] = useState(null)
+  const [view, setView]         = useState('platform_select') // platform_select | upload | processing | analytics
+  const [reports, setReports]   = useState([])
+  const [selectedReport, setSelectedReport] = useState(null)
+
+  // Upload flow state
+  const [uploading, setUploading]       = useState(false)
+  const [previewData, setPreviewData]   = useState(null)
+  const [pendingReport, setPendingReport] = useState(null)  // {id, preview, file}
+  const [confirming, setConfirming]     = useState(false)
+  const [processingId, setProcessingId] = useState(null)
+
+  const pollRef = useRef(null)
+
+  // Fetch reports for selected platform
+  const fetchReports = useCallback(function() {
+    if (!platform) return
+    if (platform.id === 'flipkart') {
+      api.get('/flipkart/reports').then(function(r) {
+        const list = r.data.reports || []
+        setReports(list)
+        // Auto-select latest done report
+        const done = list.find(function(r) { return r.status === 'done' })
+        if (done && !selectedReport) {
+          setSelectedReport(done)
+          setView('analytics')
+        }
+      })
+    }
+  }, [platform])
+
+  useEffect(function() { fetchReports() }, [fetchReports])
+
+  // Poll processing status
+  useEffect(function() {
+    if (!processingId) return
+    pollRef.current = setInterval(function() {
+      api.get('/flipkart/reports/' + processingId).then(function(r) {
+        const status = r.data.status
+        if (status === 'done') {
+          clearInterval(pollRef.current)
+          fetchReports()
+          // Give animation time to finish, then switch to analytics
+          setTimeout(function() {
+            const rep = r.data
+            setSelectedReport(rep)
+            setProcessingId(null)
+            setView('analytics')
+          }, 1200)
+        } else if (status === 'failed') {
+          clearInterval(pollRef.current)
+          setProcessingId(null)
+          setView('upload')
+          fetchReports()
+        }
+      })
+    }, 2000)
+    return function() { clearInterval(pollRef.current) }
+  }, [processingId, fetchReports])
+
+  function handlePlatformSelect(p) {
+    setPlatform(p)
+    setView('upload')
+    setReports([])
+    setSelectedReport(null)
+  }
+
+  function handleFileUploaded(response, file) {
+    setUploading(false)
+    setPendingReport({ id: response.id, file, preview: response.preview })
+    fetchReports()
+  }
+
+  async function handleConfirm() {
+    if (!pendingReport) return
+    setConfirming(true)
+    try {
+      await api.post('/flipkart/reports/' + pendingReport.id + '/confirm')
+      setPendingReport(null)
+      setConfirming(false)
+      setProcessingId(pendingReport.id)
+      setView('processing')
+    } catch (e) {
+      setConfirming(false)
+    }
+  }
+
+  function handleCancelPreview() {
+    setPendingReport(null)
+    fetchReports()
+  }
+
+  return (
+    <div style={{ padding: '24px 32px', minHeight: '100vh', background: P.bg }}>
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: P.navy }}>Settlement Intelligence</div>
+        <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
+          Upload your marketplace reports · Detect payout anomalies · Identify potential money leakage
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E8EFF6', padding: '24px 28px' }}>
+        {view === 'platform_select' && (
+          <PlatformSelect onSelect={handlePlatformSelect} />
+        )}
+
+        {view === 'upload' && platform && (
+          <UploadView
+            platform={platform}
+            reports={reports}
+            uploading={uploading}
+            setUploading={setUploading}
+            onFileUploaded={handleFileUploaded}
+            onSelectReport={function(r) { setSelectedReport(r); setView('analytics') }}
+            onBack={function() { setPlatform(null); setView('platform_select') }}
+          />
+        )}
+
+        {view === 'processing' && platform && (
+          <ProcessingView
+            filename={pendingReport?.file?.name || 'your report'}
+            onDone={function() {}}
+          />
+        )}
+
+        {view === 'analytics' && platform && selectedReport && (
+          <AnalyticsView
+            platform={platform}
+            reports={reports}
+            selectedReport={selectedReport}
+            onSelectReport={function(r) { setSelectedReport(r) }}
+            onNewUpload={function() { setView('upload') }}
+          />
+        )}
+      </div>
+
+      {/* Preview modal (overlay) */}
+      {pendingReport && (
+        <PreviewModal
+          file={pendingReport.file}
+          preview={pendingReport.preview}
+          onConfirm={handleConfirm}
+          onCancel={handleCancelPreview}
+          confirming={confirming}
+        />
+      )}
+
+      {/* Legal footer */}
+      <div style={{ marginTop: 16, fontSize: 11, color: '#9CA3AF', lineHeight: 1.6 }}>
+        All settlement analysis figures represent <em>potential discrepancies</em> derived from your uploaded data.
+        ClearSettle does not guarantee recovery. Verify all anomalies independently before raising disputes with marketplaces.
+      </div>
+    </div>
+  )
+}
+
+export default ReconEngine

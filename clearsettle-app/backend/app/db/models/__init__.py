@@ -44,6 +44,8 @@ from app.db.models.flipkart_report import (
     FlipkartReport, FlipkartSummary, FlipkartSkuPL,
     FlipkartOrderPL, FlipkartReconIssue,
 )
+# RBAC tables (Session 12)
+from app.db.models.rbac import Role, Permission, RolePermission
 # Cash Flow Forecast + Meeting System
 from app.db.models.cash_flow_snapshot import CashFlowSnapshot
 from app.db.models.meeting import Meeting
@@ -103,4 +105,7 @@ __all__ = [
     "FlipkartSkuPL",
     "FlipkartOrderPL",
     "FlipkartReconIssue",
+    "Role",
+    "Permission",
+    "RolePermission",
 ]

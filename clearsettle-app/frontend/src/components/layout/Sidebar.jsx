@@ -77,15 +77,9 @@ var NAV_SELLER = [
     ],
   },
   {
-    group: 'Marketplaces',
+    group: 'Intelligence',
     items: [
-      { path: '/flipkart', label: 'Flipkart Intelligence', icon: '🛒', badge: 'NEW', bc: 'tl' },
-    ],
-  },
-  {
-    group: 'Reconciliation',
-    items: [
-      { path: '/recon-engine', label: 'Recon Engine', icon: '🔬' },
+      { path: '/recon-engine', label: 'Settlement Intelligence', icon: '🔬', badge: 'NEW', bc: 'tl' },
     ],
   },
   {

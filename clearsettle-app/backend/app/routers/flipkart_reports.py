@@ -370,7 +370,10 @@ async def upload_report(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Upload a Flipkart P&L Excel file. Processing happens asynchronously."""
+    """
+    Upload a Flipkart P&L Excel file.
+    Returns a quick-parse preview; call POST /reports/{id}/confirm to start full ingestion.
+    """
     company_id = _company_id(user)
 
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
@@ -386,25 +389,79 @@ async def upload_report(
     with open(stored_path, "wb") as fh:
         fh.write(file_bytes)
 
+    # Quick parse for preview metadata (no DB writes yet)
+    preview: Dict[str, Any] = {}
+    try:
+        parsed = parse_flipkart_excel(file_bytes)
+        preview = {
+            "sheets_found":      parsed["sheets_found"],
+            "estimated_orders":  len(parsed["order_rows"]),
+            "estimated_skus":    len(parsed["sku_rows"]),
+            "has_summary":       bool(parsed["summary"]),
+            "parse_errors":      parsed["errors"][:3] if parsed["errors"] else [],
+        }
+    except Exception as exc:
+        preview = {"parse_errors": [str(exc)[:200]]}
+
     report = FlipkartReport(
-        id            = uuid.uuid4(),
-        company_id    = company_id,
-        filename      = stored_name,
-        original_name = file.filename,
+        id              = uuid.uuid4(),
+        company_id      = company_id,
+        filename        = stored_name,
+        original_name   = file.filename,
         file_size_bytes = len(file_bytes),
-        status        = "pending",
+        status          = "awaiting_confirmation",
     )
     db.add(report)
     await db.commit()
     await db.refresh(report)
 
-    background_tasks.add_task(_ingest_report, report.id, file_bytes)
-
     return {
         "id":            str(report.id),
         "original_name": report.original_name,
+        "file_size_bytes": len(file_bytes),
         "status":        report.status,
-        "message":       "Report uploaded. Processing started.",
+        "preview":       preview,
+        "message":       "File uploaded. Review the preview and confirm to start analysis.",
+    }
+
+
+@router.post("/reports/{report_id}/confirm", status_code=202)
+async def confirm_report(
+    report_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Confirm a previewed report and start full background ingestion."""
+    company_id = _company_id(user)
+
+    report = await db.get(FlipkartReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    _assert_report_owner(report, company_id)
+
+    if report.status not in ("awaiting_confirmation", "failed"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Report is already in state '{report.status}'. Cannot re-confirm.",
+        )
+
+    stored_path = os.path.join(UPLOAD_DIR, report.filename)
+    if not os.path.exists(stored_path):
+        raise HTTPException(status_code=404, detail="Uploaded file not found on server.")
+
+    with open(stored_path, "rb") as fh:
+        file_bytes = fh.read()
+
+    report.status = "pending"
+    await db.commit()
+
+    background_tasks.add_task(_ingest_report, report.id, file_bytes)
+
+    return {
+        "id":     str(report.id),
+        "status": "pending",
+        "message": "Analysis started. Poll GET /flipkart/reports/{id} for status.",
     }
 
 

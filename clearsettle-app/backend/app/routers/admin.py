@@ -230,6 +230,33 @@ async def list_sellers(
     }
 
 
+# ── RBAC cache reload ─────────────────────────────────────────────────────────
+
+@router.post("/rbac/reload")
+async def reload_rbac(
+    _=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reload role/permission mappings from DB into the in-memory cache."""
+    from app.core.rbac import reload_rbac_cache
+    return await reload_rbac_cache(db)
+
+
+@router.get("/rbac/permissions")
+async def get_rbac_permissions(
+    _=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current in-memory permission cache (for debugging)."""
+    from app.core.rbac import _active_permissions
+    src = _active_permissions()
+    return {
+        "permissions": {
+            perm: sorted(roles) for perm, roles in sorted(src.items())
+        }
+    }
+
+
 # ── Single seller detail ──────────────────────────────────────────────────────
 
 @router.get("/sellers/{seller_id}")
