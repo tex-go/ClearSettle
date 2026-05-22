@@ -28,14 +28,24 @@ import SellerDiscovery from './pages/SellerDiscovery'
 import CashFlowForecast from './pages/CashFlowForecast'
 import MeetingCalendar from './pages/MeetingCalendar'
 import FlipkartReports from './pages/FlipkartReports'
+import Register from './pages/Register'
+import AdminPanel from './pages/AdminPanel'
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, adminOnly }) {
   var isAuth = useAuthStore(function(s) { return s.isAuth })
+  var user = useAuthStore(function(s) { return s.user })
   var onboarded = localStorage.getItem('cs_onboarded')
   var location = useLocation()
 
   if (!isAuth) return <Navigate to="/login" replace />
-  if (!onboarded && location.pathname !== '/onboarding') {
+
+  var role = user && user.role
+  var isAdmin = role === 'admin' || role === 'superadmin'
+
+  if (adminOnly && !isAdmin) return <Navigate to="/" replace />
+
+  // Sellers (role=seller) skip onboarding since registration is full
+  if (!isAdmin && role !== 'seller' && !onboarded && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />
   }
   return children
@@ -70,7 +80,9 @@ function App() {
       <ToastContainer />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/admin" element={<ProtectedRoute adminOnly><AppLayout><AdminPanel /></AppLayout></ProtectedRoute>} />
         <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
         <Route path="/settlements" element={<ProtectedRoute><AppLayout><Settlements /></AppLayout></ProtectedRoute>} />
         <Route path="/bank" element={<ProtectedRoute><AppLayout><BankRecon /></AppLayout></ProtectedRoute>} />

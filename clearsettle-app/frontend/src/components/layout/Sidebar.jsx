@@ -2,7 +2,8 @@ import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 
-var NAV = [
+// Full nav for admin/demo users
+var NAV_ADMIN = [
   {
     group: 'Overview',
     items: [
@@ -59,6 +60,48 @@ var NAV = [
       { path: '/reports', label: 'Reports', icon: '📊' },
     ],
   },
+  {
+    group: 'Admin',
+    items: [
+      { path: '/admin', label: 'Admin Panel', icon: '🛡️', badge: 'ADMIN', bc: 'rd' },
+    ],
+  },
+]
+
+// Minimal nav for public sellers
+var NAV_SELLER = [
+  {
+    group: 'Overview',
+    items: [
+      { path: '/', label: 'Dashboard', icon: '⚡' },
+    ],
+  },
+  {
+    group: 'Marketplaces',
+    items: [
+      { path: '/flipkart', label: 'Flipkart Intelligence', icon: '🛒', badge: 'NEW', bc: 'tl' },
+    ],
+  },
+  {
+    group: 'Reconciliation',
+    items: [
+      { path: '/recon-engine', label: 'Recon Engine', icon: '🔬' },
+    ],
+  },
+  {
+    group: 'Finance',
+    items: [
+      { path: '/settlements', label: 'Settlements', icon: '💳' },
+      { path: '/returns', label: 'Returns', icon: '↩️' },
+      { path: '/gst', label: 'GST / TCS', icon: '🧾' },
+    ],
+  },
+  {
+    group: 'Account',
+    items: [
+      { path: '/platforms', label: 'Platform Settings', icon: '⚙️' },
+    ],
+  },
 ]
 
 var badgeColors = {
@@ -70,6 +113,10 @@ var badgeColors = {
 function Sidebar({ open, onClose }) {
   var { user, logout } = useAuthStore()
   var navigate = useNavigate()
+
+  var role = user && user.role
+  var isSeller = role === 'seller'
+  var NAV = isSeller ? NAV_SELLER : NAV_ADMIN
 
   function handleLogout() {
     logout()

@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import Column, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import Boolean, Column, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base, TimestampMixin, SoftDeleteMixin
@@ -22,6 +22,22 @@ class Company(Base, TimestampMixin, SoftDeleteMixin):
     gstin    = Column(String(20))
     city     = Column(String(100))
     industry = Column(String(100))
+
+    # Extended seller profile (added in migration 021)
+    phone                = Column(String(20))
+    pan                  = Column(String(15))
+    state                = Column(String(100))
+    state_code           = Column(String(5))
+    pincode              = Column(String(10))
+    address              = Column(Text)
+    website              = Column(String(255))
+    active_platforms     = Column(JSONB, default=list)
+    bank_name            = Column(String(100))
+    bank_account_number  = Column(String(50))
+    bank_ifsc            = Column(String(20))
+    bank_account_name    = Column(String(255))
+    monthly_gmv_range    = Column(String(50))
+    registration_completed = Column(Boolean, default=False)
 
     # Relationships
     user        = relationship("User",               back_populates="companies")

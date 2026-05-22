@@ -38,10 +38,14 @@ class UserProfile(BaseModel):
     email: str
     name: str | None
     role: str
+    phone: str | None = None
     company: str | None = None
     gstin: str | None = None
+    state: str | None = None
     city: str | None = None
     industry: str | None = None
+    active_platforms: list[str] = []
+    registration_completed: bool = False
     permissions: list[str] = []
 
 

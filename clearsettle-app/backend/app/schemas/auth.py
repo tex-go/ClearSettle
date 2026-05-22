@@ -1,7 +1,9 @@
 """
 Pydantic schemas for the auth endpoints.
 """
-from pydantic import BaseModel, EmailStr, field_validator
+import re
+from typing import Optional
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -10,16 +12,70 @@ class LoginRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str
-    name: str
+    # ── Account ────────────────────────────────────────────────────────────────
+    email:            EmailStr
+    phone:            str
+    password:         str
+    confirm_password: str
+    name:             str
+
+    # ── Business profile — mandatory ──────────────────────────────────────────
     company_name: str
+    gstin:        str
+    state:        str
+
+    # ── Business profile — optional ───────────────────────────────────────────
+    pan:               Optional[str] = None
+    city:              Optional[str] = None
+    pincode:           Optional[str] = None
+    address:           Optional[str] = None
+    website:           Optional[str] = None
+    industry:          Optional[str] = None
+    monthly_gmv_range: Optional[str] = None
+
+    # ── Marketplace selection (at least one required) ─────────────────────────
+    active_platforms: list[str] = []
+
+    # ── Banking — all optional ────────────────────────────────────────────────
+    bank_name:           Optional[str] = None
+    bank_account_number: Optional[str] = None
+    bank_ifsc:           Optional[str] = None
+    bank_account_name:   Optional[str] = None
 
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
+        return v
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
+
+    @field_validator("gstin")
+    @classmethod
+    def gstin_format(cls, v: str) -> str:
+        pattern = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
+        if not re.match(pattern, v.upper()):
+            raise ValueError("Invalid GSTIN format (expected: 22AAAAA0000A1Z5)")
+        return v.upper()
+
+    @field_validator("phone")
+    @classmethod
+    def phone_format(cls, v: str) -> str:
+        digits = re.sub(r"[\s\-\(\)\+]", "", v)
+        if not digits.isdigit() or len(digits) < 10:
+            raise ValueError("Invalid phone number")
+        return v
+
+    @field_validator("active_platforms")
+    @classmethod
+    def at_least_one_platform(cls, v: list) -> list:
+        if not v:
+            raise ValueError("Select at least one marketplace")
         return v
 
 

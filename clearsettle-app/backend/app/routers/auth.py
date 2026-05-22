@@ -63,7 +63,28 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession | None = D
 async def register(req: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
     from app.services.auth_service import register as svc_register
     return await svc_register(
-        req.email, req.password, req.name, req.company_name, db, request=request
+        email=req.email,
+        password=req.password,
+        name=req.name,
+        company_name=req.company_name,
+        db=db,
+        phone=req.phone,
+        gstin=req.gstin,
+        pan=req.pan,
+        state=req.state,
+        city=req.city,
+        pincode=req.pincode,
+        address=req.address,
+        website=req.website,
+        industry=req.industry,
+        active_platforms=req.active_platforms,
+        monthly_gmv_range=req.monthly_gmv_range,
+        bank_name=req.bank_name,
+        bank_account_number=req.bank_account_number,
+        bank_ifsc=req.bank_ifsc,
+        bank_account_name=req.bank_account_name,
+        role="seller",
+        request=request,
     )
 
 
@@ -110,10 +131,14 @@ async def me(current_user=Depends(get_current_user)):
         email=current_user.email,
         name=current_user.name,
         role=role,
+        phone=getattr(current_user, "phone", None),
         company=company.name if company else None,
         gstin=company.gstin if company else None,
+        state=getattr(company, "state", None) if company else None,
         city=company.city if company else None,
         industry=company.industry if company else None,
+        active_platforms=getattr(company, "active_platforms", None) or [] if company else [],
+        registration_completed=bool(getattr(company, "registration_completed", False)) if company else False,
         permissions=permissions,
     )
 

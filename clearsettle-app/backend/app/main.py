@@ -12,7 +12,7 @@ from app.routers import (
     sp_api, sync, reconciliation, rules, onboarding, api_health, vendor_recon,
     seller_discovery, forecast, meetings,
 )
-from app.routers import flipkart_reports
+from app.routers import flipkart_reports, admin
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,7 @@ app.include_router(seller_discovery.router, prefix="/seller-discovery", tags=["s
 app.include_router(forecast.router,              tags=["forecast"])
 app.include_router(meetings.router,              tags=["meetings"])
 app.include_router(flipkart_reports.router,  prefix="/flipkart",  tags=["flipkart"])
+app.include_router(admin.router,             prefix="/admin",      tags=["admin"])
 
 
 @app.get("/")

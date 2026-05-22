@@ -62,14 +62,18 @@ def _build_token_pair(user: User) -> tuple[str, str]:
 def _user_profile(user: User) -> dict:
     company = user.companies[0] if user.companies else None
     return {
-        "id": str(user.id),
-        "email": user.email,
-        "name": user.name,
-        "role": user.role,
-        "company": company.name if company else None,
-        "gstin": company.gstin if company else None,
-        "city": company.city if company else None,
-        "industry": company.industry if company else None,
+        "id":                     str(user.id),
+        "email":                  user.email,
+        "name":                   user.name,
+        "role":                   user.role,
+        "phone":                  getattr(user, "phone", None),
+        "company":                company.name if company else None,
+        "gstin":                  company.gstin if company else None,
+        "state":                  getattr(company, "state", None) if company else None,
+        "city":                   company.city if company else None,
+        "industry":               company.industry if company else None,
+        "active_platforms":       getattr(company, "active_platforms", None) or [],
+        "registration_completed": bool(getattr(company, "registration_completed", False)) if company else False,
     }
 
 
@@ -139,6 +143,23 @@ async def register(
     company_name: str,
     db: AsyncSession,
     *,
+    phone: str | None = None,
+    gstin: str | None = None,
+    pan: str | None = None,
+    state: str | None = None,
+    state_code: str | None = None,
+    city: str | None = None,
+    pincode: str | None = None,
+    address: str | None = None,
+    website: str | None = None,
+    industry: str | None = None,
+    active_platforms: list | None = None,
+    monthly_gmv_range: str | None = None,
+    bank_name: str | None = None,
+    bank_account_number: str | None = None,
+    bank_ifsc: str | None = None,
+    bank_account_name: str | None = None,
+    role: str = "seller",
     request: Request | None = None,
 ) -> dict:
     """
@@ -149,17 +170,42 @@ async def register(
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
+    # Derive state_code from GSTIN prefix if not provided
+    if gstin and not state_code:
+        state_code = gstin[:2]
+
     user = User(
         email=email,
         hashed_password=hash_password(password),
         name=name,
-        role="admin",
+        phone=phone,
+        role=role,
         is_active=True,
     )
     db.add(user)
     await db.flush()  # populate user.id before creating Company
 
-    company = Company(user_id=user.id, name=company_name)
+    company = Company(
+        user_id=user.id,
+        name=company_name,
+        phone=phone,
+        gstin=gstin,
+        pan=pan,
+        state=state,
+        state_code=state_code,
+        city=city,
+        pincode=pincode,
+        address=address,
+        website=website,
+        industry=industry,
+        active_platforms=active_platforms or [],
+        monthly_gmv_range=monthly_gmv_range,
+        bank_name=bank_name,
+        bank_account_number=bank_account_number,
+        bank_ifsc=bank_ifsc,
+        bank_account_name=bank_account_name,
+        registration_completed=True,
+    )
     db.add(company)
     await db.commit()
     await db.refresh(user)
@@ -177,7 +223,7 @@ async def register(
 
     await _persist_refresh_token(user.id, refresh, db, user_agent=ua, ip_address=ip)
 
-    logger.info("Registered new user: %s (company: %s)", email, company_name)
+    logger.info("Registered new user: %s (company: %s, role: %s)", email, company_name, role)
     return {
         "access_token": access,
         "refresh_token": refresh,
