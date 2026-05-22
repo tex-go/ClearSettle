@@ -20,6 +20,7 @@ class FlipkartReport(Base):
     filename         = Column(String(255), nullable=False)
     original_name    = Column(String(255), nullable=False)
     file_size_bytes  = Column(Integer,     nullable=True)
+    report_type      = Column(String(30),  nullable=False, default="pl_report")
     status           = Column(String(20),  nullable=False, default="pending")
     error_message    = Column(Text,        nullable=True)
     report_period    = Column(String(100), nullable=True)

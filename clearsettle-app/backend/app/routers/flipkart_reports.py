@@ -363,42 +363,87 @@ async def _ingest_report(report_id: UUID, file_bytes: bytes) -> None:
 
 # ── Upload endpoint ───────────────────────────────────────────────────────────
 
+_VALID_DOC_TYPES = {"pl_report", "settlement_statement", "returns_report"}
+
+_DOC_TYPE_LABELS = {
+    "pl_report":            "P&L Report",
+    "settlement_statement": "Settlement Statement",
+    "returns_report":       "Returns Report",
+}
+
+
 @router.post("/upload", status_code=202)
 async def upload_report(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    report_type: str = Form("pl_report"),
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
     """
-    Upload a Flipkart P&L Excel file.
-    Returns a quick-parse preview; call POST /reports/{id}/confirm to start full ingestion.
+    Upload a Flipkart report file.
+    - report_type=pl_report: quick-parse preview; call POST /reports/{id}/confirm to start full ingestion.
+    - report_type=settlement_statement | returns_report: file stored as-is; status=uploaded.
     """
     company_id = _company_id(user)
 
-    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(status_code=400, detail="Only .xlsx and .xls files are supported.")
+    if report_type not in _VALID_DOC_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid report_type. Must be one of: {', '.join(_VALID_DOC_TYPES)}")
+
+    fname_lower = (file.filename or "").lower()
+    allowed_exts = (".xlsx", ".xls") if report_type == "pl_report" else (".xlsx", ".xls", ".csv")
+    if not any(fname_lower.endswith(ext) for ext in allowed_exts):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed: {', '.join(allowed_exts)}",
+        )
 
     file_bytes = await file.read()
     if len(file_bytes) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large. Maximum 50 MB.")
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    stored_name = f"{uuid.uuid4()}.xlsx"
+    ext = ".csv" if fname_lower.endswith(".csv") else ".xlsx"
+    stored_name = f"{uuid.uuid4()}{ext}"
     stored_path = os.path.join(UPLOAD_DIR, stored_name)
     with open(stored_path, "wb") as fh:
         fh.write(file_bytes)
 
-    # Quick parse for preview metadata (no DB writes yet)
+    # ── Non-PL uploads: store file, skip parsing ──────────────────────────────
+    if report_type != "pl_report":
+        report = FlipkartReport(
+            id              = uuid.uuid4(),
+            company_id      = company_id,
+            filename        = stored_name,
+            original_name   = file.filename,
+            file_size_bytes = len(file_bytes),
+            report_type     = report_type,
+            status          = "uploaded",
+        )
+        db.add(report)
+        await db.commit()
+        await db.refresh(report)
+        label = _DOC_TYPE_LABELS.get(report_type, report_type)
+        return {
+            "id":            str(report.id),
+            "original_name": report.original_name,
+            "file_size_bytes": len(file_bytes),
+            "report_type":   report_type,
+            "status":        "uploaded",
+            "preview":       {},
+            "message":       f"{label} uploaded successfully. We'll add analysis for this in the next update.",
+        }
+
+    # ── P&L upload: quick-parse preview, await confirmation ───────────────────
     preview: Dict[str, Any] = {}
     try:
         parsed = parse_flipkart_excel(file_bytes)
         preview = {
-            "sheets_found":      parsed["sheets_found"],
-            "estimated_orders":  len(parsed["order_rows"]),
-            "estimated_skus":    len(parsed["sku_rows"]),
-            "has_summary":       bool(parsed["summary"]),
-            "parse_errors":      parsed["errors"][:3] if parsed["errors"] else [],
+            "sheets_found":      parsed.get("sheets_found", []),
+            "estimated_orders":  len(parsed.get("order_rows", [])),
+            "estimated_skus":    len(parsed.get("sku_rows", [])),
+            "has_summary":       bool(parsed.get("summary")),
+            "parse_errors":      parsed.get("errors", [])[:3],
         }
     except Exception as exc:
         preview = {"parse_errors": [str(exc)[:200]]}
@@ -409,6 +454,7 @@ async def upload_report(
         filename        = stored_name,
         original_name   = file.filename,
         file_size_bytes = len(file_bytes),
+        report_type     = "pl_report",
         status          = "awaiting_confirmation",
     )
     db.add(report)
@@ -419,6 +465,7 @@ async def upload_report(
         "id":            str(report.id),
         "original_name": report.original_name,
         "file_size_bytes": len(file_bytes),
+        "report_type":   "pl_report",
         "status":        report.status,
         "preview":       preview,
         "message":       "File uploaded. Review the preview and confirm to start analysis.",
@@ -486,6 +533,7 @@ async def list_reports(
             {
                 "id":               str(r.id),
                 "original_name":    r.original_name,
+                "report_type":      r.report_type,
                 "status":           r.status,
                 "error_message":    r.error_message,
                 "report_period":    r.report_period,
@@ -499,6 +547,44 @@ async def list_reports(
             for r in reports
         ]
     }
+
+
+# ── Docs status ───────────────────────────────────────────────────────────────
+
+@router.get("/docs-status")
+async def get_docs_status(
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Return upload status for each required Flipkart document type."""
+    company_id = _company_id(user)
+    doc_types = ["pl_report", "settlement_statement", "returns_report"]
+    result: Dict[str, Any] = {}
+
+    for doc_type in doc_types:
+        latest = (await db.execute(
+            select(FlipkartReport)
+            .where(
+                FlipkartReport.company_id == company_id,
+                FlipkartReport.report_type == doc_type,
+                FlipkartReport.status != "failed",
+            )
+            .order_by(desc(FlipkartReport.uploaded_at))
+            .limit(1)
+        )).scalar_one_or_none()
+
+        if latest:
+            result[doc_type] = {
+                "uploaded":    True,
+                "report_id":   str(latest.id),
+                "filename":    latest.original_name,
+                "uploaded_at": latest.uploaded_at.isoformat(),
+                "status":      latest.status,
+            }
+        else:
+            result[doc_type] = {"uploaded": False}
+
+    return result
 
 
 # ── Report detail ─────────────────────────────────────────────────────────────
