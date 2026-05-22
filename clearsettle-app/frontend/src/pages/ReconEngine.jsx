@@ -1081,8 +1081,8 @@ function ReconEngine() {
         const plDone = list.find(function(rep) { return rep.status === 'done' && (rep.report_type === 'pl_report' || !rep.report_type) })
         if (plDone) {
           setSelectedReport(plDone)
-          // Auto-go to analytics if currently on upload view and we have a processed report
-          setView(function(v) { return v === 'upload' ? 'analytics' : v })
+          // Auto-go to analytics if on upload or docs_gate and a processed report exists
+          setView(function(v) { return (v === 'upload' || v === 'docs_gate') && !managingDocs ? 'analytics' : v })
         }
       })
     }
@@ -1120,7 +1120,7 @@ function ReconEngine() {
     setReports([])
     setSelectedReport(null)
     setManagingDocs(false)
-    setView('upload')
+    setView('docs_gate')
   }
 
   function handleAllDocsUploaded() {
