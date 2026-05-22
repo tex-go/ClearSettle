@@ -116,9 +116,19 @@ async def get_summary(
     if db is None or not _is_db_user(user):
         return _mock_summary(platform)
 
-    return await analytics_queries.get_dashboard_summary(
+    result = await analytics_queries.get_dashboard_summary(
         db, _company_id(user), platform=platform
     )
+
+    # If the legacy settlements tables are empty, fall back to Flipkart P&L data
+    if result["settlements"]["total_gross"] == 0:
+        fk_result = await analytics_queries.get_flipkart_dashboard_summary(
+            db, _company_id(user)
+        )
+        if fk_result:
+            return fk_result
+
+    return result
 
 
 # ── GET /dashboard/notifications ──────────────────────────────────────────────

@@ -85,6 +85,11 @@ async def get_returns(
     )).scalars().all()
 
     if not rows:
+        # Try Flipkart P&L data before falling back to mock
+        from app.services.analytics.queries import get_flipkart_returns
+        fk_result = await get_flipkart_returns(db, cid)
+        if fk_result:
+            return fk_result
         return {"items": _MOCK, "summary": _mock_summary()}
 
     items = [_tx_to_return(tx, i + 1) for i, tx in enumerate(rows)]
