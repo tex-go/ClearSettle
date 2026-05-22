@@ -44,6 +44,14 @@ from app.db.models.flipkart_report import (
     FlipkartReport, FlipkartSummary, FlipkartSkuPL,
     FlipkartOrderPL, FlipkartReconIssue,
 )
+# Amazon Settlement Report Ingestion
+from app.db.models.amazon_report import (
+    AmazonReport, AmazonSummary, AmazonOrderRow, AmazonReconIssue,
+)
+# Meesho Payment Report Ingestion
+from app.db.models.meesho_report import (
+    MeeshoReport, MeeshoSummary, MeeshoOrderRow, MeeshoReconIssue,
+)
 # RBAC tables (Session 12)
 from app.db.models.rbac import Role, Permission, RolePermission
 # Cash Flow Forecast + Meeting System
@@ -105,6 +113,14 @@ __all__ = [
     "FlipkartSkuPL",
     "FlipkartOrderPL",
     "FlipkartReconIssue",
+    "AmazonReport",
+    "AmazonSummary",
+    "AmazonOrderRow",
+    "AmazonReconIssue",
+    "MeeshoReport",
+    "MeeshoSummary",
+    "MeeshoOrderRow",
+    "MeeshoReconIssue",
     "Role",
     "Permission",
     "RolePermission",
