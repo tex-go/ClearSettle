@@ -33,13 +33,64 @@ function fmtDate(iso) {
 // ── Platforms config ───────────────────────────────────────────────────────────
 const PLATFORMS = [
   { id: 'flipkart', label: 'Flipkart', icon: '🛒', live: true,  color: '#FF6B35',
-    desc: 'Upload P&L report from Flipkart Seller Hub',
-    docs: [{ key: 'pl_report', label: 'P&L Report (Excel)', hint: 'Seller Hub → Reports → P&L Report → Download' }] },
+    desc: 'Upload P&L, Settlement Statement and Returns Report from Flipkart Seller Hub' },
   { id: 'amazon',   label: 'Amazon',   icon: '📦', live: false, color: '#FF9900', desc: 'SP-API integration — coming soon' },
   { id: 'meesho',   label: 'Meesho',   icon: '🧵', live: false, color: '#7B2D8B', desc: 'Report upload — coming soon' },
   { id: 'myntra',   label: 'Myntra',   icon: '👗', live: false, color: '#FF3F6C', desc: 'Coming soon' },
   { id: 'ajio',     label: 'Ajio',     icon: '🎽', live: false, color: '#F26522', desc: 'Coming soon' },
   { id: 'nykaa',    label: 'Nykaa',    icon: '💄', live: false, color: '#FC2779', desc: 'Coming soon' },
+]
+
+// ── Required docs definition ───────────────────────────────────────────────────
+const REQUIRED_DOCS = [
+  {
+    key: 'pl_report',
+    label: 'P&L Report',
+    icon: '📊',
+    accent: P.teal,
+    description: 'Profit & Loss breakdown by SKU and order. Core report for fee analysis.',
+    accept: '.xlsx,.xls',
+    steps: [
+      'Log in to Flipkart Seller Hub',
+      'Go to Reports → P&L Report',
+      'Select the date range (monthly recommended)',
+      'Click Download → Choose Excel format',
+      'Upload the downloaded .xlsx file here',
+    ],
+    analysisComing: false,
+  },
+  {
+    key: 'settlement_statement',
+    label: 'Settlement Statement',
+    icon: '🏦',
+    accent: P.blue,
+    description: 'Actual bank transfer amounts. Used to verify credits against expected payouts.',
+    accept: '.xlsx,.xls,.csv',
+    steps: [
+      'Log in to Flipkart Seller Hub',
+      'Go to Payments → Settlement Reports',
+      'Select the settlement cycle matching your P&L period',
+      'Click Download → Excel or CSV format',
+      'Upload the downloaded file here',
+    ],
+    analysisComing: true,
+  },
+  {
+    key: 'returns_report',
+    label: 'Returns Report',
+    icon: '↩️',
+    accent: P.amber,
+    description: 'Per-order return reasons and refund amounts. Essential for return rate analysis.',
+    accept: '.xlsx,.xls,.csv',
+    steps: [
+      'Log in to Flipkart Seller Hub',
+      'Go to Reports → Returns Report',
+      'Select the date range matching your P&L period',
+      'Click Download → Excel or CSV format',
+      'Upload the downloaded file here',
+    ],
+    analysisComing: true,
+  },
 ]
 
 // ── Processing animation stages ────────────────────────────────────────────────
@@ -57,13 +108,13 @@ function Spinner({ size = 20 }) {
 }
 
 function Badge({ label, color }) {
-  const c = { green: { bg: 'rgba(16,185,129,.12)', fg: '#10B981' }, red: { bg: 'rgba(232,52,74,.12)', fg: '#E8344A' }, amber: { bg: 'rgba(233,147,13,.12)', fg: '#E9930D' }, teal: { bg: 'rgba(10,191,202,.12)', fg: '#0ABFCA' }, gray: { bg: '#F3F4F6', fg: '#6B7280' } }
+  const c = { green: { bg: 'rgba(16,185,129,.12)', fg: '#10B981' }, red: { bg: 'rgba(232,52,74,.12)', fg: '#E8344A' }, amber: { bg: 'rgba(233,147,13,.12)', fg: '#E9930D' }, teal: { bg: 'rgba(10,191,202,.12)', fg: '#0ABFCA' }, gray: { bg: '#F3F4F6', fg: '#6B7280' }, blue: { bg: 'rgba(59,130,246,.12)', fg: '#3B82F6' } }
   const s = c[color || 'teal']
   return <span style={{ background: s.bg, color: s.fg, borderRadius: 8, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{label}</span>
 }
 
 function statusBadge(status) {
-  const map = { done: 'green', failed: 'red', processing: 'amber', pending: 'amber', awaiting_confirmation: 'teal', default: 'gray' }
+  const map = { done: 'green', failed: 'red', processing: 'amber', pending: 'amber', awaiting_confirmation: 'teal', uploaded: 'blue', default: 'gray' }
   return <Badge label={status?.replace('_', ' ') || '—'} color={map[status] || map.default} />
 }
 
@@ -109,13 +160,11 @@ function PlatformSelect({ onSelect }) {
               onClick={function() { p.live && onSelect(p) }}
               title={!p.live ? 'Coming soon' : ''}
               style={{
-                padding: '24px 16px',
-                borderRadius: 14,
+                padding: '24px 16px', borderRadius: 14,
                 background: p.live ? '#fff' : '#F9FAFB',
                 border: p.live ? '1.5px solid #E8EFF6' : '1.5px solid #F3F4F6',
                 cursor: p.live ? 'pointer' : 'not-allowed',
-                opacity: p.live ? 1 : 0.55,
-                transition: 'all .18s',
+                opacity: p.live ? 1 : 0.55, transition: 'all .18s',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
               }}
               onMouseEnter={e => p.live && (e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,.1)')}
@@ -131,6 +180,231 @@ function PlatformSelect({ onSelect }) {
       <div style={{ marginTop: 32, fontSize: 11, color: '#9CA3AF', textAlign: 'center', maxWidth: 420, lineHeight: 1.6 }}>
         All figures shown are <em>estimated potential discrepancies</em> based on your uploaded data.
         Verify before raising disputes. ClearSettle does not guarantee recovery.
+      </div>
+    </div>
+  )
+}
+
+// ── Docs Gate ─────────────────────────────────────────────────────────────────
+function DocsGate({ platform, onAllUploaded, onPlFileUploaded, onBack, preventAutoProceed }) {
+  const [docsStatus, setDocsStatus]   = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [uploadingKey, setUploadingKey] = useState(null)
+  const [uploadErrors, setUploadErrors] = useState({})
+  const [expanded, setExpanded]       = useState({})
+  const fileRefs = useRef({})
+
+  const fetchStatus = useCallback(function() {
+    api.get('/flipkart/docs-status')
+      .then(function(r) { setDocsStatus(r.data) })
+      .catch(function() { setDocsStatus(null) })
+      .finally(function() { setLoading(false) })
+  }, [])
+
+  useEffect(function() { fetchStatus() }, [fetchStatus])
+
+  // Auto-proceed when all 3 are uploaded (skip if user came here to manage docs)
+  useEffect(function() {
+    if (!docsStatus || preventAutoProceed) return
+    const allDone = REQUIRED_DOCS.every(function(d) { return docsStatus[d.key]?.uploaded })
+    if (allDone) onAllUploaded()
+  }, [docsStatus, onAllUploaded, preventAutoProceed])
+
+  async function handleFile(docKey, file) {
+    if (!file) return
+    const doc = REQUIRED_DOCS.find(function(d) { return d.key === docKey })
+    const validExts = doc.accept.split(',')
+    const fname = file.name.toLowerCase()
+    if (!validExts.some(function(ext) { return fname.endsWith(ext.trim()) })) {
+      setUploadErrors(function(prev) { return { ...prev, [docKey]: `Unsupported file type. Allowed: ${doc.accept}` } })
+      return
+    }
+    setUploadErrors(function(prev) { return { ...prev, [docKey]: '' } })
+    setUploadingKey(docKey)
+    const form = new FormData()
+    form.append('file', file)
+    form.append('report_type', docKey)
+    try {
+      const res = await api.post('/flipkart/upload', form)
+      // P&L uploads trigger the preview modal so the user can review before confirming
+      if (docKey === 'pl_report' && onPlFileUploaded) {
+        onPlFileUploaded(res.data, file)
+      }
+      await fetchStatus()
+    } catch (err) {
+      setUploadErrors(function(prev) {
+        return { ...prev, [docKey]: err.response?.data?.detail || 'Upload failed. Please try again.' }
+      })
+    } finally {
+      setUploadingKey(null)
+    }
+  }
+
+  function toggleExpand(key) {
+    setExpanded(function(prev) { return { ...prev, [key]: !prev[key] } })
+  }
+
+  const uploadedCount = docsStatus ? REQUIRED_DOCS.filter(function(d) { return docsStatus[d.key]?.uploaded }).length : 0
+
+  return (
+    <div style={{ padding: '8px 0' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+        <button onClick={onBack} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#6B7280', cursor: 'pointer' }}>← Back</button>
+        <span style={{ fontSize: 20 }}>{platform.icon}</span>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>{platform.label} — Required Documents</div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>Upload all 3 documents to unlock Settlement Intelligence</div>
+        </div>
+        <div style={{ marginLeft: 'auto', background: uploadedCount === 3 ? 'rgba(16,185,129,.12)' : 'rgba(233,147,13,.1)', color: uploadedCount === 3 ? P.green : P.amber, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
+          {uploadedCount} / 3 uploaded
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ height: 4, background: '#E5E7EB', borderRadius: 99, marginBottom: 28, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${(uploadedCount / 3) * 100}%`, background: 'linear-gradient(90deg,#0ABFCA,#10B981)', borderRadius: 99, transition: 'width .5s ease' }} />
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}><Spinner size={32} /></div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {REQUIRED_DOCS.map(function(doc) {
+            const status = docsStatus?.[doc.key]
+            const isUploaded = status?.uploaded
+            const isUploading = uploadingKey === doc.key
+            const isOpen = expanded[doc.key]
+            const err = uploadErrors[doc.key]
+
+            return (
+              <div key={doc.key} style={{
+                background: '#fff',
+                border: `1.5px solid ${isUploaded ? doc.accent + '40' : '#E8EFF6'}`,
+                borderRadius: 14,
+                overflow: 'hidden',
+                transition: 'border-color .2s',
+              }}>
+                {/* Card header row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px' }}>
+                  {/* Status dot */}
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                    background: isUploaded ? doc.accent + '18' : '#F3F4F6',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20,
+                  }}>
+                    {isUploaded ? '✅' : doc.icon}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: P.navy }}>{doc.label}</span>
+                      {doc.analysisComing && (
+                        <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(59,130,246,.1)', color: P.blue, borderRadius: 6, padding: '2px 7px' }}>
+                          ANALYSIS COMING
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{doc.description}</div>
+                    {isUploaded && (
+                      <div style={{ fontSize: 11, color: P.green, marginTop: 4, fontWeight: 600 }}>
+                        ✓ {status.filename} — uploaded {fmtDate(status.uploaded_at)}
+                      </div>
+                    )}
+                    {err && <div style={{ fontSize: 11, color: P.red, marginTop: 4 }}>{err}</div>}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+                    {/* How to get it toggle */}
+                    <button
+                      onClick={function() { toggleExpand(doc.key) }}
+                      style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {isOpen ? 'Hide steps' : 'How to get it?'}
+                    </button>
+
+                    {/* Upload / Re-upload button */}
+                    <input
+                      ref={function(el) { fileRefs.current[doc.key] = el }}
+                      type="file"
+                      accept={doc.accept}
+                      style={{ display: 'none' }}
+                      onChange={function(e) { handleFile(doc.key, e.target.files[0]); e.target.value = '' }}
+                    />
+                    <button
+                      onClick={function() { fileRefs.current[doc.key]?.click() }}
+                      disabled={isUploading}
+                      style={{
+                        padding: '7px 16px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700,
+                        cursor: isUploading ? 'not-allowed' : 'pointer',
+                        background: isUploaded
+                          ? '#F3F4F6'
+                          : `linear-gradient(135deg,${doc.accent},${doc.accent}cc)`,
+                        color: isUploaded ? '#6B7280' : '#fff',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        transition: 'opacity .15s',
+                        opacity: isUploading ? 0.6 : 1,
+                      }}
+                    >
+                      {isUploading ? <><Spinner size={14} /> Uploading...</> : isUploaded ? '↺ Replace' : '↑ Upload'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step-by-step instructions accordion */}
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid #F3F4F6', padding: '16px 20px', background: '#F9FBFC' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
+                      Step-by-step instructions
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {doc.steps.map(function(step, i) {
+                        return (
+                          <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{
+                              width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                              background: doc.accent + '18', color: doc.accent,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 11, fontWeight: 800,
+                            }}>
+                              {i + 1}
+                            </div>
+                            <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.5, paddingTop: 3 }}>{step}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {doc.analysisComing && (
+                      <div style={{ marginTop: 14, background: 'rgba(59,130,246,.06)', border: '1px solid rgba(59,130,246,.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: P.blue, lineHeight: 1.5 }}>
+                        <strong>Note:</strong> We will add full analysis for this document in the next update. Upload it now so you're ready.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Proceed button */}
+      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={onAllUploaded}
+          disabled={uploadedCount < 3}
+          style={{
+            padding: '12px 28px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700,
+            background: uploadedCount === 3
+              ? 'linear-gradient(135deg,#0ABFCA,#088F99)'
+              : '#E5E7EB',
+            color: uploadedCount === 3 ? '#fff' : '#9CA3AF',
+            cursor: uploadedCount === 3 ? 'pointer' : 'not-allowed',
+            transition: 'all .2s',
+          }}
+        >
+          {uploadedCount === 3 ? 'Proceed to Analysis →' : `Upload ${3 - uploadedCount} more document${3 - uploadedCount > 1 ? 's' : ''} to continue`}
+        </button>
       </div>
     </div>
   )
@@ -195,7 +469,7 @@ function PreviewModal({ file, preview, onConfirm, onCancel, confirming }) {
               )
             })}
             {!sheets.length && !orders && !skus && !errors.length && (
-              <div style={{ fontSize: 13, color: '#6B7280' }}>File uploaded. Ready to analyse.</div>
+              <div style={{ fontSize: 13, color: '#6B7280' }}>File uploaded successfully. Ready to analyse.</div>
             )}
           </div>
         </div>
@@ -221,7 +495,7 @@ function PreviewModal({ file, preview, onConfirm, onCancel, confirming }) {
 }
 
 // ── Processing Animation ───────────────────────────────────────────────────────
-function ProcessingView({ filename, onDone }) {
+function ProcessingView({ filename }) {
   const [stage, setStage] = useState(0)
   const [progress, setProgress] = useState(8)
 
@@ -244,20 +518,14 @@ function ProcessingView({ filename, onDone }) {
   return (
     <div style={{ minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
       <div style={{ width: '100%', maxWidth: 440, textAlign: 'center' }}>
-        {/* Animated icon */}
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(10,191,202,.1)', border: '3px solid rgba(10,191,202,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 24px', animation: 'pulse 2s ease-in-out infinite' }}>
           🔬
         </div>
-
         <div style={{ fontSize: 20, fontWeight: 800, color: P.navy, marginBottom: 6 }}>Analysing your report</div>
         <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 28 }}>{filename}</div>
-
-        {/* Progress bar */}
         <div style={{ height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden', marginBottom: 28 }}>
           <div style={{ height: '100%', width: progress + '%', background: 'linear-gradient(90deg,#0ABFCA,#088F99)', borderRadius: 99, transition: 'width .6s ease' }} />
         </div>
-
-        {/* Stage list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
           {STAGES.map(function(s, i) {
             const done    = i < stage
@@ -275,14 +543,13 @@ function ProcessingView({ filename, onDone }) {
             )
           })}
         </div>
-
         <div style={{ marginTop: 28, fontSize: 12, color: '#9CA3AF' }}>This usually takes 3–5 seconds</div>
       </div>
     </div>
   )
 }
 
-// ── Upload View ────────────────────────────────────────────────────────────────
+// ── Upload View (P&L re-upload) ────────────────────────────────────────────────
 function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack, uploading, setUploading }) {
   const fileRef = useRef()
   const [dragging, setDragging] = useState(false)
@@ -291,13 +558,14 @@ function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack,
   async function handleFile(file) {
     if (!file) return
     if (!file.name.toLowerCase().match(/\.(xlsx|xls)$/)) {
-      setUploadError('Only .xlsx and .xls files are supported')
+      setUploadError('Only .xlsx and .xls files are supported for the P&L report')
       return
     }
     setUploadError('')
     setUploading(true)
     const form = new FormData()
     form.append('file', file)
+    form.append('report_type', 'pl_report')
     try {
       const res = await api.post('/flipkart/upload', form)
       onFileUploaded(res.data, file)
@@ -310,26 +578,25 @@ function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack,
   function onDrop(e) {
     e.preventDefault()
     setDragging(false)
-    const file = e.dataTransfer.files[0]
-    handleFile(file)
+    handleFile(e.dataTransfer.files[0])
   }
+
+  const plReports = reports.filter(function(r) { return r.report_type === 'pl_report' || !r.report_type })
 
   return (
     <div style={{ padding: '24px 0' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button onClick={onBack} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#6B7280', cursor: 'pointer' }}>← Back</button>
         <span style={{ fontSize: 20 }}>{platform.icon}</span>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>{platform.label} Settlement Intelligence</div>
-          <div style={{ fontSize: 12, color: '#6B7280' }}>{platform.desc}</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>Upload New P&L Report</div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>Seller Hub → Reports → P&L Report → Download Excel</div>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20 }}>
-        {/* Upload zone */}
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>Upload Report</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>Upload P&L Report</div>
           <div
             onDragOver={function(e) { e.preventDefault(); setDragging(true) }}
             onDragLeave={function() { setDragging(false) }}
@@ -353,35 +620,32 @@ function UploadView({ platform, reports, onFileUploaded, onSelectReport, onBack,
             ) : (
               <>
                 <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Drop your {platform.label} report here</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Drop your Flipkart P&L report here</div>
                 <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12 }}>or click to browse — .xlsx / .xls</div>
                 <div style={{ display: 'inline-block', padding: '7px 16px', borderRadius: 8, background: P.navy, color: '#fff', fontSize: 12, fontWeight: 600 }}>Choose File</div>
               </>
             )}
           </div>
           {uploadError && <div style={{ marginTop: 8, fontSize: 12, color: P.red }}>{uploadError}</div>}
-
-          {/* Download hint */}
           <div style={{ marginTop: 14, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#0369A1', marginBottom: 4 }}>Where to download?</div>
             <div style={{ fontSize: 11, color: '#0369A1', lineHeight: 1.6 }}>
-              {platform.docs[0]?.hint}
+              Seller Hub → Reports → P&L Report → Select date range → Download Excel
             </div>
           </div>
         </div>
 
-        {/* Previous reports */}
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>
-            Previous Reports ({reports.length})
+            Previous P&L Reports ({plReports.length})
           </div>
-          {reports.length === 0 ? (
+          {plReports.length === 0 ? (
             <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '32px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
-              No reports uploaded yet. Upload your first report above.
+              No P&L reports uploaded yet.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {reports.map(function(r) {
+              {plReports.map(function(r) {
                 return (
                   <div
                     key={r.id}
@@ -431,7 +695,6 @@ function DashboardTab({ summary, charts, reconData }) {
 
   return (
     <div>
-      {/* THREE HERO KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         <HeroCard
           icon="💰" label="Profit / Loss" accent={netEarnings >= 0 ? P.green : P.red}
@@ -454,7 +717,6 @@ function DashboardTab({ summary, charts, reconData }) {
         />
       </div>
 
-      {/* Secondary KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
         {[
           { label: 'Gross Sales',     value: inr(summary.gross_sales, true),     color: P.teal },
@@ -472,10 +734,8 @@ function DashboardTab({ summary, charts, reconData }) {
         })}
       </div>
 
-      {/* Charts row */}
       {charts && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          {/* Fee Breakdown pie */}
           {charts.fee_breakdown && charts.fee_breakdown.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 14, padding: '18px 20px' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Fee Breakdown</div>
@@ -506,7 +766,6 @@ function DashboardTab({ summary, charts, reconData }) {
             </div>
           )}
 
-          {/* Revenue Waterfall */}
           {charts.revenue_waterfall && charts.revenue_waterfall.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #E8EFF6', borderRadius: 14, padding: '18px 20px' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: P.navy, marginBottom: 4 }}>Revenue Waterfall</div>
@@ -631,13 +890,12 @@ function ReconTab({ reportId }) {
 
   return (
     <div>
-      {/* Stats row */}
       {data.summary && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
           {[
-            { label: 'Total Issues',   value: data.summary.total_issues,          color: '#374151' },
-            { label: 'Critical',       value: data.summary.critical_issues,        color: P.red },
-            { label: 'Warning',        value: data.summary.warning_issues,         color: P.amber },
+            { label: 'Total Issues',   value: data.summary.total_issues,               color: '#374151' },
+            { label: 'Critical',       value: data.summary.critical_issues,             color: P.red },
+            { label: 'Warning',        value: data.summary.warning_issues,              color: P.amber },
             { label: 'Est. Impact',    value: inr(data.summary.total_variance_amount, true), color: P.red },
           ].map(function(s) {
             return (
@@ -650,7 +908,6 @@ function ReconTab({ reportId }) {
         </div>
       )}
 
-      {/* Type filter chips */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
         <button onClick={function() { setTypeFilter('') }} style={{ padding: '4px 12px', borderRadius: 8, background: !typeFilter ? P.navy : '#F3F4F6', color: !typeFilter ? '#fff' : '#6B7280', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer' }}>All</button>
         {types.map(function(t) {
@@ -658,7 +915,6 @@ function ReconTab({ reportId }) {
         })}
       </div>
 
-      {/* Issues list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.slice(0, 50).map(function(iss) {
           const sc = severityColor[iss.severity] || P.teal
@@ -732,7 +988,7 @@ function InsightsTab({ reportId }) {
 }
 
 // ── Analytics View (full tabbed dashboard) ─────────────────────────────────────
-function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNewUpload }) {
+function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNewUpload, onManageDocs }) {
   const [tab, setTab] = useState('dashboard')
   const [summary, setSummary] = useState(null)
   const [charts, setCharts] = useState(null)
@@ -763,35 +1019,38 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
     { id: 'insights',  label: 'Insights',        icon: '💡' },
   ]
 
+  // Only show P&L reports in the dropdown
+  const plReports = reports.filter(function(r) { return r.report_type === 'pl_report' || !r.report_type })
+
   return (
     <div>
-      {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 18 }}>{platform.icon}</span>
         <div style={{ fontSize: 16, fontWeight: 800, color: P.navy }}>{platform.label} Intelligence</div>
 
-        {/* Report selector */}
         <select
           value={selectedReport?.id || ''}
           onChange={function(e) {
-            const r = reports.find(function(r) { return r.id === e.target.value })
+            const r = plReports.find(function(r) { return r.id === e.target.value })
             if (r) onSelectReport(r)
           }}
           style={{ marginLeft: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, color: P.navy, background: '#fff' }}
         >
-          {reports.filter(function(r) { return r.status === 'done' }).map(function(r) {
+          {plReports.filter(function(r) { return r.status === 'done' }).map(function(r) {
             return <option key={r.id} value={r.id}>{r.original_name} — {r.report_period || fmtDate(r.uploaded_at)}</option>
           })}
         </select>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={function() { onManageDocs(true) }} style={{ padding: '7px 14px', borderRadius: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', color: '#0369A1', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            📂 Manage Documents
+          </button>
           <button onClick={onNewUpload} style={{ padding: '7px 14px', borderRadius: 8, background: '#F3F4F6', border: 'none', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
             + Upload New Report
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid #E8EFF6', marginBottom: 20 }}>
         {TABS.map(function(t) {
           return (
@@ -818,33 +1077,30 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 function ReconEngine() {
-  const [platform, setPlatform] = useState(null)
-  const [view, setView]         = useState('platform_select') // platform_select | upload | processing | analytics
-  const [reports, setReports]   = useState([])
+  const [platform, setPlatform]   = useState(null)
+  // views: platform_select | docs_gate | upload | processing | analytics
+  const [view, setView]           = useState('platform_select')
+  const [reports, setReports]     = useState([])
   const [selectedReport, setSelectedReport] = useState(null)
 
-  // Upload flow state
   const [uploading, setUploading]         = useState(false)
-  const [previewData, setPreviewData]     = useState(null)
-  const [pendingReport, setPendingReport] = useState(null)  // {id, preview, file}
+  const [pendingReport, setPendingReport] = useState(null)
   const [confirming, setConfirming]       = useState(false)
   const [processingId, setProcessingId]   = useState(null)
   const [processingFilename, setProcessingFilename] = useState('')
+  const [managingDocs, setManagingDocs]   = useState(false)
 
   const pollRef = useRef(null)
 
-  // Fetch reports for selected platform
   const fetchReports = useCallback(function() {
     if (!platform) return
     if (platform.id === 'flipkart') {
       api.get('/flipkart/reports').then(function(r) {
         const list = r.data.items || []
         setReports(list)
-        // Auto-select latest done report
-        const done = list.find(function(r) { return r.status === 'done' })
-        if (done && !selectedReport) {
-          setSelectedReport(done)
-          setView('analytics')
+        const plDone = list.find(function(r) { return r.status === 'done' && (r.report_type === 'pl_report' || !r.report_type) })
+        if (plDone && !selectedReport) {
+          setSelectedReport(plDone)
         }
       })
     }
@@ -861,10 +1117,8 @@ function ReconEngine() {
         if (status === 'done') {
           clearInterval(pollRef.current)
           fetchReports()
-          // Give animation time to finish, then switch to analytics
           setTimeout(function() {
-            const rep = r.data
-            setSelectedReport(rep)
+            setSelectedReport(r.data)
             setProcessingId(null)
             setView('analytics')
           }, 1200)
@@ -881,9 +1135,21 @@ function ReconEngine() {
 
   function handlePlatformSelect(p) {
     setPlatform(p)
-    setView('upload')
     setReports([])
     setSelectedReport(null)
+    setManagingDocs(false)
+    setView('docs_gate')
+  }
+
+  function handleAllDocsUploaded() {
+    // Check if we have a processed P&L report to show
+    const plDone = reports.find(function(r) { return r.status === 'done' && (r.report_type === 'pl_report' || !r.report_type) })
+    if (plDone) {
+      setSelectedReport(plDone)
+      setView('analytics')
+    } else {
+      setView('upload')
+    }
   }
 
   function handleFileUploaded(response, file) {
@@ -915,7 +1181,6 @@ function ReconEngine() {
 
   return (
     <div style={{ padding: '24px 32px', minHeight: '100vh', background: P.bg }}>
-      {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: P.navy }}>Settlement Intelligence</div>
         <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
@@ -923,10 +1188,19 @@ function ReconEngine() {
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E8EFF6', padding: '24px 28px' }}>
         {view === 'platform_select' && (
           <PlatformSelect onSelect={handlePlatformSelect} />
+        )}
+
+        {view === 'docs_gate' && platform && (
+          <DocsGate
+            platform={platform}
+            onAllUploaded={handleAllDocsUploaded}
+            onPlFileUploaded={handleFileUploaded}
+            onBack={function() { setPlatform(null); setView('platform_select') }}
+            preventAutoProceed={managingDocs}
+          />
         )}
 
         {view === 'upload' && platform && (
@@ -937,15 +1211,12 @@ function ReconEngine() {
             setUploading={setUploading}
             onFileUploaded={handleFileUploaded}
             onSelectReport={function(r) { setSelectedReport(r); setView('analytics') }}
-            onBack={function() { setPlatform(null); setView('platform_select') }}
+            onBack={function() { setManagingDocs(true); setView('docs_gate') }}
           />
         )}
 
         {view === 'processing' && platform && (
-          <ProcessingView
-            filename={processingFilename || 'your report'}
-            onDone={function() {}}
-          />
+          <ProcessingView filename={processingFilename || 'your report'} />
         )}
 
         {view === 'analytics' && platform && selectedReport && (
@@ -955,11 +1226,11 @@ function ReconEngine() {
             selectedReport={selectedReport}
             onSelectReport={function(r) { setSelectedReport(r) }}
             onNewUpload={function() { setView('upload') }}
+            onManageDocs={function(manage) { setManagingDocs(!!manage); setView('docs_gate') }}
           />
         )}
       </div>
 
-      {/* Preview modal (overlay) */}
       {pendingReport && (
         <PreviewModal
           file={pendingReport.file}
@@ -970,7 +1241,6 @@ function ReconEngine() {
         />
       )}
 
-      {/* Legal footer */}
       <div style={{ marginTop: 16, fontSize: 11, color: '#9CA3AF', lineHeight: 1.6 }}>
         All settlement analysis figures represent <em>potential discrepancies</em> derived from your uploaded data.
         ClearSettle does not guarantee recovery. Verify all anomalies independently before raising disputes with marketplaces.
