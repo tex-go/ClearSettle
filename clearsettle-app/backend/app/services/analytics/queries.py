@@ -895,3 +895,210 @@ async def get_profitability_metrics(
             "loss_making_skus":    sum(1 for s in all_skus if s["net_revenue"] < 0),
         },
     }
+
+
+# ── 9. Flipkart P&L–based dashboard summary ────────────────────────────────────
+
+async def get_flipkart_dashboard_summary(
+    db: AsyncSession,
+    company_id: UUID,
+) -> dict | None:
+    """
+    Build a dashboard-shaped summary from uploaded Flipkart P&L data when the
+    legacy settlements / payout_events tables have no data for this company.
+    Returns None if no processed Flipkart reports exist.
+    """
+    from app.db.models.flipkart_report import FlipkartReport, FlipkartSummary, FlipkartReconIssue
+
+    # Check if any processed report exists
+    report_count = (await db.execute(
+        select(func.count(FlipkartReport.id)).where(
+            FlipkartReport.company_id == company_id,
+            FlipkartReport.status == "done",
+        )
+    )).scalar_one()
+    if not report_count:
+        return None
+
+    # Aggregate across all summaries
+    sum_row = (await db.execute(
+        select(
+            func.coalesce(func.sum(FlipkartSummary.gross_sales),    0).label("gross"),
+            func.coalesce(func.sum(FlipkartSummary.total_fees),     0).label("fees"),
+            func.coalesce(func.sum(FlipkartSummary.net_earnings),   0).label("net"),
+            func.coalesce(func.sum(FlipkartSummary.amount_settled), 0).label("settled"),
+            func.coalesce(func.sum(FlipkartSummary.amount_pending), 0).label("pending"),
+            func.coalesce(func.sum(FlipkartSummary.total_orders),   0).label("orders"),
+        ).where(FlipkartSummary.company_id == company_id)
+    )).one()
+
+    total_gross = float(sum_row.gross   or 0)
+    total_fees  = float(sum_row.fees    or 0)
+    settled     = float(sum_row.settled or 0)
+    pending     = float(sum_row.pending or 0)
+    orders      = int(sum_row.orders    or 0)
+
+    # Recon issues (money leak)
+    iss_row = (await db.execute(
+        select(
+            func.count(FlipkartReconIssue.id).label("cnt"),
+            func.coalesce(func.sum(func.abs(FlipkartReconIssue.variance)), 0).label("variance"),
+        ).where(
+            FlipkartReconIssue.company_id == company_id,
+            FlipkartReconIssue.status == "open",
+        )
+    )).one()
+    unresolved = int(iss_row.cnt      or 0)
+    variance   = float(iss_row.variance or 0)
+
+    # Revenue trend by report upload month
+    trend_rows = (await db.execute(
+        select(
+            func.date_trunc(literal_column("'month'"), FlipkartReport.uploaded_at).label("month"),
+            func.coalesce(func.sum(FlipkartSummary.gross_sales),  0).label("gross"),
+            func.coalesce(func.sum(FlipkartSummary.net_earnings), 0).label("net"),
+        )
+        .join(FlipkartSummary, FlipkartSummary.report_id == FlipkartReport.id)
+        .where(FlipkartReport.company_id == company_id, FlipkartReport.status == "done")
+        .group_by(func.date_trunc(literal_column("'month'"), FlipkartReport.uploaded_at))
+        .order_by(func.date_trunc(literal_column("'month'"), FlipkartReport.uploaded_at))
+    )).all()
+
+    revenue_trend = [
+        {
+            "date":  row.month.strftime("%Y-%m-%d"),
+            "gross": float(row.gross or 0),
+            "net":   float(row.net   or 0),
+        }
+        for row in trend_rows if row.month
+    ]
+
+    return {
+        "cache_ttl_seconds": 300,
+        "source": "flipkart_pl",
+        "settlements": {
+            "total":            report_count,
+            "closed_count":     report_count,
+            "open_count":       0,
+            "processing_count": 0,
+            "total_gross":      total_gross,
+            "total_fees":       total_fees,
+            "total_net_paid":   settled,
+            "pending_amount":   pending,
+            "total_orders":     orders,
+        },
+        "payouts": {
+            "transferred": settled,
+            "pending":     pending,
+            "failed":      0.0,
+        },
+        "reconciliation": {
+            "clean":                  max(0, report_count - (1 if unresolved > 0 else 0)),
+            "warning":                1 if unresolved > 0 else 0,
+            "critical":               0,
+            "error":                  0,
+            "total_runs":             report_count,
+            "unresolved_discrepancies": unresolved,
+            "total_variance":         variance,
+        },
+        "revenue_trend":  revenue_trend,
+        "platform_share": [
+            {
+                "platform":  "flipkart",
+                "label":     "Flipkart",
+                "gross":     total_gross,
+                "count":     orders,
+                "share_pct": 100.0,
+            }
+        ] if total_gross > 0 else [],
+    }
+
+
+# ── 10. Flipkart P&L–based returns ─────────────────────────────────────────────
+
+async def get_flipkart_returns(
+    db: AsyncSession,
+    company_id: UUID,
+) -> dict | None:
+    """
+    Build returns-page data from uploaded Flipkart P&L SKU-level data.
+    Returns None if no processed Flipkart reports exist.
+    """
+    from app.db.models.flipkart_report import FlipkartReport, FlipkartSkuPL
+
+    report_count = (await db.execute(
+        select(func.count(FlipkartReport.id)).where(
+            FlipkartReport.company_id == company_id,
+            FlipkartReport.status == "done",
+        )
+    )).scalar_one()
+    if not report_count:
+        return None
+
+    # SKUs with return/cancellation data
+    sku_rows = (await db.execute(
+        select(FlipkartSkuPL).where(
+            FlipkartSkuPL.company_id == company_id,
+            FlipkartSkuPL.returns_value > 0,
+        ).order_by(FlipkartSkuPL.returns_value.desc()).limit(200)
+    )).scalars().all()
+
+    cancel_rows = (await db.execute(
+        select(FlipkartSkuPL).where(
+            FlipkartSkuPL.company_id == company_id,
+            FlipkartSkuPL.cancellations_value > 0,
+        ).order_by(FlipkartSkuPL.cancellations_value.desc()).limit(100)
+    )).scalars().all()
+
+    items = []
+    idx = 1
+    for r in sku_rows:
+        items.append({
+            "id":     f"RET-{idx:03d}",
+            "plat":   "Flipkart",
+            "icon":   "🛍️",
+            "oid":    "",
+            "sku":    r.sku_code or "",
+            "prod":   r.product_title or r.sku_code or "Product",
+            "reason": "Product Return",
+            "qty":    int(float(r.returns_qty or 0)),
+            "base":   float(r.returns_value or 0),
+            "ship":   0.0,
+            "total":  float(r.returns_value or 0),
+            "date":   "",
+            "status": "processed",
+        })
+        idx += 1
+
+    for r in cancel_rows:
+        items.append({
+            "id":     f"CAN-{idx:03d}",
+            "plat":   "Flipkart",
+            "icon":   "🛍️",
+            "oid":    "",
+            "sku":    r.sku_code or "",
+            "prod":   r.product_title or r.sku_code or "Product",
+            "reason": "Cancellation",
+            "qty":    int(float(r.cancellations_qty or 0)),
+            "base":   float(r.cancellations_value or 0),
+            "ship":   0.0,
+            "total":  float(r.cancellations_value or 0),
+            "date":   "",
+            "status": "processed",
+        })
+        idx += 1
+
+    total_deducted = sum(i["total"] for i in items)
+    by_reason = {}
+    for i in items:
+        by_reason[i["reason"]] = by_reason.get(i["reason"], 0) + 1
+
+    return {
+        "items": items,
+        "summary": {
+            "total_count":    len(items),
+            "total_deducted": total_deducted,
+            "disputed_count": 0,
+            "by_reason":      by_reason,
+        },
+    }
