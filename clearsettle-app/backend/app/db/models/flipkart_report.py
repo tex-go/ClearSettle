@@ -22,7 +22,7 @@ class FlipkartReport(Base):
     file_size_bytes  = Column(Integer,     nullable=True)
     file_hash        = Column(String(64),  nullable=True, index=True)
     report_type      = Column(String(30),  nullable=True, default="pl_report")
-    status           = Column(String(20),  nullable=False, default="pending")
+    status           = Column(String(50),  nullable=False, default="pending")
     error_message    = Column(Text,        nullable=True)
     report_period    = Column(String(100), nullable=True)
     sheets_parsed    = Column(String(500), nullable=True)
