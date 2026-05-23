@@ -1,0 +1,30 @@
+[run]
+source = app
+omit =
+    app/services/amazon/*
+    app/services/ingestion/amazon/*
+    app/services/seller_discovery/*
+    app/services/meetings/reminder_store.py
+    app/services/sync/*
+    app/routers/sp_api.py
+    app/routers/flipkart_reports.py
+    app/routers/amazon_reports.py
+    app/routers/meesho_reports.py
+    app/routers/competitors.py
+    app/routers/seller_discovery.py
+    app/data/mock_data.py
+    app/services/sp_api_client.py
+    alembic/*
+
+[report]
+fail_under = 90
+show_missing = true
+skip_covered = false
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    \.\.\.
+    pass
