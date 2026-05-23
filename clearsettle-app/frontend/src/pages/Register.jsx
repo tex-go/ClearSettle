@@ -181,7 +181,7 @@ function Register() {
       active_platforms: platforms,
     })
       .then(function(res) {
-        loginStore(res.data.access_token, res.data.user)
+        loginStore(res.data.access_token, res.data.refresh_token, res.data.user)
         localStorage.setItem('cs_onboarded', 'true')
         navigate('/')
       })

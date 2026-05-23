@@ -54,6 +54,11 @@ from app.db.models.meesho_report import (
 )
 # RBAC tables (Session 12)
 from app.db.models.rbac import Role, Permission, RolePermission
+# Enterprise auth (Session 13)
+from app.db.models.password_reset_token import PasswordResetToken
+from app.db.models.email_verification_token import EmailVerificationToken
+from app.db.models.invitation import Invitation
+from app.db.models.audit_log_entry import AuditLogEntry
 # Cash Flow Forecast + Meeting System
 from app.db.models.cash_flow_snapshot import CashFlowSnapshot
 from app.db.models.meeting import Meeting
@@ -124,4 +129,8 @@ __all__ = [
     "Role",
     "Permission",
     "RolePermission",
+    "PasswordResetToken",
+    "EmailVerificationToken",
+    "Invitation",
+    "AuditLogEntry",
 ]

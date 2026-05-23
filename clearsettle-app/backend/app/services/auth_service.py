@@ -310,6 +310,12 @@ async def change_password(
     if not verify_password(current_password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
+    from app.core.security import validate_password_strength
+    errors = validate_password_strength(new_password)
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"password_errors": errors})
+
     user.hashed_password = hash_password(new_password)
     db.add(user)
 
@@ -326,3 +332,284 @@ async def change_password(
 
     await db.commit()
     logger.info("Password changed for user %s; all refresh tokens revoked", user.email)
+
+
+# ── Forgot / Reset password ───────────────────────────────────────────────────
+
+async def forgot_password(email: str, db: AsyncSession) -> None:
+    """
+    Issue a password reset token.  Always returns successfully (never leaks
+    whether the email exists) — caller must not tell user if email was found.
+    """
+    from datetime import timedelta
+    from app.core.security import generate_secure_token, hash_secure_token
+    from app.db.models.password_reset_token import PasswordResetToken
+    from app.services.email_service import send_password_reset
+
+    settings = get_settings()
+    user = await get_user_by_email(email, db)
+    if not user or not user.is_active:
+        return  # Silent — do not reveal account existence
+
+    # Invalidate any unused existing tokens first
+    existing = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used.is_(False),
+        )
+    )
+    for old_tok in existing.scalars().all():
+        old_tok.used = True
+        db.add(old_tok)
+
+    token_plain = generate_secure_token()
+    prt = PasswordResetToken(
+        user_id=user.id,
+        token_hash=hash_secure_token(token_plain),
+        expires_at=datetime.utcnow() + timedelta(minutes=settings.password_reset_expire_minutes),
+    )
+    db.add(prt)
+    await db.commit()
+
+    send_password_reset(user.email, user.name or "", token_plain)
+    logger.info("Password reset token issued for %s", email)
+
+
+async def reset_password(token_plain: str, new_password: str, db: AsyncSession) -> None:
+    """
+    Redeem a reset token and change the password.
+    Revokes all refresh tokens to force re-login everywhere.
+    """
+    from app.core.security import hash_secure_token, validate_password_strength
+    from app.db.models.password_reset_token import PasswordResetToken
+
+    errors = validate_password_strength(new_password)
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"password_errors": errors})
+
+    token_hash = hash_secure_token(token_plain)
+    now = datetime.utcnow()
+
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used.is_(False),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    prt = result.scalar_one_or_none()
+    if not prt:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired reset token")
+
+    prt.used = True
+    db.add(prt)
+
+    user = await get_user_by_id(prt.user_id, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired reset token")
+
+    user.hashed_password = hash_password(new_password)
+    db.add(user)
+
+    # Revoke all refresh tokens
+    rts = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user.id,
+            RefreshToken.revoked.is_(False),
+        )
+    )
+    for rt in rts.scalars().all():
+        rt.revoked = True
+        db.add(rt)
+
+    await db.commit()
+    logger.info("Password reset completed for user %s", user.email)
+
+
+# ── Email verification ────────────────────────────────────────────────────────
+
+async def send_email_verification(user_id, db: AsyncSession) -> None:
+    """Issue (or re-issue) an email verification token and send the email."""
+    from datetime import timedelta
+    from app.core.security import generate_secure_token, hash_secure_token
+    from app.db.models.email_verification_token import EmailVerificationToken
+    from app.services.email_service import send_email_verification as svc_send
+
+    settings = get_settings()
+    user = await get_user_by_id(user_id, db)
+    if not user:
+        return
+
+    # Invalidate existing unused tokens
+    existing = await db.execute(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.user_id == user.id,
+            EmailVerificationToken.used.is_(False),
+        )
+    )
+    for old in existing.scalars().all():
+        old.used = True
+        db.add(old)
+
+    token_plain = generate_secure_token()
+    evt = EmailVerificationToken(
+        user_id=user.id,
+        token_hash=hash_secure_token(token_plain),
+        expires_at=datetime.utcnow() + timedelta(hours=settings.email_verification_expire_hours),
+    )
+    db.add(evt)
+    await db.commit()
+
+    svc_send(user.email, user.name or "", token_plain)
+    logger.info("Email verification token issued for %s", user.email)
+
+
+async def verify_email(token_plain: str, db: AsyncSession) -> None:
+    """Mark the user's email as verified."""
+    from app.core.security import hash_secure_token
+    from app.db.models.email_verification_token import EmailVerificationToken
+
+    token_hash = hash_secure_token(token_plain)
+    now = datetime.utcnow()
+
+    result = await db.execute(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.token_hash == token_hash,
+            EmailVerificationToken.used.is_(False),
+            EmailVerificationToken.expires_at > now,
+        )
+    )
+    evt = result.scalar_one_or_none()
+    if not evt:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired verification token")
+
+    evt.used = True
+    db.add(evt)
+
+    user = await get_user_by_id(evt.user_id, db)
+    if user:
+        user.email_verified = True
+        db.add(user)
+
+    await db.commit()
+    logger.info("Email verified for user_id %s", evt.user_id)
+
+
+# ── Team invitations ──────────────────────────────────────────────────────────
+
+async def invite_member(
+    inviter: User,
+    email: str,
+    role: str,
+    company_id,
+    db: AsyncSession,
+) -> None:
+    """
+    Invite a user to join a company.  Raises 409 if already a member.
+    The invitation token is emailed to the invitee.
+    """
+    from datetime import timedelta
+    from app.core.security import generate_secure_token, hash_secure_token
+    from app.db.models.invitation import Invitation
+    from app.services.email_service import send_invitation
+
+    settings = get_settings()
+
+    existing_user = await get_user_by_email(email, db)
+    if existing_user:
+        company_ids = [str(c.id) for c in (existing_user.companies or [])]
+        if str(company_id) in company_ids:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail="User is already a member of this company")
+
+    token_plain = generate_secure_token()
+    inv = Invitation(
+        company_id=company_id,
+        invited_by=inviter.id,
+        email=email,
+        role=role,
+        token_hash=hash_secure_token(token_plain),
+        expires_at=datetime.utcnow() + timedelta(days=settings.invitation_expire_days),
+    )
+    db.add(inv)
+    await db.commit()
+
+    company = inviter.companies[0] if inviter.companies else None
+    send_invitation(
+        email,
+        inviter.name or inviter.email,
+        company.name if company else "your team",
+        token_plain,
+        role,
+    )
+    logger.info("Invitation sent to %s by %s", email, inviter.email)
+
+
+async def accept_invitation(token_plain: str, password: str, name: str, db: AsyncSession) -> dict:
+    """
+    Accept an invitation: create or link the user account, log them in.
+    """
+    from app.core.security import hash_secure_token, validate_password_strength
+    from app.db.models.invitation import Invitation
+
+    errors = validate_password_strength(password)
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"password_errors": errors})
+
+    token_hash = hash_secure_token(token_plain)
+    now = datetime.utcnow()
+
+    result = await db.execute(
+        select(Invitation).where(
+            Invitation.token_hash == token_hash,
+            Invitation.accepted.is_(False),
+            Invitation.expires_at > now,
+        )
+    )
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired invitation")
+
+    inv.accepted = True
+    db.add(inv)
+
+    existing = await get_user_by_email(inv.email, db)
+    if existing:
+        user = existing
+    else:
+        user = User(
+            email=inv.email,
+            hashed_password=hash_password(password),
+            name=name,
+            role=inv.role,
+            is_active=True,
+        )
+        db.add(user)
+        await db.flush()
+
+    # Link the user to the invited company if not already linked
+    from app.db.models import Company
+    company = await db.get(Company, inv.company_id)
+    if company and user not in (company.user,):
+        pass  # One-to-many relationship handled via user_id; leave for future membership table
+
+    await db.commit()
+    user = await get_user_by_id(user.id, db)
+
+    access, refresh = _build_token_pair(user)
+    await _persist_refresh_token(user.id, refresh, db)
+
+    logger.info("Invitation accepted by %s", inv.email)
+    return {
+        "access_token": access,
+        "refresh_token": refresh,
+        "token_type": "bearer",
+        "expires_in": _EXPIRES_IN,
+        "user": _user_profile(user),
+    }
