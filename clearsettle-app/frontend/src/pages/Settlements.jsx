@@ -148,7 +148,7 @@ function Settlements() {
           }
         >
           {/* Info grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div className="info-grid">
             {[
               { k: 'Orders', v: selected.orders },
               { k: 'Invoices', v: selected.inv },

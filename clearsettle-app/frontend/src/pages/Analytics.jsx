@@ -158,7 +158,7 @@ function Analytics() {
           onClose={function() { setSelected(null) }}
           footer={<button className="btn btn-s" onClick={function() { setSelected(null) }}>Close</button>}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div className="info-grid">
             {[
               { k: 'Revenue', v: INR(selected.rev) },
               { k: 'COGS', v: INR(selected.cogs) },

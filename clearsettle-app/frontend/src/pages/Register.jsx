@@ -298,7 +298,7 @@ function Register() {
                 <label style={labelStyle}>Full Name *</label>
                 <input style={inputStyle} type="text" placeholder="Ranjith Kumar" value={name} onChange={function(e) { setName(e.target.value) }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-grid-2">
                 <div style={fieldWrap}>
                   <label style={labelStyle}>Email Address *</label>
                   <input style={inputStyle} type="email" placeholder="you@company.com" value={email} onChange={function(e) { setEmail(e.target.value) }} />
@@ -308,7 +308,7 @@ function Register() {
                   <input style={inputStyle} type="tel" placeholder="+91 98765 43210" value={phone} onChange={function(e) { setPhone(e.target.value) }} />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-grid-2">
                 <div style={fieldWrap}>
                   <label style={labelStyle}>Password *</label>
                   <input style={inputStyle} type="password" placeholder="Min. 8 characters" value={password} onChange={function(e) { setPassword(e.target.value) }} />
@@ -328,7 +328,7 @@ function Register() {
                 <div style={{ fontSize: 17, fontWeight: 800, color: '#E2EBF3' }}>Business Profile</div>
                 <div style={{ fontSize: 13, color: '#4B6080', marginTop: 4 }}>GSTIN is required for reconciliation accuracy</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-grid-2">
                 <div style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
                   <label style={labelStyle}>Business / Company Name *</label>
                   <input style={inputStyle} type="text" placeholder="Tirupur Exports Pvt. Ltd." value={companyName} onChange={function(e) { setCompanyName(e.target.value) }} />
@@ -391,7 +391,7 @@ function Register() {
                   Select all platforms where you sell — we'll tailor reconciliation for each
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 24 }}>
+              <div className="platform-grid">
                 {PLATFORMS.map(function(p) {
                   var selected = platforms.includes(p.id)
                   return (

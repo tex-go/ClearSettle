@@ -53,15 +53,15 @@ function Topbar({ onMenuClick }) {
       padding: '0 16px 0 20px', flexShrink: 0,
       position: 'sticky', top: 0, zIndex: 100,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="topbar-left">
         <button
           className="mob-show btn btn-g btn-sm"
           onClick={onMenuClick}
-          style={{ display: 'none', padding: '6px 10px', fontSize: 18, lineHeight: 1 }}
+          style={{ display: 'none', padding: '6px 10px', fontSize: 18, lineHeight: 1, flexShrink: 0 }}
         >☰</button>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#0D1F35' }}>{meta.title}</div>
-          <div style={{ fontSize: 11, color: '#8FA5BD' }}>{meta.sub}</div>
+        <div className="topbar-title-wrap">
+          <div className="topbar-title">{meta.title}</div>
+          <div className="topbar-sub">{meta.sub}</div>
         </div>
       </div>
 
