@@ -3,6 +3,50 @@ import { useNavigate, Link } from 'react-router-dom'
 import api from '../utils/api'
 import useAuthStore from '../store/authStore'
 
+// ── Password rules (mirrors backend security.py) ──────────────────────────────
+
+var PASSWORD_RULES = [
+  { id: 'len',     label: 'Minimum 10 characters',     test: function(p) { return p.length >= 10 } },
+  { id: 'upper',   label: 'Contains uppercase letter',  test: function(p) { return /[A-Z]/.test(p) } },
+  { id: 'lower',   label: 'Contains lowercase letter',  test: function(p) { return /[a-z]/.test(p) } },
+  { id: 'digit',   label: 'Contains a number',          test: function(p) { return /[0-9]/.test(p) } },
+  { id: 'special', label: 'Contains special character', test: function(p) { return /[^A-Za-z0-9]/.test(p) } },
+]
+
+function checkPassword(pw) {
+  return PASSWORD_RULES.map(function(r) { return { id: r.id, label: r.label, passed: r.test(pw) } })
+}
+
+function isPasswordValid(pw) {
+  return PASSWORD_RULES.every(function(r) { return r.test(pw) })
+}
+
+function friendlyApiError(detail) {
+  if (!detail) return 'Registration failed. Please try again.'
+  if (Array.isArray(detail)) {
+    var msgs = detail.map(function(m) {
+      var raw = (m.msg || '').toLowerCase()
+      if (raw.includes('10 character') || raw.includes('at least 10')) return 'Password must be at least 10 characters.'
+      if (raw.includes('uppercase')) return 'Password must include an uppercase letter.'
+      if (raw.includes('lowercase')) return 'Password must include a lowercase letter.'
+      if (raw.includes('digit') || raw.includes('number')) return 'Password must include a number.'
+      if (raw.includes('special')) return 'Password must include a special character.'
+      if (raw.includes('already') && raw.includes('email')) return 'An account with this email already exists.'
+      if (raw.includes('gstin')) return 'Invalid GSTIN format. Example: 33ABCDE1234F1Z5'
+      return m.msg || 'An error occurred'
+    })
+    return msgs.join(' ')
+  }
+  if (typeof detail === 'string') {
+    var d = detail.toLowerCase()
+    if (d.includes('already registered') || d.includes('already exists')) return 'An account with this email already exists.'
+    if (d.includes('10 character') || d.includes('at least 10')) return 'Password must be at least 10 characters.'
+    if (d.includes('uppercase')) return 'Password must include an uppercase letter.'
+    return detail
+  }
+  return 'Registration failed. Please try again.'
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 var STATES = [
@@ -58,7 +102,7 @@ var STEPS = [
   { num: 3, label: 'Marketplaces' },
 ]
 
-// ── Styles helpers ─────────────────────────────────────────────────────────────
+// ── Style helpers ──────────────────────────────────────────────────────────────
 
 var inputStyle = {
   padding: '11px 14px', borderRadius: 10,
@@ -69,6 +113,67 @@ var inputStyle = {
 }
 var labelStyle = { fontSize: 12, fontWeight: 600, color: '#8FA5BD', marginBottom: 5, display: 'block' }
 var fieldWrap = { display: 'flex', flexDirection: 'column', marginBottom: 16 }
+
+// ── Eye icon SVG ───────────────────────────────────────────────────────────────
+
+function EyeIcon({ open }) {
+  return open ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <path d="M14.12 14.12a3 3 0 0 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  )
+}
+
+// ── Password field with eye toggle ─────────────────────────────────────────────
+
+function PasswordInput({ label, value, onChange, placeholder, show, onToggleShow }) {
+  return (
+    <div style={fieldWrap}>
+      <label style={labelStyle}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <input
+          style={{ ...inputStyle, paddingRight: 44 }}
+          type={show ? 'text' : 'password'}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          autoComplete={label.toLowerCase().includes('confirm') ? 'new-password' : 'new-password'}
+        />
+        <button
+          type="button"
+          onClick={onToggleShow}
+          aria-label={show ? 'Hide password' : 'Show password'}
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'none',
+            border: 'none',
+            padding: 4,
+            cursor: 'pointer',
+            color: '#4B6080',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'color .15s',
+          }}
+          onMouseEnter={function(e) { e.currentTarget.style.color = '#8FA5BD' }}
+          onMouseLeave={function(e) { e.currentTarget.style.color = '#4B6080' }}
+        >
+          <EyeIcon open={show} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +191,10 @@ function Register() {
   var [phone, setPhone] = useState('')
   var [password, setPassword] = useState('')
   var [confirmPassword, setConfirmPassword] = useState('')
+  var [showPassword, setShowPassword] = useState(false)
+  var [showConfirm, setShowConfirm] = useState(false)
+  var [pwTouched, setPwTouched] = useState(false)
+  var [confirmTouched, setConfirmTouched] = useState(false)
 
   // Step 2
   var [companyName, setCompanyName] = useState('')
@@ -101,6 +210,23 @@ function Register() {
 
   // Step 3
   var [platforms, setPlatforms] = useState([])
+
+  // Derived password state
+  var pwChecks   = checkPassword(password)
+  var pwValid    = isPasswordValid(password)
+  var pwMatch    = password === confirmPassword
+  var showChecks = pwTouched || password.length > 0
+  var showMismatch = confirmTouched && confirmPassword.length > 0 && !pwMatch
+
+  // Step 1 navigation guard
+  var step1Ready = (
+    name.trim().length > 0 &&
+    email.trim().includes('@') &&
+    /^\+?[\d\s\-()]{10,}$/.test(phone.trim()) &&
+    pwValid &&
+    pwMatch &&
+    confirmPassword.length > 0
+  )
 
   function togglePlatform(id) {
     setPlatforms(function(prev) {
@@ -118,15 +244,6 @@ function Register() {
     }
   }
 
-  function validateStep1() {
-    if (!name.trim()) return 'Full name is required'
-    if (!email.trim() || !email.includes('@')) return 'Valid email is required'
-    if (!/^\+?[\d\s\-()]{10,}$/.test(phone)) return 'Valid 10-digit phone number is required'
-    if (password.length < 8) return 'Password must be at least 8 characters'
-    if (password !== confirmPassword) return 'Passwords do not match'
-    return null
-  }
-
   function validateStep2() {
     if (!companyName.trim()) return 'Company / business name is required'
     var gstinPat = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
@@ -142,10 +259,20 @@ function Register() {
 
   function nextStep() {
     setError('')
-    var err = null
-    if (step === 1) err = validateStep1()
-    if (step === 2) err = validateStep2()
-    if (err) { setError(err); return }
+    if (step === 1) {
+      // Trigger touched state so user sees all failures highlighted
+      setPwTouched(true)
+      setConfirmTouched(true)
+      if (!name.trim()) { setError('Full name is required.'); return }
+      if (!email.trim() || !email.includes('@')) { setError('A valid email address is required.'); return }
+      if (!/^\+?[\d\s\-()]{10,}$/.test(phone.trim())) { setError('A valid 10-digit phone number is required.'); return }
+      if (!pwValid) { setError('Please fix the password issues highlighted below.'); return }
+      if (!pwMatch) { setError('Passwords do not match.'); return }
+    }
+    if (step === 2) {
+      var err2 = validateStep2()
+      if (err2) { setError(err2); return }
+    }
     setStep(function(s) { return s + 1 })
   }
 
@@ -163,22 +290,22 @@ function Register() {
     setError('')
 
     api.post('/auth/register', {
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      password: password,
-      confirm_password: confirmPassword,
-      company_name: companyName.trim(),
-      gstin: gstin.trim().toUpperCase(),
-      pan: pan.trim() || null,
-      state: state,
-      city: city.trim() || null,
-      pincode: pincode.trim() || null,
-      address: address.trim() || null,
-      industry: industry || null,
-      monthly_gmv_range: gmvRange || null,
-      website: website.trim() || null,
-      active_platforms: platforms,
+      name:               name.trim(),
+      email:              email.trim(),
+      phone:              phone.trim(),
+      password:           password,
+      confirm_password:   confirmPassword,
+      company_name:       companyName.trim(),
+      gstin:              gstin.trim().toUpperCase(),
+      pan:                pan.trim() || null,
+      state:              state,
+      city:               city.trim()    || null,
+      pincode:            pincode.trim() || null,
+      address:            address.trim() || null,
+      industry:           industry       || null,
+      monthly_gmv_range:  gmvRange       || null,
+      website:            website.trim() || null,
+      active_platforms:   platforms,
     })
       .then(function(res) {
         loginStore(res.data.access_token, res.data.refresh_token, res.data.user)
@@ -186,12 +313,8 @@ function Register() {
         navigate('/')
       })
       .catch(function(err) {
-        var msg = err.response ? err.response.data.detail : 'Registration failed. Please try again.'
-        if (Array.isArray(msg)) {
-          setError(msg.map(function(m) { return m.msg }).join('; '))
-        } else {
-          setError(typeof msg === 'string' ? msg : JSON.stringify(msg))
-        }
+        var detail = err.response ? err.response.data.detail : null
+        setError(friendlyApiError(detail))
         setLoading(false)
       })
   }
@@ -203,7 +326,7 @@ function Register() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '32px 16px', boxSizing: 'border-box',
     }}>
-      {/* Orbs */}
+      {/* Background orbs */}
       {[
         { w: 400, h: 400, top: '-10%', left: '-10%', c: 'rgba(10,191,202,.05)' },
         { w: 300, h: 300, bottom: '-5%', right: '5%',  c: 'rgba(123,82,232,.05)' },
@@ -211,8 +334,7 @@ function Register() {
         return (
           <div key={i} style={{
             position: 'fixed', borderRadius: '50%',
-            width: orb.w, height: orb.h,
-            background: orb.c,
+            width: orb.w, height: orb.h, background: orb.c,
             top: orb.top, left: orb.left, bottom: orb.bottom, right: orb.right,
             pointerEvents: 'none',
           }} />
@@ -220,6 +342,7 @@ function Register() {
       })}
 
       <div style={{ width: '100%', maxWidth: 560, position: 'relative', zIndex: 1 }}>
+
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{
@@ -236,9 +359,9 @@ function Register() {
         </div>
 
         {/* Step indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
           {STEPS.map(function(s, i) {
-            var done = step > s.num
+            var done   = step > s.num
             var active = step === s.num
             return (
               <React.Fragment key={s.num}>
@@ -277,13 +400,17 @@ function Register() {
           borderRadius: 16, padding: '28px 32px',
           backdropFilter: 'blur(10px)',
         }}>
+
+          {/* Error banner */}
           {error && (
-            <div style={{
+            <div role="alert" style={{
               background: 'rgba(232,52,74,.15)', border: '1px solid rgba(232,52,74,.3)',
               borderRadius: 10, padding: '10px 14px',
               color: '#F87171', fontSize: 13, marginBottom: 20,
+              display: 'flex', gap: 8, alignItems: 'flex-start',
             }}>
-              {error}
+              <span style={{ flexShrink: 0 }}>⚠</span>
+              <span>{error}</span>
             </div>
           )}
 
@@ -294,30 +421,110 @@ function Register() {
                 <div style={{ fontSize: 17, fontWeight: 800, color: '#E2EBF3' }}>Create your account</div>
                 <div style={{ fontSize: 13, color: '#4B6080', marginTop: 4 }}>Start your free seller account</div>
               </div>
+
+              {/* Full name */}
               <div style={fieldWrap}>
                 <label style={labelStyle}>Full Name *</label>
-                <input style={inputStyle} type="text" placeholder="Ranjith Kumar" value={name} onChange={function(e) { setName(e.target.value) }} />
+                <input
+                  style={inputStyle} type="text" placeholder="Ranjith Kumar"
+                  value={name} onChange={function(e) { setName(e.target.value) }}
+                  autoComplete="name"
+                />
               </div>
+
+              {/* Email + Phone */}
               <div className="form-grid-2">
                 <div style={fieldWrap}>
                   <label style={labelStyle}>Email Address *</label>
-                  <input style={inputStyle} type="email" placeholder="you@company.com" value={email} onChange={function(e) { setEmail(e.target.value) }} />
+                  <input
+                    style={inputStyle} type="email" placeholder="you@company.com"
+                    value={email} onChange={function(e) { setEmail(e.target.value) }}
+                    autoComplete="email"
+                  />
                 </div>
                 <div style={fieldWrap}>
                   <label style={labelStyle}>Phone Number *</label>
-                  <input style={inputStyle} type="tel" placeholder="+91 98765 43210" value={phone} onChange={function(e) { setPhone(e.target.value) }} />
+                  <input
+                    style={inputStyle} type="tel" placeholder="+91 98765 43210"
+                    value={phone} onChange={function(e) { setPhone(e.target.value) }}
+                    autoComplete="tel"
+                  />
                 </div>
               </div>
-              <div className="form-grid-2">
-                <div style={fieldWrap}>
-                  <label style={labelStyle}>Password *</label>
-                  <input style={inputStyle} type="password" placeholder="Min. 8 characters" value={password} onChange={function(e) { setPassword(e.target.value) }} />
+
+              {/* Password with eye toggle */}
+              <PasswordInput
+                label="Password *"
+                value={password}
+                placeholder="Min. 10 characters"
+                show={showPassword}
+                onToggleShow={function() { setShowPassword(function(v) { return !v }) }}
+                onChange={function(e) {
+                  setPassword(e.target.value)
+                  setPwTouched(true)
+                }}
+              />
+
+              {/* Real-time password checklist */}
+              {showChecks && (
+                <div style={{
+                  background: 'rgba(255,255,255,.04)',
+                  border: '1px solid rgba(255,255,255,.08)',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  marginTop: -10,
+                  marginBottom: 16,
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '6px 12px',
+                }}>
+                  {pwChecks.map(function(r) {
+                    var color = r.passed
+                      ? '#0DB07A'
+                      : pwTouched ? '#F87171' : '#4B6080'
+                    return (
+                      <div key={r.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        fontSize: 11, color: color, transition: 'color .2s',
+                        lineHeight: 1.4,
+                      }}>
+                        <span style={{
+                          fontSize: 14, flexShrink: 0, lineHeight: 1,
+                          color: r.passed ? '#0DB07A' : pwTouched ? '#F87171' : '#2D4A6B',
+                          transition: 'color .2s',
+                        }}>
+                          {r.passed ? '✓' : '○'}
+                        </span>
+                        {r.label}
+                      </div>
+                    )
+                  })}
                 </div>
-                <div style={fieldWrap}>
-                  <label style={labelStyle}>Confirm Password *</label>
-                  <input style={inputStyle} type="password" placeholder="Repeat password" value={confirmPassword} onChange={function(e) { setConfirmPassword(e.target.value) }} />
+              )}
+
+              {/* Confirm password with eye toggle */}
+              <PasswordInput
+                label="Confirm Password *"
+                value={confirmPassword}
+                placeholder="Repeat your password"
+                show={showConfirm}
+                onToggleShow={function() { setShowConfirm(function(v) { return !v }) }}
+                onChange={function(e) {
+                  setConfirmPassword(e.target.value)
+                  setConfirmTouched(true)
+                }}
+              />
+
+              {/* Mismatch error — shown inline, not as banner */}
+              {showMismatch && (
+                <div role="alert" style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  marginTop: -10, marginBottom: 16,
+                  fontSize: 12, color: '#F87171',
+                }}>
+                  <span>○</span> Passwords do not match
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -393,28 +600,27 @@ function Register() {
               </div>
               <div className="platform-grid">
                 {PLATFORMS.map(function(p) {
-                  var selected = platforms.includes(p.id)
+                  var sel = platforms.includes(p.id)
                   return (
                     <button
                       key={p.id}
                       type="button"
                       onClick={function() { togglePlatform(p.id) }}
+                      aria-pressed={sel}
                       style={{
-                        padding: '12px 16px',
-                        borderRadius: 10,
-                        background: selected ? 'rgba(10,191,202,.15)' : 'rgba(255,255,255,.05)',
-                        border: selected ? '1px solid #0ABFCA' : '1px solid rgba(255,255,255,.1)',
-                        color: selected ? '#0ABFCA' : '#8FA5BD',
-                        fontSize: 13, fontWeight: 600,
-                        cursor: 'pointer',
+                        padding: '12px 16px', borderRadius: 10,
+                        background: sel ? 'rgba(10,191,202,.15)' : 'rgba(255,255,255,.05)',
+                        border: sel ? '1px solid #0ABFCA' : '1px solid rgba(255,255,255,.1)',
+                        color: sel ? '#0ABFCA' : '#8FA5BD',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: 10,
                         transition: 'all .15s',
-                        boxShadow: selected ? '0 0 10px rgba(10,191,202,.15)' : 'none',
+                        boxShadow: sel ? '0 0 10px rgba(10,191,202,.15)' : 'none',
                       }}
                     >
                       <span style={{ fontSize: 18 }}>{p.icon}</span>
                       {p.label}
-                      {selected && <span style={{ marginLeft: 'auto', fontSize: 15 }}>✓</span>}
+                      {sel && <span style={{ marginLeft: 'auto', fontSize: 15 }}>✓</span>}
                     </button>
                   )
                 })}
@@ -436,14 +642,13 @@ function Register() {
                 type="submit"
                 disabled={loading || platforms.length === 0}
                 style={{
-                  width: '100%', padding: '13px',
-                  borderRadius: 10,
+                  width: '100%', padding: '13px', borderRadius: 10,
                   background: loading || platforms.length === 0
                     ? 'rgba(10,191,202,.3)'
                     : 'linear-gradient(135deg,#0ABFCA,#088F99)',
                   color: '#fff', fontSize: 14, fontWeight: 700,
                   cursor: loading || platforms.length === 0 ? 'not-allowed' : 'pointer',
-                  border: 'none',
+                  border: 'none', transition: 'opacity .2s',
                 }}
               >
                 {loading ? 'Creating your account...' : 'Create Account & Get Started →'}
@@ -451,32 +656,50 @@ function Register() {
             </form>
           )}
 
-          {/* Navigation */}
+          {/* ── Navigation (steps 1 & 2) ────────────────────────────────────── */}
           {step < 3 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, gap: 12 }}>
               {step > 1 ? (
-                <button onClick={prevStep} style={{
-                  padding: '10px 20px', borderRadius: 8,
-                  background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)',
-                  color: '#8FA5BD', fontSize: 13, cursor: 'pointer',
-                }}>← Back</button>
+                <button
+                  onClick={prevStep}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8,
+                    background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)',
+                    color: '#8FA5BD', fontSize: 13, cursor: 'pointer',
+                  }}
+                >
+                  ← Back
+                </button>
               ) : <div />}
-              <button onClick={nextStep} style={{
-                padding: '10px 24px', borderRadius: 8,
-                background: 'linear-gradient(135deg,#0ABFCA,#088F99)',
-                border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              }}>
+
+              <button
+                onClick={nextStep}
+                disabled={step === 1 && !step1Ready}
+                style={{
+                  padding: '10px 24px', borderRadius: 8,
+                  background: step === 1 && !step1Ready
+                    ? 'rgba(10,191,202,.3)'
+                    : 'linear-gradient(135deg,#0ABFCA,#088F99)',
+                  border: 'none', color: '#fff', fontSize: 13, fontWeight: 700,
+                  cursor: step === 1 && !step1Ready ? 'not-allowed' : 'pointer',
+                  transition: 'background .2s, opacity .2s',
+                }}
+                title={step === 1 && !step1Ready ? 'Complete all required fields to continue' : ''}
+              >
                 Continue →
               </button>
             </div>
           )}
 
-          {step > 1 && step === 3 && (
+          {/* Back link on step 3 */}
+          {step === 3 && (
             <div style={{ textAlign: 'center', marginTop: 12 }}>
-              <button onClick={prevStep} style={{
-                background: 'none', border: 'none',
-                color: '#4B6080', fontSize: 12, cursor: 'pointer',
-              }}>← Back to business profile</button>
+              <button
+                onClick={prevStep}
+                style={{ background: 'none', border: 'none', color: '#4B6080', fontSize: 12, cursor: 'pointer' }}
+              >
+                ← Back to business profile
+              </button>
             </div>
           )}
         </div>
