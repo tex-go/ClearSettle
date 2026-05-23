@@ -1,14 +1,42 @@
 """
 Shared fixtures for the ClearSettle test suite.
 
+Async strategy (pytest-asyncio 0.23.x):
+  A single event_loop is created for the entire session so that session-scoped
+  async fixtures (client, auth_headers) share the same loop as every test.
+  Without this, asyncpg connections created in one loop fail with
+  "got Future attached to a different loop" when accessed from another.
+
 Lifespan background tasks (discovery_scheduler, run_reminder_scheduler) are
 patched to prevent real external service calls during tests.
 """
+import asyncio
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+
+
+# ── Session-scoped event loop (fixes asyncpg "different loop" errors) ─────────
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """
+    One event loop for the full test session.
+
+    pytest-asyncio 0.23.x requires this override so that session-scoped async
+    fixtures (client, auth_headers) and every individual test all run on the
+    same loop.  asyncpg connections are loop-bound; sharing the loop prevents
+    'got Future attached to a different loop' RuntimeErrors.
+
+    The DeprecationWarning from overriding event_loop is suppressed via the
+    filterwarnings setting in pytest.ini.
+    """
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
+    yield loop
+    loop.close()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -40,20 +68,13 @@ def valid_register_payload(**overrides) -> dict:
 # ── App fixture — patches lifespan side-effects ───────────────────────────────
 
 @pytest.fixture(scope="session")
-def anyio_backend():
-    return "asyncio"
-
-
-@pytest.fixture(scope="session")
 async def client():
     mock_scheduler = MagicMock()
     mock_scheduler.start = AsyncMock()
     mock_scheduler.stop = AsyncMock()
 
     with (
-        # discovery_scheduler is now a module-level attribute on app.main
         patch("app.main.discovery_scheduler", mock_scheduler),
-        # Prevent the reminder loop from running as a background task
         patch("app.services.meetings.reminder_store.run_reminder_scheduler", AsyncMock()),
     ):
         from app.main import app
@@ -62,6 +83,15 @@ async def client():
             base_url="http://testserver",
         ) as ac:
             yield ac
+
+    # Dispose the DB engine so asyncpg closes all connections cleanly after
+    # the session ends, preventing "Event loop is closed" warnings.
+    try:
+        from app.db.database import engine
+        if engine is not None:
+            await engine.dispose()
+    except Exception:
+        pass
 
 
 # ── Auth fixture — registers + logs in a test user ────────────────────────────
