@@ -1,39 +1,18 @@
-import bcrypt
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
+"""
+app/core/auth.py — PURGED.
 
-SECRET_KEY = "clearsettle-secret-2026"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+This file previously contained:
+  - DEMO_USER  (hardcoded admin credentials)
+  - SECRET_KEY (hardcoded "clearsettle-secret-2026")
+  - create_token / decode_token (duplicates of security.py)
 
-# rounds=4 for fast demo startup
-_DEMO_HASH = bcrypt.hashpw(b"demo123", bcrypt.gensalt(rounds=4))
+All of those have been removed as part of the enterprise security hardening.
 
-DEMO_USER = {
-    "id": 1,
-    "email": "demo@clearsettle.in",
-    "name": "Ranjith Kumar",
-    "company": "Tirupur Exports Pvt. Ltd.",
-    "gstin": "33ABCDE1234F1Z5",
-    "city": "Tirupur, Tamil Nadu",
-    "role": "admin",
-    "hashed_password": _DEMO_HASH,
-}
-
-
-def verify_password(plain: str, hashed: bytes) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed)
-
-
-def create_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-def decode_token(token: str):
-    try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        return None
+Use these instead:
+  app.core.security   → hash_password, verify_password, create_access_token,
+                         decode_access_token, generate_refresh_token, ...
+  app.services.auth_service → login, register, refresh_tokens, logout,
+                               forgot_password, reset_password, ...
+"""
+# Intentionally empty — no DEMO_USER, no hardcoded secrets.
+# Any import of DEMO_USER from this module is a bug: remove it and use the DB.

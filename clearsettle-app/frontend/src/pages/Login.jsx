@@ -20,31 +20,25 @@ function Login() {
   var [loading, setLoading] = useState(false)
   var [error, setError] = useState('')
 
-  function fillDemo() {
-    setEmail('demo@clearsettle.in')
-    setPassword('demo123')
-    setError('')
-  }
-
   function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     setError('')
     api.post('/auth/login', { email: email, password: password })
       .then(function(res) {
-        login(res.data.access_token, res.data.user)
+        login(res.data.access_token, res.data.refresh_token, res.data.user)
         var role = res.data.user && res.data.user.role
-        if (role === 'superadmin') {
+        if (role === 'superadmin' || role === 'super_admin') {
           navigate('/admin')
-        } else if (role === 'seller') {
-          localStorage.setItem('cs_onboarded', 'true')
+        } else if (res.data.user && res.data.user.registration_completed) {
           navigate('/')
         } else {
           navigate('/onboarding')
         }
       })
       .catch(function(err) {
-        setError(err.response ? err.response.data.detail : 'Login failed. Check backend is running.')
+        var detail = err.response && err.response.data && err.response.data.detail
+        setError(typeof detail === 'string' ? detail : 'Login failed. Please check your credentials.')
         setLoading(false)
       })
   }
@@ -136,7 +130,7 @@ function Login() {
                 type="email"
                 value={email}
                 onChange={function(e) { setEmail(e.target.value) }}
-                placeholder="demo@clearsettle.in"
+                placeholder="you@company.in"
                 required
                 style={{
                   padding: '11px 14px', borderRadius: 10,
@@ -147,7 +141,12 @@ function Login() {
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#8FA5BD' }}>Password</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#8FA5BD' }}>Password</label>
+                <Link to="/forgot-password" style={{ fontSize: 12, color: '#0ABFCA', textDecoration: 'none' }}>
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}
@@ -177,23 +176,6 @@ function Login() {
               {loading ? 'Signing in...' : 'Sign In →'}
             </button>
           </form>
-
-          <div
-            onClick={fillDemo}
-            style={{
-              marginTop: 16, padding: '10px 14px', borderRadius: 10,
-              background: 'rgba(10,191,202,.08)',
-              border: '1px solid rgba(10,191,202,.2)',
-              cursor: 'pointer', textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#0ABFCA', marginBottom: 4 }}>
-              DEMO CREDENTIALS (click to fill)
-            </div>
-            <div style={{ fontSize: 12, color: '#4B6080', fontFamily: 'JetBrains Mono, monospace' }}>
-              demo@clearsettle.in / demo123
-            </div>
-          </div>
 
           <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#4B6080' }}>
             New to ClearSettle?{' '}

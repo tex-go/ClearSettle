@@ -3,7 +3,10 @@ Pydantic schemas for the auth endpoints.
 """
 import re
 from typing import Optional
+
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
+
+from app.core.security import validate_password_strength
 
 
 class LoginRequest(BaseModel):
@@ -45,8 +48,9 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
+        errors = validate_password_strength(v)
+        if errors:
+            raise ValueError("; ".join(errors))
         return v
 
     @model_validator(mode="after")
@@ -99,5 +103,53 @@ class AccessTokenResponse(BaseModel):
 
 
 class LogoutRequest(BaseModel):
-    """Optional: client can send the refresh token to revoke it on logout."""
-    refresh_token: str | None = None
+    """Client sends the refresh token to revoke it on logout."""
+    refresh_token: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        errors = validate_password_strength(v)
+        if errors:
+            raise ValueError("; ".join(errors))
+        return v
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class InviteRequest(BaseModel):
+    email: EmailStr
+    role: str = "member"
+
+    @field_validator("role")
+    @classmethod
+    def valid_role(cls, v: str) -> str:
+        allowed = {"admin", "member", "finance", "analyst", "viewer", "support"}
+        if v not in allowed:
+            raise ValueError(f"Role must be one of: {', '.join(sorted(allowed))}")
+        return v
+
+
+class AcceptInviteRequest(BaseModel):
+    token: str
+    name: str
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        errors = validate_password_strength(v)
+        if errors:
+            raise ValueError("; ".join(errors))
+        return v

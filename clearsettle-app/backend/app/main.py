@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
@@ -56,13 +56,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_settings = get_settings()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "X-CSRF-Token"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next) -> Response:
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if _settings.is_production:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+    return response
 
 app.include_router(auth.router,           prefix="/auth",           tags=["auth"])
 app.include_router(dashboard.router,      prefix="/dashboard",      tags=["dashboard"])
@@ -133,11 +148,10 @@ def status_endpoint():
         db_type = "sqlite"
 
     return {
-        "service":          "ClearSettle API",
-        "status":           "online",
-        "version":          "1.0.0",
-        "environment":      settings.env,
-        "database":         db_type,
+        "service":           "ClearSettle API",
+        "status":            "online",
+        "version":           "1.0.0",
+        "environment":       settings.env,
+        "database":          db_type,
         "sp_api_configured": bool(settings.sp_api_app_id and settings.sp_api_client_id),
-        "demo_credentials": {"email": "demo@clearsettle.in", "password": "demo123"},
     }
