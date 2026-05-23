@@ -2,50 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import api from '../utils/api'
 import useAuthStore from '../store/authStore'
-
-// ── Password rules (mirrors backend security.py) ──────────────────────────────
-
-var PASSWORD_RULES = [
-  { id: 'len',     label: 'Minimum 10 characters',     test: function(p) { return p.length >= 10 } },
-  { id: 'upper',   label: 'Contains uppercase letter',  test: function(p) { return /[A-Z]/.test(p) } },
-  { id: 'lower',   label: 'Contains lowercase letter',  test: function(p) { return /[a-z]/.test(p) } },
-  { id: 'digit',   label: 'Contains a number',          test: function(p) { return /[0-9]/.test(p) } },
-  { id: 'special', label: 'Contains special character', test: function(p) { return /[^A-Za-z0-9]/.test(p) } },
-]
-
-function checkPassword(pw) {
-  return PASSWORD_RULES.map(function(r) { return { id: r.id, label: r.label, passed: r.test(pw) } })
-}
-
-function isPasswordValid(pw) {
-  return PASSWORD_RULES.every(function(r) { return r.test(pw) })
-}
-
-function friendlyApiError(detail) {
-  if (!detail) return 'Registration failed. Please try again.'
-  if (Array.isArray(detail)) {
-    var msgs = detail.map(function(m) {
-      var raw = (m.msg || '').toLowerCase()
-      if (raw.includes('10 character') || raw.includes('at least 10')) return 'Password must be at least 10 characters.'
-      if (raw.includes('uppercase')) return 'Password must include an uppercase letter.'
-      if (raw.includes('lowercase')) return 'Password must include a lowercase letter.'
-      if (raw.includes('digit') || raw.includes('number')) return 'Password must include a number.'
-      if (raw.includes('special')) return 'Password must include a special character.'
-      if (raw.includes('already') && raw.includes('email')) return 'An account with this email already exists.'
-      if (raw.includes('gstin')) return 'Invalid GSTIN format. Example: 33ABCDE1234F1Z5'
-      return m.msg || 'An error occurred'
-    })
-    return msgs.join(' ')
-  }
-  if (typeof detail === 'string') {
-    var d = detail.toLowerCase()
-    if (d.includes('already registered') || d.includes('already exists')) return 'An account with this email already exists.'
-    if (d.includes('10 character') || d.includes('at least 10')) return 'Password must be at least 10 characters.'
-    if (d.includes('uppercase')) return 'Password must include an uppercase letter.'
-    return detail
-  }
-  return 'Registration failed. Please try again.'
-}
+import PasswordInput from '../components/forms/PasswordInput'
+import { PASSWORD_RULES, checkPassword, isPasswordValid, friendlyApiError } from '../utils/passwordValidation'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -114,67 +72,6 @@ var inputStyle = {
 var labelStyle = { fontSize: 12, fontWeight: 600, color: '#8FA5BD', marginBottom: 5, display: 'block' }
 var fieldWrap = { display: 'flex', flexDirection: 'column', marginBottom: 16 }
 
-// ── Eye icon SVG ───────────────────────────────────────────────────────────────
-
-function EyeIcon({ open }) {
-  return open ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </svg>
-  ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-      <path d="M14.12 14.12a3 3 0 0 1-4.24-4.24"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    </svg>
-  )
-}
-
-// ── Password field with eye toggle ─────────────────────────────────────────────
-
-function PasswordInput({ label, value, onChange, placeholder, show, onToggleShow }) {
-  return (
-    <div style={fieldWrap}>
-      <label style={labelStyle}>{label}</label>
-      <div style={{ position: 'relative' }}>
-        <input
-          style={{ ...inputStyle, paddingRight: 44 }}
-          type={show ? 'text' : 'password'}
-          placeholder={placeholder}
-          value={value}
-          onChange={onChange}
-          autoComplete={label.toLowerCase().includes('confirm') ? 'new-password' : 'new-password'}
-        />
-        <button
-          type="button"
-          onClick={onToggleShow}
-          aria-label={show ? 'Hide password' : 'Show password'}
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'none',
-            border: 'none',
-            padding: 4,
-            cursor: 'pointer',
-            color: '#4B6080',
-            display: 'flex',
-            alignItems: 'center',
-            transition: 'color .15s',
-          }}
-          onMouseEnter={function(e) { e.currentTarget.style.color = '#8FA5BD' }}
-          onMouseLeave={function(e) { e.currentTarget.style.color = '#4B6080' }}
-        >
-          <EyeIcon open={show} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── Component ──────────────────────────────────────────────────────────────────
 
 function Register() {
@@ -215,10 +112,9 @@ function Register() {
   var pwChecks   = checkPassword(password)
   var pwValid    = isPasswordValid(password)
   var pwMatch    = password === confirmPassword
-  var showChecks = pwTouched || password.length > 0
   var showMismatch = confirmTouched && confirmPassword.length > 0 && !pwMatch
 
-  // Step 1 navigation guard
+  // Step 1 navigation guard — all fields valid before Continue is enabled
   var step1Ready = (
     name.trim().length > 0 &&
     email.trim().includes('@') &&
@@ -260,7 +156,6 @@ function Register() {
   function nextStep() {
     setError('')
     if (step === 1) {
-      // Trigger touched state so user sees all failures highlighted
       setPwTouched(true)
       setConfirmTouched(true)
       if (!name.trim()) { setError('Full name is required.'); return }
@@ -359,7 +254,7 @@ function Register() {
         </div>
 
         {/* Step indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
           {STEPS.map(function(s, i) {
             var done   = step > s.num
             var active = step === s.num
@@ -393,6 +288,14 @@ function Register() {
           })}
         </div>
 
+        {/* Accessible step counter — always present for tests and screen readers */}
+        <p
+          aria-live="polite"
+          style={{ textAlign: 'center', fontSize: 11, color: '#4B6080', marginBottom: 16, marginTop: 0 }}
+        >
+          Step {step} of {STEPS.length}
+        </p>
+
         {/* Card */}
         <div style={{
           background: 'rgba(255,255,255,.04)',
@@ -424,36 +327,52 @@ function Register() {
 
               {/* Full name */}
               <div style={fieldWrap}>
-                <label style={labelStyle}>Full Name *</label>
+                <label htmlFor="reg-name" style={labelStyle}>Full Name *</label>
                 <input
-                  style={inputStyle} type="text" placeholder="Ranjith Kumar"
-                  value={name} onChange={function(e) { setName(e.target.value) }}
+                  id="reg-name"
+                  style={inputStyle}
+                  type="text"
+                  placeholder="e.g. Ranjith Kumar"
+                  value={name}
+                  onChange={function(e) { setName(e.target.value) }}
                   autoComplete="name"
+                  aria-required="true"
                 />
               </div>
 
               {/* Email + Phone */}
               <div className="form-grid-2">
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>Email Address *</label>
+                  <label htmlFor="reg-email" style={labelStyle}>Email Address *</label>
                   <input
-                    style={inputStyle} type="email" placeholder="you@company.com"
-                    value={email} onChange={function(e) { setEmail(e.target.value) }}
+                    id="reg-email"
+                    style={inputStyle}
+                    type="email"
+                    placeholder="you@company.in"
+                    value={email}
+                    onChange={function(e) { setEmail(e.target.value) }}
                     autoComplete="email"
+                    aria-required="true"
                   />
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>Phone Number *</label>
+                  <label htmlFor="reg-phone" style={labelStyle}>Phone Number *</label>
                   <input
-                    style={inputStyle} type="tel" placeholder="+91 98765 43210"
-                    value={phone} onChange={function(e) { setPhone(e.target.value) }}
+                    id="reg-phone"
+                    style={inputStyle}
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={phone}
+                    onChange={function(e) { setPhone(e.target.value) }}
                     autoComplete="tel"
+                    aria-required="true"
                   />
                 </div>
               </div>
 
               {/* Password with eye toggle */}
               <PasswordInput
+                id="reg-password"
                 label="Password *"
                 value={password}
                 placeholder="Min. 10 characters"
@@ -463,11 +382,16 @@ function Register() {
                   setPassword(e.target.value)
                   setPwTouched(true)
                 }}
+                ariaDescribedBy="pw-requirements"
+                ariaInvalid={pwTouched && !pwValid ? true : undefined}
               />
 
-              {/* Real-time password checklist */}
-              {showChecks && (
-                <div style={{
+              {/* Real-time password checklist — always rendered so tests and screen readers can read it */}
+              <div
+                id="pw-requirements"
+                role="list"
+                aria-label="Password requirements"
+                style={{
                   background: 'rgba(255,255,255,.04)',
                   border: '1px solid rgba(255,255,255,.08)',
                   borderRadius: 10,
@@ -477,33 +401,48 @@ function Register() {
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
                   gap: '6px 12px',
-                }}>
-                  {pwChecks.map(function(r) {
-                    var color = r.passed
+                }}
+              >
+                {pwChecks.map(function(r) {
+                  // Grey when untouched, green when passed, red when touched+failed
+                  var color = password.length === 0
+                    ? '#4B6080'
+                    : r.passed
                       ? '#0DB07A'
                       : pwTouched ? '#F87171' : '#4B6080'
-                    return (
-                      <div key={r.id} style={{
+                  return (
+                    <div
+                      key={r.id}
+                      role="listitem"
+                      style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         fontSize: 11, color: color, transition: 'color .2s',
                         lineHeight: 1.4,
-                      }}>
-                        <span style={{
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
                           fontSize: 14, flexShrink: 0, lineHeight: 1,
-                          color: r.passed ? '#0DB07A' : pwTouched ? '#F87171' : '#2D4A6B',
+                          color: password.length === 0
+                            ? '#2D4A6B'
+                            : r.passed
+                              ? '#0DB07A'
+                              : pwTouched ? '#F87171' : '#2D4A6B',
                           transition: 'color .2s',
-                        }}>
-                          {r.passed ? '✓' : '○'}
-                        </span>
-                        {r.label}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+                        }}
+                      >
+                        {r.passed ? '✓' : '○'}
+                      </span>
+                      {r.label}
+                    </div>
+                  )
+                })}
+              </div>
 
               {/* Confirm password with eye toggle */}
               <PasswordInput
+                id="reg-confirm"
                 label="Confirm Password *"
                 value={confirmPassword}
                 placeholder="Repeat your password"
@@ -513,16 +452,22 @@ function Register() {
                   setConfirmPassword(e.target.value)
                   setConfirmTouched(true)
                 }}
+                ariaInvalid={showMismatch ? true : undefined}
+                ariaDescribedBy={showMismatch ? 'pw-mismatch' : undefined}
               />
 
-              {/* Mismatch error — shown inline, not as banner */}
+              {/* Inline mismatch — does not shift layout */}
               {showMismatch && (
-                <div role="alert" style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  marginTop: -10, marginBottom: 16,
-                  fontSize: 12, color: '#F87171',
-                }}>
-                  <span>○</span> Passwords do not match
+                <div
+                  id="pw-mismatch"
+                  role="alert"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    marginTop: -10, marginBottom: 16,
+                    fontSize: 12, color: '#F87171',
+                  }}
+                >
+                  <span aria-hidden="true">○</span> Passwords do not match
                 </div>
               )}
             </div>
@@ -537,53 +482,53 @@ function Register() {
               </div>
               <div className="form-grid-2">
                 <div style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
-                  <label style={labelStyle}>Business / Company Name *</label>
-                  <input style={inputStyle} type="text" placeholder="Tirupur Exports Pvt. Ltd." value={companyName} onChange={function(e) { setCompanyName(e.target.value) }} />
+                  <label htmlFor="reg-company" style={labelStyle}>Business / Company Name *</label>
+                  <input id="reg-company" style={inputStyle} type="text" placeholder="Tirupur Exports Pvt. Ltd." value={companyName} onChange={function(e) { setCompanyName(e.target.value) }} />
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>GSTIN *</label>
-                  <input style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '.05em' }} type="text" placeholder="33ABCDE1234F1Z5" maxLength={15} value={gstin} onChange={function(e) { handleGstinChange(e.target.value) }} />
+                  <label htmlFor="reg-gstin" style={labelStyle}>GSTIN *</label>
+                  <input id="reg-gstin" style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '.05em' }} type="text" placeholder="33ABCDE1234F1Z5" maxLength={15} value={gstin} onChange={function(e) { handleGstinChange(e.target.value) }} />
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>PAN <span style={{ opacity: .6 }}>(optional)</span></label>
-                  <input style={{ ...inputStyle, fontFamily: 'monospace' }} type="text" placeholder="ABCDE1234F" maxLength={10} value={pan} onChange={function(e) { setPan(e.target.value.toUpperCase()) }} />
+                  <label htmlFor="reg-pan" style={labelStyle}>PAN <span style={{ opacity: .6 }}>(optional)</span></label>
+                  <input id="reg-pan" style={{ ...inputStyle, fontFamily: 'monospace' }} type="text" placeholder="ABCDE1234F" maxLength={10} value={pan} onChange={function(e) { setPan(e.target.value.toUpperCase()) }} />
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>State *</label>
-                  <select style={{ ...inputStyle, appearance: 'none' }} value={state} onChange={function(e) { setState(e.target.value) }}>
+                  <label htmlFor="reg-state" style={labelStyle}>State *</label>
+                  <select id="reg-state" style={{ ...inputStyle, appearance: 'none' }} value={state} onChange={function(e) { setState(e.target.value) }}>
                     <option value="" style={{ background: '#0D1F35' }}>Select state</option>
                     {STATES.map(function(s) { return <option key={s} value={s} style={{ background: '#0D1F35' }}>{s}</option> })}
                   </select>
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>City <span style={{ opacity: .6 }}>(optional)</span></label>
-                  <input style={inputStyle} type="text" placeholder="Tirupur" value={city} onChange={function(e) { setCity(e.target.value) }} />
+                  <label htmlFor="reg-city" style={labelStyle}>City <span style={{ opacity: .6 }}>(optional)</span></label>
+                  <input id="reg-city" style={inputStyle} type="text" placeholder="Tirupur" value={city} onChange={function(e) { setCity(e.target.value) }} />
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>PIN Code <span style={{ opacity: .6 }}>(optional)</span></label>
-                  <input style={inputStyle} type="text" placeholder="641604" maxLength={6} value={pincode} onChange={function(e) { setPincode(e.target.value.replace(/\D/g, '')) }} />
+                  <label htmlFor="reg-pincode" style={labelStyle}>PIN Code <span style={{ opacity: .6 }}>(optional)</span></label>
+                  <input id="reg-pincode" style={inputStyle} type="text" placeholder="641604" maxLength={6} value={pincode} onChange={function(e) { setPincode(e.target.value.replace(/\D/g, '')) }} />
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>Industry</label>
-                  <select style={{ ...inputStyle, appearance: 'none' }} value={industry} onChange={function(e) { setIndustry(e.target.value) }}>
+                  <label htmlFor="reg-industry" style={labelStyle}>Industry</label>
+                  <select id="reg-industry" style={{ ...inputStyle, appearance: 'none' }} value={industry} onChange={function(e) { setIndustry(e.target.value) }}>
                     <option value="" style={{ background: '#0D1F35' }}>Select industry</option>
                     {INDUSTRIES.map(function(ind) { return <option key={ind} value={ind} style={{ background: '#0D1F35' }}>{ind}</option> })}
                   </select>
                 </div>
                 <div style={fieldWrap}>
-                  <label style={labelStyle}>Monthly GMV Range</label>
-                  <select style={{ ...inputStyle, appearance: 'none' }} value={gmvRange} onChange={function(e) { setGmvRange(e.target.value) }}>
+                  <label htmlFor="reg-gmv" style={labelStyle}>Monthly GMV Range</label>
+                  <select id="reg-gmv" style={{ ...inputStyle, appearance: 'none' }} value={gmvRange} onChange={function(e) { setGmvRange(e.target.value) }}>
                     <option value="" style={{ background: '#0D1F35' }}>Select range</option>
                     {GMV_RANGES.map(function(r) { return <option key={r} value={r} style={{ background: '#0D1F35' }}>{r}</option> })}
                   </select>
                 </div>
                 <div style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
-                  <label style={labelStyle}>Business Address <span style={{ opacity: .6 }}>(optional)</span></label>
-                  <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }} placeholder="Street, area, landmark..." value={address} onChange={function(e) { setAddress(e.target.value) }} />
+                  <label htmlFor="reg-address" style={labelStyle}>Business Address <span style={{ opacity: .6 }}>(optional)</span></label>
+                  <textarea id="reg-address" style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }} placeholder="Street, area, landmark..." value={address} onChange={function(e) { setAddress(e.target.value) }} />
                 </div>
                 <div style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
-                  <label style={labelStyle}>Website <span style={{ opacity: .6 }}>(optional)</span></label>
-                  <input style={inputStyle} type="url" placeholder="https://yourstore.com" value={website} onChange={function(e) { setWebsite(e.target.value) }} />
+                  <label htmlFor="reg-website" style={labelStyle}>Website <span style={{ opacity: .6 }}>(optional)</span></label>
+                  <input id="reg-website" style={inputStyle} type="url" placeholder="https://yourstore.com" value={website} onChange={function(e) { setWebsite(e.target.value) }} />
                 </div>
               </div>
             </div>
@@ -626,7 +571,6 @@ function Register() {
                 })}
               </div>
 
-              {/* Disclaimer */}
               <div style={{
                 background: 'rgba(10,191,202,.06)', border: '1px solid rgba(10,191,202,.15)',
                 borderRadius: 10, padding: '10px 14px', marginBottom: 20,
@@ -675,6 +619,7 @@ function Register() {
               <button
                 onClick={nextStep}
                 disabled={step === 1 && !step1Ready}
+                aria-disabled={step === 1 && !step1Ready}
                 style={{
                   padding: '10px 24px', borderRadius: 8,
                   background: step === 1 && !step1Ready

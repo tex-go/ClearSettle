@@ -51,9 +51,10 @@ async def client():
     mock_scheduler.stop = AsyncMock()
 
     with (
+        # discovery_scheduler is now a module-level attribute on app.main
         patch("app.main.discovery_scheduler", mock_scheduler),
-        patch("app.services.seller_discovery.scheduler", mock_scheduler),
-        patch("asyncio.create_task", return_value=None),
+        # Prevent the reminder loop from running as a background task
+        patch("app.services.meetings.reminder_store.run_reminder_scheduler", AsyncMock()),
     ):
         from app.main import app
         async with AsyncClient(
