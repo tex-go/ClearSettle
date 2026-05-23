@@ -27,5 +27,5 @@ class AuditLogEntry(Base):
     resource_id = Column(String(255))                               # UUID or slug of target
     ip_address = Column(String(45))
     user_agent = Column(Text)
-    metadata   = Column(JSONB, default=dict)                        # arbitrary extra context
+    log_metadata = Column("metadata", JSONB, default=dict)          # arbitrary extra context
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
