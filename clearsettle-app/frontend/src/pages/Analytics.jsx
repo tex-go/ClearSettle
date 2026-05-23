@@ -95,7 +95,7 @@ function Analytics() {
         <div className="card">
           <div className="card-hd">
             <div className="card-title">P&L by SKU</div>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {[
                 { color: '#94A3B8', label: 'COGS' },
                 { color: '#FCD34D', label: 'Fees' },
@@ -104,7 +104,7 @@ function Analytics() {
               ].map(function(l) {
                 return (
                   <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color, flexShrink: 0 }} />
                     <span style={{ fontSize: 10, color: '#8FA5BD' }}>{l.label}</span>
                   </div>
                 )
@@ -128,7 +128,7 @@ function Analytics() {
                     <div style={{ width: pct(item.retCost) + '%', background: '#FCA5A5' }} />
                     <div style={{ width: pct(Math.max(item.net, 0)) + '%', background: '#86EFAC' }} />
                   </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
                     {[
                       { label: 'COGS', val: INR(item.cogs) },
                       { label: 'Fees', val: INR(item.fees) },
@@ -136,7 +136,7 @@ function Analytics() {
                       { label: 'Net', val: INR(item.net), bold: true },
                     ].map(function(l) {
                       return (
-                        <div key={l.label} style={{ fontSize: 10, color: '#8FA5BD' }}>
+                        <div key={l.label} style={{ fontSize: 10, color: '#8FA5BD', whiteSpace: 'nowrap' }}>
                           {l.label}: <span style={{ fontWeight: l.bold ? 700 : 400, color: l.bold ? barColor(item.margin) : undefined }}>{l.val}</span>
                         </div>
                       )

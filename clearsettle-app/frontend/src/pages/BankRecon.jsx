@@ -65,7 +65,7 @@ function BankRecon() {
       </div>
 
       {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+      <div className="page-hd-actions" style={{ marginBottom: 20 }}>
         <button className="btn btn-s" onClick={function() { addToast('Upload feature coming soon', 'info') }}>
           ⬆ Upload Statement
         </button>

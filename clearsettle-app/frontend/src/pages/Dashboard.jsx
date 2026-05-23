@@ -35,14 +35,6 @@ function fmtDate(iso) {
   return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
 }
 
-function EmptyState({ text }) {
-  return (
-    <div style={{ textAlign: 'center', color: '#8FA5BD', fontSize: 13, padding: '52px 0' }}>
-      {text}
-    </div>
-  )
-}
-
 function Dashboard() {
   var { data, loading } = useApi('/dashboard/summary')
   var navigate = useNavigate()
@@ -83,7 +75,7 @@ function Dashboard() {
       {/* Discrepancy alert banner */}
       {(r.unresolved_discrepancies || 0) > 0 && (
         <div className="ab warn" style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
           <div className="ab-body">
             <div className="ab-title">
               {r.unresolved_discrepancies} unresolved discrepanc{r.unresolved_discrepancies === 1 ? 'y' : 'ies'} —{' '}
@@ -100,7 +92,7 @@ function Dashboard() {
       )}
 
       {/* Primary KPI cards */}
-      <div className="kpi-grid" style={{ marginBottom: 24 }}>
+      <div className="kpi-grid" style={{ marginBottom: 20 }}>
         {[
           {
             label:  'Total GMV',
@@ -139,7 +131,7 @@ function Dashboard() {
       </div>
 
       {/* Secondary metric cards */}
-      <div className="kpi-grid" style={{ marginBottom: 28 }}>
+      <div className="kpi-grid" style={{ marginBottom: 24 }}>
         {[
           {
             label: 'Total Orders',
@@ -176,7 +168,7 @@ function Dashboard() {
       </div>
 
       {/* Charts row */}
-      <div className="two-col-wide">
+      <div className="two-col-wide" style={{ marginBottom: 20 }}>
 
         {/* Revenue trend bar chart */}
         <div className="card">
@@ -185,30 +177,53 @@ function Dashboard() {
               <div className="card-title">Revenue Trend</div>
               <div className="card-sub">Gross vs net — last 30 days</div>
             </div>
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
+              {[
+                { color: '#E2EBF3', label: 'Gross' },
+                { color: '#0ABFCA', label: 'Net' },
+              ].map(function(l) {
+                return (
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: '#8FA5BD' }}>{l.label}</span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
           <div className="card-bd">
             {trend.length === 0
-              ? <EmptyState text="No settlement data in the last 30 days" />
+              ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">📊</div>
+                  <div className="empty-state-title">No data yet</div>
+                  <div className="empty-state-sub">No settlement data in the last 30 days</div>
+                </div>
+              )
               : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={trend} barSize={20} barGap={2}>
-                    <XAxis
-                      dataKey="label"
-                      axisLine={false} tickLine={false}
-                      tick={{ fontSize: 11, fill: '#8FA5BD' }}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis hide />
-                    <Tooltip
-                      formatter={function(v, name) {
-                        return [INRL(v), name === 'gross' ? 'Gross' : 'Net']
-                      }}
-                      contentStyle={{ borderRadius: 10, fontSize: 12 }}
-                    />
-                    <Bar dataKey="gross" radius={[4, 4, 0, 0]} fill="#E2EBF3" name="gross" />
-                    <Bar dataKey="net"   radius={[4, 4, 0, 0]} fill="#0ABFCA" name="net" />
-                  </BarChart>
-                </ResponsiveContainer>
+                /* clamp height: 160px on xs, scales to 220px on wide screens */
+                <div style={{ width: '100%', height: 'clamp(160px, 28vw, 220px)' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={trend} barSize={14} barGap={2}>
+                      <XAxis
+                        dataKey="label"
+                        axisLine={false} tickLine={false}
+                        tick={{ fontSize: 10, fill: '#8FA5BD' }}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis hide />
+                      <Tooltip
+                        formatter={function(v, name) {
+                          return [INRL(v), name === 'gross' ? 'Gross' : 'Net']
+                        }}
+                        contentStyle={{ borderRadius: 10, fontSize: 12 }}
+                      />
+                      <Bar dataKey="gross" radius={[4, 4, 0, 0]} fill="#E2EBF3" name="gross" />
+                      <Bar dataKey="net"   radius={[4, 4, 0, 0]} fill="#0ABFCA" name="net" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )
             }
           </div>
@@ -224,36 +239,47 @@ function Dashboard() {
           </div>
           <div className="card-bd" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {share.length === 0
-              ? <EmptyState text="No platform data yet — connect a marketplace" />
+              ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">🏪</div>
+                  <div className="empty-state-title">No platforms connected</div>
+                  <div className="empty-state-sub">Connect a marketplace to see GMV mix</div>
+                </div>
+              )
               : (
                 <>
-                  <ResponsiveContainer width="100%" height={140}>
-                    <PieChart>
-                      <Pie
-                        data={share}
-                        cx="50%" cy="50%"
-                        innerRadius={40} outerRadius={65}
-                        dataKey="value"
-                      >
-                        {share.map(function(entry, i) {
-                          return <Cell key={i} fill={entry.color} />
-                        })}
-                      </Pie>
-                      <Tooltip
-                        formatter={function(v, n) { return [v + '%', n] }}
-                        contentStyle={{ fontSize: 12 }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* clamp pie height: 130px mobile → 170px desktop */}
+                  <div style={{ width: '100%', height: 'clamp(130px, 22vw, 170px)' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={share}
+                          cx="50%" cy="50%"
+                          innerRadius="38%" outerRadius="62%"
+                          dataKey="value"
+                          paddingAngle={2}
+                        >
+                          {share.map(function(entry, i) {
+                            return <Cell key={i} fill={entry.color} />
+                          })}
+                        </Pie>
+                        <Tooltip
+                          formatter={function(v, n) { return [v + '%', n] }}
+                          contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {/* Platform legend */}
+                  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 5, marginTop: 4 }}>
                     {share.map(function(item) {
                       return (
                         <div key={item.platform} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ width: 8, height: 8, borderRadius: 2, background: item.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, flex: 1, color: '#4B6080' }}>
+                          <span style={{ fontSize: 12, flex: 1, color: '#4B6080', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {PLATFORM_ICONS[item.platform] || '🏪'} {item.label}
                           </span>
-                          <span style={{ fontSize: 12, fontWeight: 700 }}>{item.value}%</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{item.value}%</span>
                         </div>
                       )
                     })}
@@ -266,7 +292,7 @@ function Dashboard() {
       </div>
 
       {/* Reconciliation summary */}
-      <div className="card" style={{ marginTop: 20 }}>
+      <div className="card">
         <div className="card-hd">
           <div>
             <div className="card-title">Reconciliation Overview</div>
@@ -288,8 +314,10 @@ function Dashboard() {
                 <div
                   key={item.label}
                   style={{
-                    textAlign: 'center', padding: '16px 8px',
-                    borderRadius: 10, background: '#F8FAFC',
+                    textAlign: 'center',
+                    padding: '16px 8px',
+                    borderRadius: 10,
+                    background: '#F8FAFC',
                     border: '1px solid #E2EBF3',
                   }}
                 >
