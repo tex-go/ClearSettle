@@ -646,10 +646,7 @@ export default function Rules() {
   useEffect(function() { load() }, [load])
 
   async function handleToggle(rule) {
-    if (!rule.id || typeof rule.id !== 'string' || rule.id.length < 30) {
-      showToast('Toggle not available for mock rules', 'info')
-      return
-    }
+    if (!rule.id) return
     try {
       await api.patch('/rules/' + rule.id + '/toggle')
       setRules(function(prev) {
@@ -665,7 +662,12 @@ export default function Rules() {
     try {
       var isEdit = modal.mode === 'edit' && modal.rule
       var ruleId = isEdit ? modal.rule.id : null
-      if (isEdit && ruleId && ruleId.length > 30) {
+      if (isEdit && ruleId && !modal.rule.company_id) {
+        showToast('Global rules cannot be edited — create a company override instead', 'info')
+        setSaving(false)
+        return
+      }
+      if (isEdit && ruleId) {
         await api.patch('/rules/' + ruleId, payload)
         showToast('Rule updated', 'success')
       } else {
@@ -684,8 +686,8 @@ export default function Rules() {
   }
 
   async function handleDelete(rule) {
-    if (!rule.id || rule.id.length < 30) {
-      showToast('Cannot delete global or mock rules', 'error'); return
+    if (!rule.company_id) {
+      showToast('Global rules cannot be deleted', 'error'); return
     }
     if (!window.confirm('Delete rule "' + rule.name + '"? This cannot be undone.')) return
     try {

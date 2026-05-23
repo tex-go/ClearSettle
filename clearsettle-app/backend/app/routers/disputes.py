@@ -1,8 +1,6 @@
-"""Disputes — real DB (discrepancy_events) with mock fallback."""
+"""Disputes — real DB (discrepancy_events) with empty fallback when DB absent."""
 from __future__ import annotations
 
-import copy
-import time
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
@@ -13,11 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db_optional
-from app.data.mock_data import DISPUTES as _MOCK
 from app.db.models.discrepancy_event import DiscrepancyEvent
 
 router = APIRouter()
-_mock_disputes = copy.deepcopy(_MOCK)
 
 _ICON = {
     "amazon": "🛒", "flipkart": "🛍️", "meesho": "👗",
@@ -50,7 +46,7 @@ def _disc_to_item(d: DiscrepancyEvent) -> dict:
     expected = created + timedelta(days=14)
     disc_type = d.discrepancy_type or ""
     return {
-        "id":         str(d.id)[:8].upper(),
+        "id":         str(d.id),
         "plat":       (d.platform or "unknown").title(),
         "icon":       _ICON.get((d.platform or "").lower(), "🏪"),
         "type":       _TYPE_LABEL.get(disc_type, disc_type.replace("_", " ").title()),
@@ -65,15 +61,7 @@ def _disc_to_item(d: DiscrepancyEvent) -> dict:
     }
 
 
-def _mock_summary():
-    items = _mock_disputes
-    won = [d for d in items if d["status"] == "won"]
-    return {
-        "total_amount":  sum(d["amt"] for d in items),
-        "open_count":    sum(1 for d in items if d["status"] in ("open", "pending")),
-        "won_count":     len(won),
-        "won_amount":    sum(d["amt"] for d in won),
-    }
+_EMPTY_SUMMARY = {"total_amount": 0.0, "open_count": 0, "won_count": 0, "won_amount": 0.0}
 
 
 @router.get("/")
@@ -81,10 +69,9 @@ async def get_disputes(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
-    _empty_summary = {"total_amount": 0.0, "open_count": 0, "won_count": 0, "won_amount": 0.0}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"items": [], "summary": _empty_summary}
+        return {"items": [], "summary": _EMPTY_SUMMARY}
 
     rows = (await db.execute(
         select(DiscrepancyEvent)
@@ -92,9 +79,6 @@ async def get_disputes(
         .order_by(DiscrepancyEvent.created_at.desc())
         .limit(100)
     )).scalars().all()
-
-    if not rows:
-        return {"items": [], "summary": _empty_summary}
 
     items = [_disc_to_item(d) for d in rows]
     won = [i for i in items if i["status"] == "won"]
@@ -121,32 +105,85 @@ class NewDispute(BaseModel):
 async def create_dispute(
     body: NewDispute,
     user=Depends(get_current_user),
+    db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
-    ref = "DISP-" + str(int(time.time()))[-4:]
-    new = {
-        "id": ref, "plat": body.platform, "icon": _ICON.get(body.platform.lower(), "🏪"),
-        "type": body.dispute_type, "amt": body.amount,
-        "desc": body.description, "status": "open",
-        "raised":     datetime.utcnow().date().isoformat(),
-        "expected":   (datetime.utcnow() + timedelta(days=14)).date().isoformat(),
-        "ref": ref, "resolution": None,
-    }
-    _mock_disputes.append(new)
-    return new
+    cid = _cid(user)
+    if db is None or cid is None:
+        raise HTTPException(status_code=503, detail="Database unavailable — cannot create dispute")
+
+    event = DiscrepancyEvent(
+        company_id=cid,
+        platform=body.platform,
+        discrepancy_type=body.dispute_type,
+        description=body.description,
+        variance_amount=body.amount,
+        severity="warning",
+        is_resolved=False,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return _disc_to_item(event)
 
 
 @router.get("/{did}")
-async def get_dispute(did: str, user=Depends(get_current_user)):
-    item = next((d for d in _mock_disputes if d["id"] == did), None)
-    if not item:
+async def get_dispute(
+    did: str,
+    user=Depends(get_current_user),
+    db: Optional[AsyncSession] = Depends(get_db_optional),
+):
+    cid = _cid(user)
+    if db is None or cid is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    try:
+        uid = UUID(did)
+    except ValueError:
         raise HTTPException(status_code=404, detail="Dispute not found")
-    return item
+
+    row = (await db.execute(
+        select(DiscrepancyEvent)
+        .where(DiscrepancyEvent.id == uid, DiscrepancyEvent.company_id == cid)
+    )).scalar_one_or_none()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    return _disc_to_item(row)
 
 
 class DisputeUpdate(BaseModel):
     note: Optional[str] = None
+    resolved: Optional[bool] = None
 
 
 @router.put("/{did}/update")
-async def update_dispute(did: str, body: DisputeUpdate, user=Depends(get_current_user)):
-    return {"message": "Dispute " + did + " updated", "note": body.note}
+async def update_dispute(
+    did: str,
+    body: DisputeUpdate,
+    user=Depends(get_current_user),
+    db: Optional[AsyncSession] = Depends(get_db_optional),
+):
+    cid = _cid(user)
+    if db is None or cid is None:
+        return {"message": "Dispute " + did + " updated (no DB)", "note": body.note}
+
+    try:
+        uid = UUID(did)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+
+    row = (await db.execute(
+        select(DiscrepancyEvent)
+        .where(DiscrepancyEvent.id == uid, DiscrepancyEvent.company_id == cid)
+    )).scalar_one_or_none()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+
+    if body.note:
+        row.description = body.note
+    if body.resolved is not None:
+        row.is_resolved = body.resolved
+
+    await db.commit()
+    return {"message": "Dispute updated", "id": did}

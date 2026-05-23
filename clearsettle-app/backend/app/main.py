@@ -7,9 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.routers import (
     auth, dashboard, settlements, bank, disputes,
-    returns, commission, gst, inventory, cashflow,
+    returns, commission, gst, inventory,
     analytics, platforms, reports, dispute_engine, recovery, competitors,
-    sp_api, sync, reconciliation, rules, onboarding, api_health, vendor_recon,
+    sp_api, sync, rules, onboarding, api_health, vendor_recon,
     seller_discovery, forecast, meetings,
 )
 from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin
@@ -73,7 +73,6 @@ app.include_router(returns.router,        prefix="/returns",        tags=["retur
 app.include_router(commission.router,     prefix="/commission",     tags=["commission"])
 app.include_router(gst.router,            prefix="/gst",            tags=["gst"])
 app.include_router(inventory.router,      prefix="/inventory",      tags=["inventory"])
-app.include_router(cashflow.router,       prefix="/cashflow",       tags=["cashflow"])
 app.include_router(analytics.router,      prefix="/analytics",      tags=["analytics"])
 app.include_router(platforms.router,      prefix="/platforms",      tags=["platforms"])
 app.include_router(reports.router,        prefix="/reports",        tags=["reports"])
@@ -82,7 +81,6 @@ app.include_router(recovery.router,       prefix="/recovery",       tags=["recov
 app.include_router(competitors.router,    prefix="/competitors",    tags=["competitors"])
 app.include_router(sp_api.router,         prefix="/sp-api",         tags=["sp-api"])
 app.include_router(sync.router,            prefix="/sync",            tags=["sync"])
-app.include_router(reconciliation.router,  prefix="/reconciliation",  tags=["reconciliation"])
 app.include_router(rules.router,           prefix="/rules",           tags=["rules"])
 app.include_router(onboarding.router,      prefix="/onboarding",      tags=["onboarding"])
 app.include_router(api_health.router,      prefix="/api-health",      tags=["api-health"])
