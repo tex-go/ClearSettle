@@ -42,7 +42,6 @@ function ProtectedRoute({ children, adminOnly }) {
 
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />
 
-  // Sellers (role=seller) skip onboarding since registration is full
   if (!isAdmin && role !== 'seller' && !onboarded && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />
   }
@@ -53,18 +52,51 @@ function AppLayout({ children }) {
   var [sidebarOpen, setSidebarOpen] = useState(false)
   var location = useLocation()
 
+  // Close sidebar on route change
   useEffect(function() { setSidebarOpen(false) }, [location.pathname])
 
+  // Body scroll lock when mobile sidebar is open
+  useEffect(function() {
+    if (sidebarOpen) {
+      // Save scroll position and lock body
+      var scrollY = window.scrollY
+      document.body.classList.add('sidebar-open')
+      document.body.style.top = '-' + scrollY + 'px'
+      return function() {
+        document.body.classList.remove('sidebar-open')
+        document.body.style.top = ''
+        window.scrollTo(0, scrollY)
+      }
+    }
+  }, [sidebarOpen])
+
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%', background: '#F1F5F9' }}>
+    <div style={{
+      display: 'flex',
+      height: '100%',
+      width: '100%',
+      background: 'var(--sf2)',
+      overflow: 'hidden',
+    }}>
       <div
         className={'sidebar-overlay' + (sidebarOpen ? ' open' : '')}
         onClick={function() { setSidebarOpen(false) }}
+        aria-hidden="true"
       />
       <Sidebar open={sidebarOpen} onClose={function() { setSidebarOpen(false) }} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        minWidth: 0,
+      }}>
         <Topbar onMenuClick={function() { setSidebarOpen(true) }} />
-        <main style={{ flex: 1, overflowY: 'auto' }}>
+        <main
+          style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}
+          id="main-content"
+          tabIndex={-1}
+        >
           {children}
         </main>
       </div>
@@ -77,31 +109,31 @@ function App() {
     <BrowserRouter>
       <ToastContainer />
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/login"      element={<Login />} />
+        <Route path="/register"   element={<Register />} />
         <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/admin" element={<ProtectedRoute adminOnly><AppLayout><AdminPanel /></AppLayout></ProtectedRoute>} />
-        <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
+        <Route path="/admin"      element={<ProtectedRoute adminOnly><AppLayout><AdminPanel /></AppLayout></ProtectedRoute>} />
+        <Route path="/"           element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
         <Route path="/settlements" element={<ProtectedRoute><AppLayout><Settlements /></AppLayout></ProtectedRoute>} />
-        <Route path="/bank" element={<ProtectedRoute><AppLayout><BankRecon /></AppLayout></ProtectedRoute>} />
-        <Route path="/disputes" element={<ProtectedRoute><AppLayout><Disputes /></AppLayout></ProtectedRoute>} />
-        <Route path="/returns" element={<ProtectedRoute><AppLayout><Returns /></AppLayout></ProtectedRoute>} />
-        <Route path="/commission" element={<ProtectedRoute><AppLayout><Commission /></AppLayout></ProtectedRoute>} />
-        <Route path="/gst" element={<ProtectedRoute><AppLayout><GST /></AppLayout></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><AppLayout><Inventory /></AppLayout></ProtectedRoute>} />
-        <Route path="/cashflow" element={<Navigate to="/forecast" replace />} />
-        <Route path="/analytics" element={<ProtectedRoute><AppLayout><Analytics /></AppLayout></ProtectedRoute>} />
-        <Route path="/platforms" element={<ProtectedRoute><AppLayout><Platforms /></AppLayout></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><AppLayout><Reports /></AppLayout></ProtectedRoute>} />
+        <Route path="/bank"        element={<ProtectedRoute><AppLayout><BankRecon /></AppLayout></ProtectedRoute>} />
+        <Route path="/disputes"    element={<ProtectedRoute><AppLayout><Disputes /></AppLayout></ProtectedRoute>} />
+        <Route path="/returns"     element={<ProtectedRoute><AppLayout><Returns /></AppLayout></ProtectedRoute>} />
+        <Route path="/commission"  element={<ProtectedRoute><AppLayout><Commission /></AppLayout></ProtectedRoute>} />
+        <Route path="/gst"         element={<ProtectedRoute><AppLayout><GST /></AppLayout></ProtectedRoute>} />
+        <Route path="/inventory"   element={<ProtectedRoute><AppLayout><Inventory /></AppLayout></ProtectedRoute>} />
+        <Route path="/cashflow"    element={<Navigate to="/forecast" replace />} />
+        <Route path="/analytics"   element={<ProtectedRoute><AppLayout><Analytics /></AppLayout></ProtectedRoute>} />
+        <Route path="/platforms"   element={<ProtectedRoute><AppLayout><Platforms /></AppLayout></ProtectedRoute>} />
+        <Route path="/reports"     element={<ProtectedRoute><AppLayout><Reports /></AppLayout></ProtectedRoute>} />
         <Route path="/dispute-engine" element={<ProtectedRoute><AppLayout><DisputeEngine /></AppLayout></ProtectedRoute>} />
-        <Route path="/recovery" element={<ProtectedRoute><AppLayout><Recovery /></AppLayout></ProtectedRoute>} />
+        <Route path="/recovery"    element={<ProtectedRoute><AppLayout><Recovery /></AppLayout></ProtectedRoute>} />
         <Route path="/competitors" element={<ProtectedRoute><AppLayout><Competitors /></AppLayout></ProtectedRoute>} />
-        <Route path="/rules" element={<ProtectedRoute><AppLayout><Rules /></AppLayout></ProtectedRoute>} />
+        <Route path="/rules"       element={<ProtectedRoute><AppLayout><Rules /></AppLayout></ProtectedRoute>} />
         <Route path="/recon-engine" element={<ProtectedRoute><AppLayout><ReconEngine /></AppLayout></ProtectedRoute>} />
         <Route path="/seller-discovery" element={<ProtectedRoute><AppLayout><SellerDiscovery /></AppLayout></ProtectedRoute>} />
-        <Route path="/forecast" element={<ProtectedRoute><AppLayout><CashFlowForecast /></AppLayout></ProtectedRoute>} />
-        <Route path="/meetings" element={<ProtectedRoute><AppLayout><MeetingCalendar /></AppLayout></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/forecast"    element={<ProtectedRoute><AppLayout><CashFlowForecast /></AppLayout></ProtectedRoute>} />
+        <Route path="/meetings"    element={<ProtectedRoute><AppLayout><MeetingCalendar /></AppLayout></ProtectedRoute>} />
+        <Route path="*"            element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )

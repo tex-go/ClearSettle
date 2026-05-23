@@ -53,7 +53,7 @@ function Disputes() {
       </div>
 
       {/* Header + new button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+      <div className="page-hd-actions" style={{ marginBottom: 20, justifyContent: 'flex-end' }}>
         <button className="btn btn-p" onClick={function() { setNewOpen(true) }}>
           + Raise New Dispute
         </button>
@@ -100,7 +100,7 @@ function Disputes() {
                 )}
 
                 {/* Footer buttons */}
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {d.status !== 'won' && (
                     <>
                       <button className="btn btn-s btn-sm" onClick={function() { addToast('Update added for ' + d.ref, 'info') }}>
