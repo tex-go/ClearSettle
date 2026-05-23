@@ -1,7 +1,6 @@
-"""Recovery Tracker — real DB (discrepancy_events) with mock fallback."""
+"""Recovery Tracker — real DB (discrepancy_events) with empty fallback when DB absent."""
 from __future__ import annotations
 
-import copy
 from datetime import datetime, date, timedelta
 from typing import Optional
 from uuid import UUID
@@ -12,11 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db_optional
-from app.data.mock_data import RECOVERY as _MOCK
 from app.db.models.discrepancy_event import DiscrepancyEvent
 
 router = APIRouter()
-_mock_recovery = copy.deepcopy(_MOCK)
 
 _ROUTE_BY_TYPE = {
     "OVERCHARGE_REFERRAL_FEE": "Platform",
@@ -56,7 +53,8 @@ def _disc_to_recovery(d: DiscrepancyEvent) -> dict:
     disc_type = d.discrepancy_type or ""
     status = "won" if d.is_resolved else ("open" if days_left and days_left > 0 else "pending")
     return {
-        "id":        "REC-" + str(d.id)[:6].upper(),
+        "id":        str(d.id),
+        "ref":       "CS-" + str(d.id)[:10].upper(),
         "type":      _TYPE_LABEL.get(disc_type, disc_type.replace("_", " ").title()),
         "platform":  (d.platform or "unknown").title(),
         "sku":       None,
@@ -64,7 +62,6 @@ def _disc_to_recovery(d: DiscrepancyEvent) -> dict:
         "status":    status,
         "raised":    created.date().isoformat(),
         "expected":  expected_date.isoformat(),
-        "ref":       "CS-" + str(d.id)[:10].upper(),
         "route":     _ROUTE_BY_TYPE.get(disc_type, "Platform"),
         "days_left": days_left,
         "notes":     d.description or "",
@@ -72,17 +69,7 @@ def _disc_to_recovery(d: DiscrepancyEvent) -> dict:
     }
 
 
-def _mock_summary():
-    items = _mock_recovery
-    won_items  = [r for r in items if r["status"] == "won"]
-    open_items = [r for r in items if r["status"] == "open"]
-    gst_items  = [r for r in items if r["status"] == "gst_pending"]
-    return {
-        "total_amount": sum(r["amount"] for r in items),
-        "won_amount":   sum(r["amount"] for r in won_items),
-        "open_amount":  sum(r["amount"] for r in open_items),
-        "gst_amount":   sum(r["amount"] for r in gst_items),
-    }
+_EMPTY_SUMMARY = {"total_amount": 0.0, "won_amount": 0.0, "open_amount": 0.0, "gst_amount": 0.0}
 
 
 @router.get("/")
@@ -90,10 +77,9 @@ async def get_recovery(
     user=Depends(get_current_user),
     db: Optional[AsyncSession] = Depends(get_db_optional),
 ):
-    _empty_summary = {"total_amount": 0.0, "won_amount": 0.0, "open_amount": 0.0, "won_count": 0, "open_count": 0, "commission_earned": 0.0}
     cid = _cid(user)
     if db is None or cid is None:
-        return {"items": [], "summary": _empty_summary}
+        return {"items": [], "summary": _EMPTY_SUMMARY}
 
     rows = (await db.execute(
         select(DiscrepancyEvent)
@@ -101,9 +87,6 @@ async def get_recovery(
         .order_by(DiscrepancyEvent.created_at.desc())
         .limit(100)
     )).scalars().all()
-
-    if not rows:
-        return {"items": [], "summary": _empty_summary}
 
     items = [_disc_to_recovery(d) for d in rows]
     won_items  = [r for r in items if r["status"] == "won"]
@@ -125,11 +108,38 @@ class RecoveryUpdate(BaseModel):
 
 
 @router.put("/{rid}/update")
-async def update_recovery(rid: str, body: RecoveryUpdate, user=Depends(get_current_user)):
-    item = next((r for r in _mock_recovery if r["id"] == rid), None)
-    if item and body.new_status:
-        item["status"] = body.new_status
-    return {"message": "Recovery " + rid + " updated", "note": body.note}
+async def update_recovery(
+    rid: str,
+    body: RecoveryUpdate,
+    user=Depends(get_current_user),
+    db: Optional[AsyncSession] = Depends(get_db_optional),
+):
+    cid = _cid(user)
+    if db is None or cid is None:
+        return {"message": "Recovery " + rid + " updated (no DB)", "note": body.note}
+
+    try:
+        uid = UUID(rid)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Recovery case not found")
+
+    row = (await db.execute(
+        select(DiscrepancyEvent)
+        .where(DiscrepancyEvent.id == uid, DiscrepancyEvent.company_id == cid)
+    )).scalar_one_or_none()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Recovery case not found")
+
+    if body.note:
+        row.description = body.note
+    if body.new_status == "won":
+        row.is_resolved = True
+    elif body.new_status in ("open", "pending"):
+        row.is_resolved = False
+
+    await db.commit()
+    return {"message": "Recovery case updated", "id": rid}
 
 
 @router.post("/{rid}/legal-notice")

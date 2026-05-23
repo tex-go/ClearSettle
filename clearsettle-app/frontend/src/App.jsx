@@ -15,7 +15,6 @@ import Returns from './pages/Returns'
 import Commission from './pages/Commission'
 import GST from './pages/GST'
 import Inventory from './pages/Inventory'
-import Cashflow from './pages/Cashflow'
 import Analytics from './pages/Analytics'
 import Platforms from './pages/Platforms'
 import Reports from './pages/Reports'
@@ -27,7 +26,6 @@ import ReconEngine from './pages/ReconEngine'
 import SellerDiscovery from './pages/SellerDiscovery'
 import CashFlowForecast from './pages/CashFlowForecast'
 import MeetingCalendar from './pages/MeetingCalendar'
-import FlipkartReports from './pages/FlipkartReports'
 import Register from './pages/Register'
 import AdminPanel from './pages/AdminPanel'
 
@@ -91,7 +89,7 @@ function App() {
         <Route path="/commission" element={<ProtectedRoute><AppLayout><Commission /></AppLayout></ProtectedRoute>} />
         <Route path="/gst" element={<ProtectedRoute><AppLayout><GST /></AppLayout></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><AppLayout><Inventory /></AppLayout></ProtectedRoute>} />
-        <Route path="/cashflow" element={<ProtectedRoute><AppLayout><Cashflow /></AppLayout></ProtectedRoute>} />
+        <Route path="/cashflow" element={<Navigate to="/forecast" replace />} />
         <Route path="/analytics" element={<ProtectedRoute><AppLayout><Analytics /></AppLayout></ProtectedRoute>} />
         <Route path="/platforms" element={<ProtectedRoute><AppLayout><Platforms /></AppLayout></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><AppLayout><Reports /></AppLayout></ProtectedRoute>} />
@@ -103,7 +101,7 @@ function App() {
         <Route path="/seller-discovery" element={<ProtectedRoute><AppLayout><SellerDiscovery /></AppLayout></ProtectedRoute>} />
         <Route path="/forecast" element={<ProtectedRoute><AppLayout><CashFlowForecast /></AppLayout></ProtectedRoute>} />
         <Route path="/meetings" element={<ProtectedRoute><AppLayout><MeetingCalendar /></AppLayout></ProtectedRoute>} />
-        <Route path="/flipkart" element={<ProtectedRoute><AppLayout><FlipkartReports /></AppLayout></ProtectedRoute>} />
+        <Route path="/flipkart" element={<Navigate to="/recon-engine" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

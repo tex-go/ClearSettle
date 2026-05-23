@@ -24,7 +24,6 @@ var NAV_ADMIN = [
     group: 'Operations',
     items: [
       { path: '/inventory', label: 'Inventory Sync', icon: '📦', badge: 3, bc: 'am' },
-      { path: '/cashflow', label: 'Cash Flow', icon: '📅' },
       { path: '/forecast', label: 'Cash Flow Forecast', icon: '📈', badge: 'NEW', bc: 'tl' },
       { path: '/analytics', label: 'Profitability', icon: '💰' },
     ],
@@ -34,12 +33,6 @@ var NAV_ADMIN = [
     items: [
       { path: '/recon-engine', label: 'Recon Engine', icon: '🔬', badge: 'NEW', bc: 'tl' },
       { path: '/bank', label: 'Bank Reconciliation', icon: '🏦', badge: 2, bc: 'am' },
-    ],
-  },
-  {
-    group: 'Marketplaces',
-    items: [
-      { path: '/flipkart', label: 'Flipkart Intelligence', icon: '🛒', badge: 'NEW', bc: 'tl' },
     ],
   },
   {
