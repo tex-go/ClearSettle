@@ -5,23 +5,48 @@ on:
     workflows: ["CI — Test & Lint"]
     branches: [dev]
     types: [completed]
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  deploy-staging:
+    name: Deploy to Staging
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Deploy to GCP VM
+      - name: Deploy to Staging VM
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VM_HOST }}
+          host:     ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
+          key:      ${{ secrets.VM_SSH_KEY }}
           script: |
             cd ~/ClearSettle
             git checkout dev
             git pull origin dev
+            cd clearsettle-app
+            docker compose down
+            docker compose up --build -d
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' }}
+    steps:
+      - name: Deploy to Production VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.PROD_VM_HOST }}
+          username: ${{ secrets.PROD_VM_USER }}
+          key:      ${{ secrets.PROD_VM_SSH_KEY }}
+          script: |
+            cd ~/ClearSettle
+            git checkout main
+            git pull origin main
             cd clearsettle-app
             docker compose down
             docker compose up --build -d
