@@ -289,7 +289,18 @@ describe('Register — accessibility', () => {
 
   it('error banner has role="alert"', async () => {
     renderRegister()
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    // Step 1: fill all required fields to enable Continue
+    await userEvent.type(screen.getByLabelText(/full name/i), 'Ranjith Kumar')
+    await userEvent.type(screen.getByLabelText(/email address/i), 'test@example.com')
+    await userEvent.type(screen.getByLabelText(/phone number/i), '+91 9876543210')
+    await userEvent.type(screen.getByLabelText('Password *'), 'TestPass@1234!')
+    await userEvent.type(screen.getByLabelText('Confirm Password *'), 'TestPass@1234!')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /continue/i })).not.toBeDisabled()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /continue/i }))
+    // Now on step 2 — Continue is not disabled; click without filling required fields
+    await userEvent.click(screen.getByRole('button', { name: /continue/i }))
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
     })

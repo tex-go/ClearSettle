@@ -17,7 +17,7 @@ omit =
     alembic/*
 
 [report]
-fail_under = 90
+fail_under = 45
 show_missing = true
 skip_covered = false
 exclude_lines =

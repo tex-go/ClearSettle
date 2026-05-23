@@ -1,22 +1,24 @@
 name: Deploy ClearSettle
 
+# Staging:  CI passes on dev  → auto-deploy to staging VM
+# Production: push a vX.Y.Z tag → release.yml handles it (not this file)
+
 on:
   workflow_run:
     workflows: ["CI — Test & Lint"]
     branches: [dev]
     types: [completed]
-  push:
-    branches: [main]
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  group: deploy-staging
   cancel-in-progress: false
 
 jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     steps:
       - name: Deploy to Staging VM
         uses: appleboy/ssh-action@v1.0.3
@@ -31,22 +33,4 @@ jobs:
             cd clearsettle-app
             docker compose down
             docker compose up --build -d
-
-  deploy-prod:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' }}
-    steps:
-      - name: Deploy to Production VM
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.PROD_VM_HOST }}
-          username: ${{ secrets.PROD_VM_USER }}
-          key:      ${{ secrets.PROD_VM_SSH_KEY }}
-          script: |
-            cd ~/ClearSettle
-            git checkout main
-            git pull origin main
-            cd clearsettle-app
-            docker compose down
-            docker compose up --build -d
+            echo "Staging deploy complete at $(date -u)"

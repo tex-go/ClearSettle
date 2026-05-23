@@ -1,10 +1,22 @@
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+
+# Read version from repo-root VERSION file; fall back to package default.
+def _read_version() -> str:
+    for candidate in [
+        Path(__file__).resolve().parents[3] / "VERSION",  # repo root
+        Path(__file__).resolve().parents[2] / "VERSION",
+    ]:
+        if candidate.exists():
+            return candidate.read_text().strip()
+    return os.environ.get("APP_VERSION", "0.0.0")
 from app.routers import (
     auth, dashboard, settlements, bank, disputes,
     returns, commission, gst, inventory,
@@ -58,9 +70,11 @@ async def lifespan(app: FastAPI):
         await discovery_scheduler.stop()
 
 
+_APP_VERSION = _read_version()
+
 app = FastAPI(
     title="ClearSettle API",
-    version="1.0.0",
+    version=_APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -123,7 +137,7 @@ def root():
     return {
         "service":  "ClearSettle API",
         "status":   "online",
-        "version":  "1.0.0",
+        "version":  _APP_VERSION,
         "database": "connected" if settings.database_url else "mock-data mode",
         "docs":     "/docs",
         "health":   "/health",
@@ -158,7 +172,7 @@ def status_endpoint():
     return {
         "service":           "ClearSettle API",
         "status":            "online",
-        "version":           "1.0.0",
+        "version":           _APP_VERSION,
         "environment":       settings.env,
         "database":          db_type,
         "sp_api_configured": bool(settings.sp_api_app_id and settings.sp_api_client_id),
