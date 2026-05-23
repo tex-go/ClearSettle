@@ -368,7 +368,6 @@ tbody tr:hover { background: rgba(10,191,202,.04); }
 }
 
 /* ── Topbar responsive ── */
-.topbar-actions { display: flex; align-items: center; gap: 8px; }
 @media (max-width: 560px) {
   .topbar-actions .btn-text { display: none; }
   .topbar-actions .btn-sm { padding: 6px 10px; }
@@ -386,3 +385,115 @@ tbody tr:hover { background: rgba(10,191,202,.04); }
   .stats-row.cols-3,
   .stats-row.cols-4 { grid-template-columns: 1fr; }
 }
+
+/* ── Mobile responsive utility classes ── */
+
+/* 3-col info grid (used in modals / detail panels) */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 600px) { .info-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 380px) { .info-grid { grid-template-columns: 1fr; } }
+
+/* 2-col form grid (auth / register pages) */
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 560px) { .form-grid-2 { grid-template-columns: 1fr; } }
+
+/* 4-col recon stats grid (Dashboard reconciliation summary) */
+.recon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 900px) { .recon-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px)  { .recon-grid { grid-template-columns: 1fr 1fr; } }
+
+/* Bank reconciliation item: 4-col side-by-side → stacked on mobile */
+.bank-item-layout {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: center;
+  gap: 20px;
+}
+@media (max-width: 600px) {
+  .bank-item-layout { grid-template-columns: 1fr; gap: 10px; }
+  .bank-item-mid { display: none; }
+}
+
+/* Platform selection grid (Register / Onboarding) */
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+@media (max-width: 380px) { .platform-grid { grid-template-columns: 1fr; } }
+
+/* Dispute card header — wraps on very small screens */
+.dispute-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  gap: 12px;
+}
+@media (max-width: 480px) { .dispute-hd { flex-wrap: wrap; } }
+
+/* ── Modal CSS (moved from inline styles) ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(13,31,53,.45);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-wrap {
+  background: #fff; border-radius: 18px;
+  width: 100%; max-height: 90vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 80px rgba(13,31,53,.25);
+  animation: fadeUp .25s ease both;
+}
+.modal-hd {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 20px 24px 16px; border-bottom: 1px solid var(--br); flex-shrink: 0;
+}
+.modal-bd { overflow: auto; padding: 20px 24px; flex: 1; }
+.modal-ft {
+  padding: 16px 24px; border-top: 1px solid var(--br);
+  display: flex; gap: 10px; justify-content: flex-end;
+  flex-wrap: wrap; flex-shrink: 0;
+}
+.modal-close {
+  background: var(--sf2); border: none; border-radius: 8px;
+  width: 32px; height: 32px; cursor: pointer;
+  font-size: 16px; color: var(--tx2); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+@media (max-width: 480px) {
+  .modal-overlay { padding: 10px; }
+  .modal-wrap { border-radius: 14px; }
+  .modal-hd { padding: 14px 16px 12px; }
+  .modal-bd { padding: 14px 16px; }
+  .modal-ft { padding: 12px 16px; }
+  .modal-ft .btn { flex: 1; min-width: 80px; justify-content: center; }
+}
+
+/* ── Table mobile improvements ── */
+@media (max-width: 640px) {
+  thead th { padding: 9px 8px; font-size: 10px; }
+  td { padding: 9px 8px; font-size: 12px; }
+}
+
+/* ── Extra-small page padding ── */
+@media (max-width: 480px) {
+  .page { padding: 12px 14px; }
+  .page-title { font-size: 18px; }
+}
+
+/* ── Topbar: prevent title overflow ── */
+.topbar-left { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
+.topbar-title-wrap { min-width: 0; }
+.topbar-title { font-size: 16px; font-weight: 800; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-sub { font-size: 11px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 380px) { .topbar-sub { display: none; } }
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }

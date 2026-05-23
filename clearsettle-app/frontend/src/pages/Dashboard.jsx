@@ -277,7 +277,7 @@ function Dashboard() {
           </button>
         </div>
         <div className="card-bd">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <div className="recon-grid">
             {[
               { label: 'Clean',    val: r.clean    || 0, color: '#0DB07A' },
               { label: 'Warning',  val: r.warning  || 0, color: '#E9930D' },

@@ -68,7 +68,7 @@ function Disputes() {
             }}>
               <div style={{ padding: '16px 20px' }}>
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                <div className="dispute-hd">
                   <div>
                     <div style={{ fontWeight: 800, fontSize: 15 }}>
                       {d.icon} {d.plat} — {d.type}

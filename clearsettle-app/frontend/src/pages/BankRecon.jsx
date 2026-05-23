@@ -81,13 +81,12 @@ function BankRecon() {
             <div
               key={b.id}
               onClick={function() { setSelected(b) }}
+              className="bank-item-layout"
               style={{
                 background: statusBg[b.ms],
                 border: '1px solid ' + statusBorder[b.ms],
                 borderRadius: 12, padding: '14px 18px',
                 cursor: 'pointer', transition: 'box-shadow .15s',
-                display: 'grid', gridTemplateColumns: '1fr auto 1fr auto',
-                alignItems: 'center', gap: 20,
               }}
             >
               {/* Left: bank side */}
@@ -101,7 +100,7 @@ function BankRecon() {
               </div>
 
               {/* Match icon */}
-              <div style={{ fontSize: 22, textAlign: 'center' }}>
+              <div className="bank-item-mid" style={{ fontSize: 22, textAlign: 'center' }}>
                 {matchIcon[b.ms]}
               </div>
 
@@ -145,7 +144,7 @@ function BankRecon() {
           onClose={function() { setSelected(null) }}
           footer={<button className="btn btn-s" onClick={function() { setSelected(null) }}>Close</button>}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div className="info-grid">
             {[
               { k: 'Amount', v: INR(selected.amt) },
               { k: 'Date', v: selected.date },
