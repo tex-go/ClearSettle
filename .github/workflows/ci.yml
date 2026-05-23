@@ -27,7 +27,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://clearsettle:testpass@localhost:5432/clearsettle_test
-      SECRET_KEY:   ci-test-secret-key-not-real
+      SECRET_KEY:   ci-test-secret-key-not-for-production-use-only
       ENCRYPTION_KEY: ""
 
     steps:
