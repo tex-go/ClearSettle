@@ -16,6 +16,13 @@ from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin
 
 logger = logging.getLogger(__name__)
 
+# Module-level scheduler reference so tests can patch app.main.discovery_scheduler
+try:
+    from app.services.seller_discovery import scheduler as discovery_scheduler
+except Exception as _exc:  # pragma: no cover
+    logger.warning("Seller discovery scheduler unavailable: %s", _exc)
+    discovery_scheduler = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,8 +45,8 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("RBAC DB load failed at startup — static fallback active: %s", exc)
 
-    from app.services.seller_discovery import scheduler as discovery_scheduler
-    await discovery_scheduler.start()
+    if discovery_scheduler is not None:
+        await discovery_scheduler.start()
 
     import asyncio as _asyncio
     from app.services.meetings.reminder_store import run_reminder_scheduler
@@ -47,7 +54,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await discovery_scheduler.stop()
+    if discovery_scheduler is not None:
+        await discovery_scheduler.stop()
 
 
 app = FastAPI(
