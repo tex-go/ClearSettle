@@ -181,9 +181,9 @@ async def change_password(
 
 # ── Forgot password ───────────────────────────────────────────────────────────
 
-@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
 async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    """Always returns 202 — never reveals whether the email exists."""
+    """Always returns 200 — never reveals whether the email exists (anti-enumeration)."""
     from app.services.auth_service import forgot_password as svc_forgot
     await svc_forgot(req.email, db)
     return {"detail": "If that email is registered, a reset link has been sent."}

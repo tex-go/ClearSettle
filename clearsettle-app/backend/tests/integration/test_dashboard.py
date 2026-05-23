@@ -71,11 +71,11 @@ class TestBankRecon:
 
 class TestAnalytics:
     async def test_analytics_requires_auth(self, client: AsyncClient):
-        r = await client.get("/analytics/")
+        r = await client.get("/analytics/revenue")
         assert r.status_code == 401
 
     async def test_analytics_authenticated(self, client: AsyncClient, auth_headers: dict):
-        r = await client.get("/analytics/", headers=auth_headers)
+        r = await client.get("/analytics/revenue", headers=auth_headers)
         assert r.status_code == 200
 
 
