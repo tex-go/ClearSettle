@@ -3,6 +3,15 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { ToastContainer } from './Toast'
 import useUIStore from '../../store/uiStore'
 
+// jsdom normalises hex colours to rgb() in inline styles.
+// These are the computed equivalents of the Toast borderColors map.
+var RGB = {
+  info:    'rgb(10, 191, 202)',
+  success: 'rgb(13, 176, 122)',
+  error:   'rgb(232, 52, 74)',
+  warn:    'rgb(233, 147, 13)',
+}
+
 beforeEach(() => {
   useUIStore.setState({ toasts: [] })
   vi.useFakeTimers()
@@ -32,9 +41,7 @@ describe('ToastContainer — empty state', () => {
 
 describe('ToastContainer — rendering toasts', () => {
   it('renders a toast message added to the store', () => {
-    render(<ToastContainer />)
     useUIStore.getState().addToast('Settlement synced', 'success')
-    // Re-render happens via store subscription
     render(<ToastContainer />)
     expect(screen.getByText('Settlement synced')).toBeInTheDocument()
   })
@@ -57,28 +64,28 @@ describe('ToastContainer — rendering toasts', () => {
     useUIStore.getState().addToast('Info msg')
     render(<ToastContainer />)
     const item = document.querySelector('.toast-item')
-    expect(item.style.borderLeft).toContain('#0ABFCA')
+    expect(item.style.borderLeft).toContain(RGB.info)
   })
 
   it('applies success border colour', () => {
     useUIStore.getState().addToast('OK', 'success')
     render(<ToastContainer />)
     const item = document.querySelector('.toast-item')
-    expect(item.style.borderLeft).toContain('#0DB07A')
+    expect(item.style.borderLeft).toContain(RGB.success)
   })
 
   it('applies error border colour', () => {
     useUIStore.getState().addToast('Fail', 'error')
     render(<ToastContainer />)
     const item = document.querySelector('.toast-item')
-    expect(item.style.borderLeft).toContain('#E8344A')
+    expect(item.style.borderLeft).toContain(RGB.error)
   })
 
   it('applies warn border colour', () => {
     useUIStore.getState().addToast('Warn', 'warn')
     render(<ToastContainer />)
     const item = document.querySelector('.toast-item')
-    expect(item.style.borderLeft).toContain('#E9930D')
+    expect(item.style.borderLeft).toContain(RGB.warn)
   })
 })
 
