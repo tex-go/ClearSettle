@@ -9,11 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 
 # Read version from repo-root VERSION file; fall back to package default.
+# Guards against IndexError when running inside Docker where the path is
+# shallower (e.g. /app/app/main.py has only 3 parent levels, indices 0-2).
 def _read_version() -> str:
-    for candidate in [
-        Path(__file__).resolve().parents[3] / "VERSION",  # repo root
-        Path(__file__).resolve().parents[2] / "VERSION",
-    ]:
+    p = Path(__file__).resolve()
+    for i in range(min(5, len(p.parents))):
+        candidate = p.parents[i] / "VERSION"
         if candidate.exists():
             return candidate.read_text().strip()
     return os.environ.get("APP_VERSION", "0.0.0")
