@@ -10,15 +10,18 @@ Strategy (non-destructive):
      this FK when source='file_parse' and platform='flipkart'.
   3. Full data migration to consolidated table happens in Phase 2 (030→031).
 
+Fix (v2): removed index=True from sa.Column to prevent Alembic from
+auto-creating ix_flipkart_recon_issues_discrepancy_event_id before the
+explicit op.create_index call.  Both ADD COLUMN and CREATE INDEX now use
+IF NOT EXISTS to be idempotent on retry after a partial failure.
+
 Revision ID: 030
 Revises: 029
-Create Date: 2026-05-27
+Create Date: 2026-05-28
 """
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision = "030"
 down_revision = "029"
@@ -27,29 +30,25 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # ── bridge FK ─────────────────────────────────────────────────────────────
-    op.add_column(
-        "flipkart_recon_issues",
-        sa.Column(
-            "discrepancy_event_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("discrepancy_events.id", ondelete="SET NULL"),
-            nullable=True,
-            index=True,
-        ),
-    )
+    # ── bridge FK: ADD COLUMN IF NOT EXISTS ──────────────────────────────────
+    op.execute("""
+        ALTER TABLE flipkart_recon_issues
+        ADD COLUMN IF NOT EXISTS discrepancy_event_id UUID
+            REFERENCES discrepancy_events(id) ON DELETE SET NULL
+    """)
 
-    # ── index for reverse lookup: discrepancy_event → flipkart issue ──────────
-    op.create_index(
-        "ix_flipkart_recon_issues_discrepancy_event_id",
-        "flipkart_recon_issues",
-        ["discrepancy_event_id"],
-    )
+    # ── index for reverse lookup (CREATE INDEX IF NOT EXISTS) ─────────────────
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_flipkart_recon_issues_discrepancy_event_id
+        ON flipkart_recon_issues (discrepancy_event_id)
+    """)
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_flipkart_recon_issues_discrepancy_event_id",
-        "flipkart_recon_issues",
-    )
-    op.drop_column("flipkart_recon_issues", "discrepancy_event_id")
+    op.execute("""
+        DROP INDEX IF EXISTS ix_flipkart_recon_issues_discrepancy_event_id
+    """)
+    op.execute("""
+        ALTER TABLE flipkart_recon_issues
+        DROP COLUMN IF EXISTS discrepancy_event_id
+    """)
