@@ -53,7 +53,8 @@
       "Bash(powershell.exe -Command \"cd 'c:\\\\Ranjith\\\\working_dir\\\\ClearSettle\\\\clearsettle-app'; docker compose ps\")",
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(grep -E \"\\\\.py$\")",
-      "Bash(xargs ls -lh)"
+      "Bash(xargs ls -lh)",
+      "Bash(npm test *)"
     ]
   }
 }
