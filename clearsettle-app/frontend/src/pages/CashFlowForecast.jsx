@@ -143,7 +143,7 @@ var CustomTooltip = function({ active, payload, label }) {
   )
 }
 
-export default function CashFlowForecast() {
+export default function CashFlowForecast({ noPadding }) {
   var { token } = useAuthStore()
   var [horizon, setHorizon] = useState('30d')
   var [tab, setTab] = useState('overview')   // overview | projection | insights
@@ -244,7 +244,7 @@ export default function CashFlowForecast() {
     : []
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={noPadding ? {} : { padding: '24px 28px', maxWidth: 1200, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>

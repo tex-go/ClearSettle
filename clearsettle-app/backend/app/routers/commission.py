@@ -1,4 +1,9 @@
-"""Commission Audit — real DB (fees + settlement_transactions) with mock fallback."""
+"""Commission Audit — real-DB referral-fee overcharge detection.
+
+Phase 1: bulk-dispute now writes real DiscrepancyEvent rows (source=leakage_audit)
+instead of using mock data, making commission overcharges visible in the
+Recovery Center workflow.
+"""
 from __future__ import annotations
 
 from typing import Optional
@@ -8,8 +13,12 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user, get_db_optional
-from app.data.mock_data import COMMISSIONS as _MOCK
+from app.core.deps import get_current_user, get_db
+from app.db.models.discrepancy_event import (
+    DiscrepancyEvent,
+    SOURCE_LEAKAGE_AUDIT,
+    STATE_DETECTED,
+)
 from app.db.models.fee import Fee
 from app.db.models.settlement_transaction import SettlementTransaction
 
@@ -29,36 +38,22 @@ _PUB_RATE = {
 }
 
 
-def _is_db_user(user) -> bool:
-    return hasattr(user, "companies")
-
-
 def _cid(user) -> Optional[UUID]:
-    if not _is_db_user(user) or not user.companies:
+    if not user.companies:
         return None
     return user.companies[0].id
-
-
-def _mock_summary():
-    flagged = [c for c in _MOCK if c["flag"]]
-    return {
-        "total_overcharge": sum(c["over"] for c in flagged),
-        "flagged_count":    len(flagged),
-        "affected_orders":  sum(c["orders"] for c in flagged),
-    }
 
 
 @router.get("/")
 async def get_commissions(
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     _empty_summary = {"total_overcharge": 0.0, "flagged_count": 0, "affected_orders": 0}
     cid = _cid(user)
-    if db is None or cid is None:
+    if cid is None:
         return {"items": [], "summary": _empty_summary}
 
-    # Total referral fees charged per platform + sku
     fee_q = (
         select(
             Fee.platform,
@@ -80,7 +75,6 @@ async def get_commissions(
     if not fee_rows:
         return {"items": [], "summary": _empty_summary}
 
-    # Gross revenue per platform + sku (shipments only)
     rev_q = (
         select(
             SettlementTransaction.platform,
@@ -101,8 +95,7 @@ async def get_commissions(
         plat = (row.platform or "unknown").lower()
         sku = row.sku or "Unknown SKU"
         chg_fee = float(row.chgFee or 0)
-        rev_key = (row.platform, sku)
-        rev = rev_rows.get(rev_key)
+        rev = rev_rows.get((row.platform, sku))
         base = float(rev.base or 0) if rev else 0.0
         orders = int(rev.orders or 0) if rev else 0
         pub_rate = _PUB_RATE.get(plat, 13.0)
@@ -138,7 +131,124 @@ async def get_commissions(
 
 
 @router.post("/bulk-dispute")
-async def bulk_dispute(user=Depends(get_current_user)):
-    flagged = [c for c in _MOCK if c["flag"]]
-    total = sum(c["over"] for c in flagged)
-    return {"message": "Bulk dispute raised", "count": len(flagged), "total": total}
+async def bulk_dispute(
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Phase 1: Create DiscrepancyEvent records (source=leakage_audit) for every
+    flagged commission overcharge.  Events appear immediately in Recovery Center.
+    Skips SKUs that already have an unresolved COMMISSION_OVERCHARGE event.
+    """
+    cid = _cid(user)
+    if cid is None:
+        return {"message": "No company found", "count": 0, "total": 0.0}
+
+    fee_q = (
+        select(
+            Fee.platform,
+            SettlementTransaction.sku,
+            func.coalesce(func.sum(func.abs(Fee.amount)), 0).label("chgFee"),
+        )
+        .join(SettlementTransaction, Fee.transaction_id == SettlementTransaction.id)
+        .where(Fee.company_id == cid, Fee.fee_type.in_(list(_REFERRAL_TYPES)))
+        .group_by(Fee.platform, SettlementTransaction.sku)
+    )
+    fee_rows = (await db.execute(fee_q)).all()
+
+    rev_q = (
+        select(
+            SettlementTransaction.platform,
+            SettlementTransaction.sku,
+            func.coalesce(func.sum(SettlementTransaction.principal_amount), 0).label("base"),
+        )
+        .where(SettlementTransaction.company_id == cid,
+               SettlementTransaction.transaction_type == "shipment")
+        .group_by(SettlementTransaction.platform, SettlementTransaction.sku)
+    )
+    rev_rows = {(r.platform, r.sku): r for r in (await db.execute(rev_q)).all()}
+
+    created, total_overcharge = 0, 0.0
+    for row in fee_rows:
+        plat = (row.platform or "unknown").lower()
+        sku = row.sku or "Unknown SKU"
+        chg_fee = float(row.chgFee or 0)
+        rev = rev_rows.get((row.platform, sku))
+        base = float(rev.base or 0) if rev else 0.0
+        pub_rate = _PUB_RATE.get(plat, 13.0)
+        chg_rate = chg_fee / base * 100 if base > 0 else 0.0
+        exp_fee = base * pub_rate / 100
+        over = max(0.0, chg_fee - exp_fee)
+        if not (chg_rate > pub_rate + 0.5 if pub_rate > 0 else False):
+            continue
+
+        existing = (await db.execute(
+            select(DiscrepancyEvent).where(
+                DiscrepancyEvent.company_id == cid,
+                DiscrepancyEvent.discrepancy_type == "COMMISSION_OVERCHARGE",
+                DiscrepancyEvent.platform == plat,
+                DiscrepancyEvent.sku == sku,
+                DiscrepancyEvent.is_resolved.is_(False),
+            )
+        )).scalar_one_or_none()
+        if existing:
+            continue
+
+        db.add(DiscrepancyEvent(
+            company_id=cid,
+            platform=plat,
+            discrepancy_type="COMMISSION_OVERCHARGE",
+            severity="warning",
+            source=SOURCE_LEAKAGE_AUDIT,
+            workflow_state=STATE_DETECTED,
+            description=(
+                f"{plat.title()} charged {chg_rate:.1f}% commission on SKU {sku} "
+                f"vs published rate of {pub_rate:.1f}%. Overcharge: ₹{over:.2f}."
+            ),
+            expected_amount=exp_fee,
+            actual_amount=chg_fee,
+            variance_amount=over,
+            sku=sku,
+            is_resolved=False,
+        ))
+        created += 1
+        total_overcharge += over
+
+    await db.commit()
+    return {
+        "message": f"Filed {created} commission overcharge dispute(s)",
+        "count": created,
+        "total": round(total_overcharge, 2),
+    }
+
+
+@router.post("/dispute-sku")
+async def dispute_single_sku(
+    platform: str,
+    sku: str,
+    overcharge: float,
+    description: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """File a DiscrepancyEvent for a single flagged SKU from the Commission table."""
+    cid = _cid(user)
+    if cid is None:
+        return {"message": "No company found"}
+
+    event = DiscrepancyEvent(
+        company_id=cid,
+        platform=platform.lower(),
+        discrepancy_type="COMMISSION_OVERCHARGE",
+        severity="warning",
+        source=SOURCE_LEAKAGE_AUDIT,
+        workflow_state=STATE_DETECTED,
+        description=description,
+        variance_amount=overcharge,
+        sku=sku,
+        is_resolved=False,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return {"message": "Dispute filed", "id": str(event.id)}
