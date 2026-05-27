@@ -2,18 +2,57 @@ import React, { useState } from 'react'
 import useApi from '../hooks/useApi'
 import { Modal } from '../components/ui/Modal'
 import { INR, PCT } from '../utils/format'
+import CashFlowForecast from './CashFlowForecast'
+
+var ANALYTICS_TABS = [
+  { key: 'sku', label: '📊 SKU Analysis' },
+  { key: 'cashflow', label: '💰 Cash Flow' },
+]
 
 function Analytics() {
   var { data, loading } = useApi('/analytics/')
   var [selected, setSelected] = useState(null)
+  var [activeTab, setActiveTab] = useState('sku')
 
+  var tabBar = (
+    <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E8EEF4' }}>
+      {ANALYTICS_TABS.map(function(t) {
+        var active = activeTab === t.key
+        return (
+          <button key={t.key} onClick={function() { setActiveTab(t.key) }} style={{
+            padding: '10px 20px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            background: 'transparent',
+            color: active ? '#0ABFCA' : '#8FA5BD',
+            borderBottom: active ? '2px solid #0ABFCA' : '2px solid transparent',
+            marginBottom: -2,
+          }}>{t.label}</button>
+        )
+      })}
+    </div>
+  )
+
+  // Cash Flow tab — delegates entirely to the CashFlowForecast component
+  if (activeTab === 'cashflow') {
+    return (
+      <div className="page page-anim">
+        {tabBar}
+        <CashFlowForecast noPadding />
+      </div>
+    )
+  }
+
+  // SKU Analysis tab
   if (loading || !data) {
-    return <div className="loading-wrap page-anim"><div className="spinner" /></div>
+    return (
+      <div className="page page-anim">
+        {tabBar}
+        <div className="loading-wrap"><div className="spinner" /></div>
+      </div>
+    )
   }
 
   var s = data.summary
   var sorted = [...data.items].sort(function(a, b) { return b.margin - a.margin })
-  var maxRev = Math.max(...data.items.map(function(i) { return i.rev }))
 
   function barColor(margin) {
     if (margin < 0) return '#E8344A'
@@ -23,6 +62,8 @@ function Analytics() {
 
   return (
     <div className="page page-anim">
+      {tabBar}
+
       {/* Stats */}
       <div className="stats-row cols-4">
         {[

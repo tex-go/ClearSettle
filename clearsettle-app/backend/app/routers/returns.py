@@ -1,16 +1,25 @@
-"""Returns — real DB (settlement_transactions where type=refund) with mock fallback."""
+"""Returns — settlement_transactions where type=refund.
+
+Phase 1: added POST /returns/dispute-item so return deductions can be
+escalated into the Recovery Center workflow (source=leakage_audit).
+"""
 from __future__ import annotations
 
-from collections import Counter
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user, get_db_optional
-from app.data.mock_data import RETURNS as _MOCK
+from app.core.deps import get_current_user, get_db
+from app.db.models.discrepancy_event import (
+    DiscrepancyEvent,
+    SOURCE_LEAKAGE_AUDIT,
+    STATE_DETECTED,
+)
 from app.db.models.settlement_transaction import SettlementTransaction
 
 router = APIRouter()
@@ -22,12 +31,8 @@ _PLATFORM_ICON = {
 }
 
 
-def _is_db_user(user) -> bool:
-    return hasattr(user, "companies")
-
-
 def _cid(user) -> Optional[UUID]:
-    if not _is_db_user(user) or not user.companies:
+    if not user.companies:
         return None
     return user.companies[0].id
 
@@ -39,40 +44,32 @@ def _tx_to_return(tx: SettlementTransaction, idx: int) -> dict:
     plat = (tx.platform or "unknown").lower()
     date_str = tx.posted_date.date().isoformat() if tx.posted_date else ""
     return {
-        "id":     f"RET-{idx:03d}",
-        "plat":   plat.title(),
-        "icon":   _PLATFORM_ICON.get(plat, "🏪"),
-        "oid":    tx.order_id or "",
-        "sku":    tx.sku or "",
-        "prod":   tx.order_item_id or tx.sku or "Product",
-        "reason": "Return",
-        "qty":    int(tx.quantity or 1),
-        "base":   base,
-        "ship":   ship,
-        "total":  total,
-        "date":   date_str,
-        "status": "processed",
-    }
-
-
-def _mock_summary():
-    items = _MOCK
-    return {
-        "total_count":    len(items),
-        "total_deducted": sum(r["total"] for r in items),
-        "disputed_count": sum(1 for r in items if r["status"] == "disputed"),
-        "by_reason":      dict(Counter(r["reason"] for r in items)),
+        "id":          f"RET-{idx:03d}",
+        "tx_id":       str(tx.id),
+        "plat":        plat.title(),
+        "icon":        _PLATFORM_ICON.get(plat, "🏪"),
+        "oid":         tx.order_id or "",
+        "sku":         tx.sku or "",
+        "prod":        tx.order_item_id or tx.sku or "Product",
+        "reason":      "Return",
+        "qty":         int(tx.quantity or 1),
+        "base":        base,
+        "ship":        ship,
+        "total":       total,
+        "date":        date_str,
+        "status":      "processed",
+        "platform_raw": plat,
     }
 
 
 @router.get("/")
 async def get_returns(
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     _empty_summary = {"total_count": 0, "total_deducted": 0.0, "disputed_count": 0, "by_reason": {}}
     cid = _cid(user)
-    if db is None or cid is None:
+    if cid is None:
         return {"items": [], "summary": _empty_summary}
 
     rows = (await db.execute(
@@ -86,7 +83,6 @@ async def get_returns(
     )).scalars().all()
 
     if not rows:
-        # Try Flipkart P&L data before returning empty
         from app.services.analytics.queries import get_flipkart_returns
         fk_result = await get_flipkart_returns(db, cid)
         if fk_result:
@@ -104,3 +100,48 @@ async def get_returns(
             "by_reason":      {"Return": len(items)},
         },
     }
+
+
+class DisputeReturnRequest(BaseModel):
+    tx_id: str
+    platform: str
+    sku: str
+    order_id: str
+    amount: float
+    reason: str = "Return deduction overcharge"
+
+
+@router.post("/dispute-item")
+async def dispute_return_item(
+    body: DisputeReturnRequest,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Phase 1: File a DiscrepancyEvent (source=leakage_audit, type=RETURN_OVERCHARGE)
+    for a single return deduction — appears immediately in Recovery Center.
+    """
+    cid = _cid(user)
+    if cid is None:
+        return {"message": "No company found"}
+
+    event = DiscrepancyEvent(
+        company_id=cid,
+        platform=body.platform.lower(),
+        discrepancy_type="RETURN_OVERCHARGE",
+        severity="warning",
+        source=SOURCE_LEAKAGE_AUDIT,
+        workflow_state=STATE_DETECTED,
+        description=(
+            f"Return deduction disputed for Order {body.order_id}, SKU {body.sku}. "
+            f"Deducted: ₹{body.amount:.2f}. Reason: {body.reason}."
+        ),
+        variance_amount=Decimal(str(body.amount)),
+        order_id=body.order_id,
+        sku=body.sku,
+        is_resolved=False,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return {"message": "Dispute filed", "id": str(event.id)}

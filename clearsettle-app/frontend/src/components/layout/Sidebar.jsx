@@ -13,7 +13,6 @@ var NAV_ADMIN = [
     group: 'Finance',
     items: [
       { path: '/settlements',  label: 'Settlements',      icon: '💳', badge: 3, bc: 'rd' },
-      { path: '/disputes',     label: 'Disputes',         icon: '⚖️', badge: 1, bc: 'am' },
       { path: '/returns',      label: 'Returns',          icon: '↩️' },
       { path: '/commission',   label: 'Commission Audit', icon: '🔍', badge: 2, bc: 'am' },
       { path: '/gst',          label: 'GST / TCS',        icon: '🧾' },
@@ -22,9 +21,8 @@ var NAV_ADMIN = [
   {
     group: 'Operations',
     items: [
-      { path: '/inventory', label: 'Inventory Sync',      icon: '📦', badge: 3, bc: 'am' },
-      { path: '/forecast',  label: 'Cash Flow Forecast',  icon: '📈', badge: 'NEW', bc: 'tl' },
-      { path: '/analytics', label: 'Profitability',       icon: '💰' },
+      { path: '/inventory', label: 'Inventory Sync',  icon: '📦', badge: 3, bc: 'am' },
+      { path: '/analytics', label: 'Analytics',       icon: '💰', badge: 'NEW', bc: 'tl' },
     ],
   },
   {
@@ -37,12 +35,11 @@ var NAV_ADMIN = [
   {
     group: 'Intelligence',
     items: [
-      { path: '/dispute-engine',    label: 'Dispute Rule Engine', icon: '🤖', badge: 8, bc: 'tl' },
-      { path: '/rules',             label: 'Rule Manager',        icon: '⚙️' },
-      { path: '/recovery',          label: 'Recovery Tracker',    icon: '🎯', badge: 3, bc: 'rd' },
-      { path: '/competitors',       label: 'Market Intelligence', icon: '🔭' },
-      { path: '/seller-discovery',  label: 'Seller Discovery',    icon: '🧲', badge: 'NEW', bc: 'tl' },
-      { path: '/meetings',          label: 'Meeting Calendar',    icon: '📆' },
+      { path: '/recovery-center',  label: 'Recovery Center',    icon: '🛡️', badge: 3, bc: 'rd' },
+      { path: '/rules',            label: 'Rule Manager',       icon: '⚙️' },
+      { path: '/competitors',      label: 'Market Intelligence', icon: '🔭' },
+      { path: '/seller-discovery', label: 'Seller Discovery',   icon: '🧲', badge: 'NEW', bc: 'tl' },
+      { path: '/meetings',         label: 'Meeting Calendar',   icon: '📆' },
     ],
   },
   {

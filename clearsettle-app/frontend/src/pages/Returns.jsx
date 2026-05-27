@@ -2,6 +2,8 @@ import React from 'react'
 import useApi from '../hooks/useApi'
 import { StatusChip } from '../components/ui/Chip'
 import { INR } from '../utils/format'
+import useUIStore from '../store/uiStore'
+import api from '../utils/api'
 
 var PLATFORM_RATES = [
   { name: 'Myntra', rate: 37.8 },
@@ -31,6 +33,7 @@ function CSSBar({ label, count, max, color }) {
 
 function Returns() {
   var { data, loading } = useApi('/returns/')
+  var addToast = useUIStore(function(s) { return s.addToast })
 
   if (loading || !data) {
     return <div className="loading-wrap page-anim"><div className="spinner" /></div>
@@ -38,7 +41,23 @@ function Returns() {
 
   var s = data.summary
   var reasons = s.by_reason
-  var maxReason = Math.max(...Object.values(reasons))
+  var maxReason = Math.max(...Object.values(reasons).concat([1]))
+
+  function handleDisputeReturn(r) {
+    api.post('/returns/dispute-item', {
+      tx_id:    r.tx_id || r.id,
+      platform: r.platform_raw || r.plat.toLowerCase(),
+      sku:      r.sku || '',
+      order_id: r.oid || '',
+      amount:   r.total,
+      reason:   'Return deduction overcharge',
+    }).then(function(res) {
+      addToast('Dispute filed for ' + r.id, 'success',
+        'Recovery Center ref: ' + ((res.data && res.data.id) ? res.data.id.slice(0, 8).toUpperCase() : ''))
+    }).catch(function() {
+      addToast('Failed to file dispute for ' + r.id, 'error')
+    })
+  }
 
   return (
     <div className="page page-anim">
@@ -65,7 +84,7 @@ function Returns() {
             <table>
               <thead>
                 <tr>
-                  {['Return ID', 'Platform', 'Product / SKU', 'Reason', 'Qty', 'Refund', 'Shipping', 'Total', 'Status'].map(function(h) {
+                  {['Return ID', 'Platform', 'Product / SKU', 'Reason', 'Qty', 'Refund', 'Shipping', 'Total', 'Status', ''].map(function(h) {
                     return <th key={h}>{h}</th>
                   })}
                 </tr>
@@ -88,6 +107,15 @@ function Returns() {
                       <td style={{ color: '#E8344A' }}>-{INR(r.ship)}</td>
                       <td style={{ fontWeight: 700, color: '#E8344A' }}>-{INR(r.total)}</td>
                       <td><StatusChip status={r.status} /></td>
+                      <td>
+                        <button
+                          className="btn btn-d btn-sm"
+                          onClick={function() { handleDisputeReturn(r) }}
+                          title="File dispute for this return deduction"
+                        >
+                          Dispute
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
