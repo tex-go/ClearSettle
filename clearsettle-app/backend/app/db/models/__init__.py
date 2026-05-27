@@ -1,0 +1,136 @@
+"""
+Re-export all ORM models so any import of `app.db.models` works.
+
+Import order matters for relationship resolution — define parents before children.
+"""
+from app.db.models.user import User
+from app.db.models.company import Company
+from app.db.models.platform_connection import PlatformConnection
+from app.db.models.sync_job import SyncJob
+from app.db.models.sync_log import SyncLog
+from app.db.models.refresh_token import RefreshToken
+from app.db.models.settlement import Settlement
+from app.db.models.settlement_transaction import SettlementTransaction
+from app.db.models.fee import Fee
+from app.db.models.payout_event import PayoutEvent
+from app.db.models.reconciliation_rule import ReconciliationRule
+from app.db.models.reconciliation_result import ReconciliationResult
+from app.db.models.discrepancy_event import DiscrepancyEvent
+from app.db.models.tax_ledger_entry import TaxLedgerEntry
+from app.db.models.monthly_tax_summary import MonthlyTaxSummary
+# Rule engine (Session 8)
+from app.db.models.rule import Rule
+from app.db.models.rule_condition import RuleCondition
+from app.db.models.rule_action import RuleAction
+from app.db.models.rule_execution_log import RuleExecutionLog
+from app.db.models.company_rule_override import CompanyRuleOverride
+# Onboarding (Session 9)
+from app.db.models.onboarding_session import OnboardingSession
+from app.db.models.onboarding_step import OnboardingStep
+from app.db.models.onboarding_event import OnboardingEvent
+from app.db.models.onboarding_checkpoint import OnboardingCheckpoint
+# Vendor Reconciliation Engine (Session 10)
+from app.db.models.recon_engine import (
+    ReconFile, ReconJob, ReconJobFile,
+    StgSettlementLine, StgInvoiceLine, StgChargebackLine,
+    StgPaymentLine, StgOperationalLine,
+    FactReconciliation, LeakageEvent, DimDeductionCode,
+)
+# Seller Discovery Engine
+from app.db.models.seller_lead import DiscoveryKeyword, DiscoveryJob, SellerLead
+from app.db.models.seller_lead_activity import SellerLeadActivity
+# Flipkart P&L Report Ingestion (Session 11)
+from app.db.models.flipkart_report import (
+    FlipkartReport, FlipkartSummary, FlipkartSkuPL,
+    FlipkartOrderPL, FlipkartReconIssue,
+)
+# Amazon Settlement Report Ingestion
+from app.db.models.amazon_report import (
+    AmazonReport, AmazonSummary, AmazonOrderRow, AmazonReconIssue,
+)
+# Meesho Payment Report Ingestion
+from app.db.models.meesho_report import (
+    MeeshoReport, MeeshoSummary, MeeshoOrderRow, MeeshoReconIssue,
+)
+# RBAC tables (Session 12)
+from app.db.models.rbac import Role, Permission, RolePermission
+# Enterprise auth (Session 13)
+from app.db.models.password_reset_token import PasswordResetToken
+from app.db.models.email_verification_token import EmailVerificationToken
+from app.db.models.invitation import Invitation
+from app.db.models.audit_log_entry import AuditLogEntry
+# Cash Flow Forecast + Meeting System
+from app.db.models.cash_flow_snapshot import CashFlowSnapshot
+from app.db.models.meeting import Meeting
+from app.db.models.meeting_participant import MeetingParticipant
+from app.db.models.meeting_note import MeetingNote
+from app.db.models.meeting_reminder import MeetingReminder
+from app.db.models.meeting_status_history import MeetingStatusHistory
+
+__all__ = [
+    "User",
+    "Company",
+    "PlatformConnection",
+    "SyncJob",
+    "SyncLog",
+    "RefreshToken",
+    "Settlement",
+    "SettlementTransaction",
+    "Fee",
+    "PayoutEvent",
+    "ReconciliationRule",
+    "ReconciliationResult",
+    "DiscrepancyEvent",
+    "TaxLedgerEntry",
+    "MonthlyTaxSummary",
+    "Rule",
+    "RuleCondition",
+    "RuleAction",
+    "RuleExecutionLog",
+    "CompanyRuleOverride",
+    "OnboardingSession",
+    "OnboardingStep",
+    "OnboardingEvent",
+    "OnboardingCheckpoint",
+    "ReconFile",
+    "ReconJob",
+    "ReconJobFile",
+    "StgSettlementLine",
+    "StgInvoiceLine",
+    "StgChargebackLine",
+    "StgPaymentLine",
+    "StgOperationalLine",
+    "FactReconciliation",
+    "LeakageEvent",
+    "DimDeductionCode",
+    "DiscoveryKeyword",
+    "DiscoveryJob",
+    "SellerLead",
+    "SellerLeadActivity",
+    "CashFlowSnapshot",
+    "Meeting",
+    "MeetingParticipant",
+    "MeetingNote",
+    "MeetingReminder",
+    "MeetingStatusHistory",
+    "FlipkartReport",
+    "FlipkartSummary",
+    "FlipkartSkuPL",
+    "FlipkartOrderPL",
+    "FlipkartReconIssue",
+    "AmazonReport",
+    "AmazonSummary",
+    "AmazonOrderRow",
+    "AmazonReconIssue",
+    "MeeshoReport",
+    "MeeshoSummary",
+    "MeeshoOrderRow",
+    "MeeshoReconIssue",
+    "Role",
+    "Permission",
+    "RolePermission",
+    "PasswordResetToken",
+    "EmailVerificationToken",
+    "Invitation",
+    "AuditLogEntry",
+]

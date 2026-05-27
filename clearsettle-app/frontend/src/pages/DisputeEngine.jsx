@@ -39,12 +39,10 @@ function DisputeEngine() {
   return (
     <div className="page page-anim">
       {/* Stats */}
-      <div className="stats-row cols-4">
+      <div className="stats-row cols-2">
         {[
           { label: 'Rules Active', val: data.items.length, stripe: 'tl' },
           { label: 'Auto-Raise Rules', val: data.auto_raise_count, stripe: 'gn' },
-          { label: 'Overcharges Found', val: INR(24836), stripe: 'rd' },
-          { label: 'Legal Window Active', val: '3 SKUs', stripe: 'gn' },
         ].map(function(k) {
           return (
             <div key={k.label} className="stat-card">

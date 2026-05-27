@@ -1,120 +1,101 @@
 """
-FastAPI dependency injection: DB session + current-user resolution.
-"""
-from typing import Generator
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+FastAPI dependency injection: async DB session + current-user resolution.
 
-from app.core.auth import decode_token
-from app.core.config import get_settings
+All dependencies are async to match the AsyncSession / asyncpg setup.
+Mock-data mode has been removed — a live DATABASE_URL is always required.
+"""
+from typing import AsyncGenerator
+
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.security import decode_access_token
+from app.db.database import AsyncSessionLocal
 
 bearer = HTTPBearer(auto_error=False)
 
 
-# ── Database session ──────────────────────────────────────────────────────────
+# ── Database sessions ─────────────────────────────────────────────────────────
 
-def get_db() -> Generator:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    Yields a SQLAlchemy session and guarantees it is closed after the request.
-    Only available when DATABASE_URL is configured.
+    Yield an async session.  Raises 503 when DATABASE_URL is not configured.
     """
-    settings = get_settings()
-    if not settings.database_url:
+    if AsyncSessionLocal is None:
         raise HTTPException(
-            status_code=503,
-            detail="Database not configured. Set DATABASE_URL environment variable.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not configured — set DATABASE_URL.",
         )
-    from app.db.database import SessionLocal
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
-def get_db_optional() -> Generator:
-    """
-    Yields a session when DB is available, otherwise yields None.
-    Used in routes that fall back to mock data when no DB is configured.
-    """
-    settings = get_settings()
-    if not settings.database_url:
-        yield None
-        return
-    from app.db.database import SessionLocal
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# ── Auth helpers ──────────────────────────────────────────────────────────────
 
-
-# ── Auth ──────────────────────────────────────────────────────────────────────
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: Session | None = Depends(get_db_optional),
-):
-    """
-    Resolves the current user from a Bearer JWT.
-    - With DB: looks up User row and returns ORM object.
-    - Without DB: returns the in-memory DEMO_USER dict.
-    """
-    credentials_exception = HTTPException(
+def _credentials_exception() -> HTTPException:
+    return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or missing token",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    if not credentials:
-        raise credentials_exception
 
-    payload = decode_token(credentials.credentials)
-    if not payload:
-        raise credentials_exception
-
-    email: str = payload.get("sub")
-    if not email:
-        raise credentials_exception
-
-    if db is not None:
-        from app.db.models import User
-        user = db.query(User).filter(User.email == email, User.is_active == True).first()
-        if not user:
-            raise credentials_exception
-        return user
-
-    # No DB — validate against demo user
-    from app.core.auth import DEMO_USER
-    if email != DEMO_USER["email"]:
-        raise credentials_exception
-    return DEMO_USER
-
-
-def require_db_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Like get_current_user but always requires a DB-backed user."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or missing token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    """
+    Resolve the current user from a Bearer JWT against the database.
+    Always requires a live DB — mock-data mode has been removed.
+    """
     if not credentials:
-        raise credentials_exception
+        raise _credentials_exception()
 
-    payload = decode_token(credentials.credentials)
+    payload = decode_access_token(credentials.credentials)
     if not payload:
-        raise credentials_exception
+        raise _credentials_exception()
 
-    email: str = payload.get("sub")
+    email: str | None = payload.get("sub")
     if not email:
-        raise credentials_exception
+        raise _credentials_exception()
 
     from app.db.models import User
-    user = db.query(User).filter(User.email == email, User.is_active == True).first()
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.companies))
+        .where(
+            User.email == email,
+            User.is_active.is_(True),
+            User.deleted_at.is_(None),
+        )
+    )
+    user = result.scalar_one_or_none()
     if not user:
-        raise credentials_exception
+        raise _credentials_exception()
     return user
+
+
+# Alias kept for router compatibility — mock-data mode has been removed.
+# All callers now always get a real DB session.
+get_db_optional = get_db
+
+
+async def require_db_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alias for get_current_user — always DB-backed.
+    Kept for backwards compatibility with routers already using this name.
+    """
+    return await get_current_user(credentials=credentials, db=db)
+
+
+def get_client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else None

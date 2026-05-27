@@ -47,14 +47,14 @@ function Onboarding() {
     <div style={{
       minHeight: '100vh', width: '100%', background: 'linear-gradient(135deg,#0D1F35,#0A1628)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 40,
+      padding: '24px 16px',
     }}>
       <div style={{
         background: '#fff', borderRadius: 20, maxWidth: 680, width: '100%',
         overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,.4)',
       }}>
         {/* Step indicator */}
-        <div style={{ padding: '28px 36px 24px', borderBottom: '1px solid #E2EBF3' }}>
+        <div style={{ padding: 'clamp(16px, 4vw, 28px) clamp(16px, 5vw, 36px) 24px', borderBottom: '1px solid #E2EBF3' }}>
           <div style={{ fontSize: 11, color: '#8FA5BD', fontWeight: 700, marginBottom: 16 }}>
             Step {step + 1} of {STEPS.length}
           </div>
@@ -93,13 +93,13 @@ function Onboarding() {
           </div>
         </div>
 
-        <div style={{ padding: '28px 36px 32px' }}>
+        <div style={{ padding: 'clamp(16px, 4vw, 28px) clamp(16px, 5vw, 36px) clamp(20px, 4vw, 32px)' }}>
           {/* Step 0: Company Setup */}
           {step === 0 && (
             <div>
               <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Company Setup</div>
               <div style={{ fontSize: 13, color: '#8FA5BD', marginBottom: 24 }}>Let's get your account configured</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-grid-2">
                 {[
                   { label: 'Company Name', key: 'company' },
                   { label: 'GSTIN', key: 'gstin' },
@@ -129,7 +129,7 @@ function Onboarding() {
             <div>
               <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Connect Platforms</div>
               <div style={{ fontSize: 13, color: '#8FA5BD', marginBottom: 24 }}>Link your marketplace accounts</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="platform-grid" style={{ gap: 10 }}>
                 {platforms.map(function(p) {
                   return (
                     <div key={p.id} onClick={function() { togglePlatform(p.id) }} style={{
