@@ -1134,7 +1134,7 @@ function InsightsTab({ reportId, platformId }) {
 }
 
 // ── Analytics View (full tabbed dashboard) ─────────────────────────────────────
-function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNewUpload, onManageDocs }) {
+function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNewUpload, onManageDocs, onBackToList }) {
   const [tab, setTab] = useState('dashboard')
   const [summary, setSummary] = useState(null)
   const [charts, setCharts] = useState(null)
@@ -1177,6 +1177,13 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <button
+          onClick={onBackToList}
+          style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#6B7280', cursor: 'pointer', flexShrink: 0 }}
+          title="Back to all reports"
+        >
+          ← All Reports
+        </button>
         <span style={{ fontSize: 18 }}>{platform.icon}</span>
         <div style={{ fontSize: 16, fontWeight: 800, color: P.navy }}>{platform.label} Intelligence</div>
 
@@ -1228,13 +1235,152 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
   )
 }
 
+// ── Platform Landing View ──────────────────────────────────────────────────────
+// Shows after selecting a marketplace: list of previous reports + "Upload New" CTA.
+// User explicitly picks a report to view or chooses to upload a new one.
+// This prevents auto-jumping straight to the last uploaded report's analysis.
+function PlatformLanding({ platform, reports, loading, onSelectReport, onNewUpload, onManageDocs, onBack }) {
+  const primaryKey = getPrimaryDocKey(platform.id)
+  const doneReports = reports
+    .filter(function(r) { return r.status === 'done' && (r.report_type === primaryKey || !r.report_type) })
+    .slice()
+    .sort(function(a, b) { return new Date(b.uploaded_at) - new Date(a.uploaded_at) })
+
+  const primaryDoc = getPlatformDocs(platform.id).find(function(d) { return d.primary })
+
+  return (
+    <div style={{ padding: '8px 0' }}>
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
+        <button
+          onClick={onBack}
+          style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#6B7280', cursor: 'pointer', flexShrink: 0 }}
+        >
+          ← Back
+        </button>
+        <span style={{ fontSize: 22 }}>{platform.icon}</span>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>{platform.label} Settlement Intelligence</div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>Select a previous report or upload a new one</div>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexShrink: 0 }}>
+          {doneReports.length > 0 && (
+            <button
+              onClick={onManageDocs}
+              style={{ padding: '8px 14px', borderRadius: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', color: '#0369A1', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              📂 Manage Documents
+            </button>
+          )}
+          <button
+            onClick={onNewUpload}
+            style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#0ABFCA,#088F99)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            + Upload New Report
+          </button>
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '72px 0' }}>
+          <Spinner size={32} />
+        </div>
+      ) : doneReports.length === 0 ? (
+        /* Empty state */
+        <div style={{ textAlign: 'center', padding: '64px 24px' }}>
+          <div style={{ fontSize: 56, marginBottom: 18, lineHeight: 1 }}>📭</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: P.navy, marginBottom: 8 }}>No reports uploaded yet</div>
+          <div style={{ fontSize: 13, color: '#6B7280', maxWidth: 380, margin: '0 auto 28px', lineHeight: 1.6 }}>
+            Upload your {platform.label} {primaryDoc?.label || 'primary report'} to start detecting payout anomalies and money leakage.
+          </div>
+          <button
+            onClick={onNewUpload}
+            style={{ padding: '12px 32px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#0ABFCA,#088F99)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Upload Your First Report →
+          </button>
+        </div>
+      ) : (
+        /* Report history list */
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 14 }}>
+            Previously Analysed Reports &nbsp;
+            <span style={{ fontWeight: 400, background: '#F3F4F6', color: '#6B7280', padding: '2px 8px', borderRadius: 8, fontSize: 11 }}>
+              {doneReports.length}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {doneReports.map(function(r, i) {
+              return (
+                <div
+                  key={r.id}
+                  onClick={function() { onSelectReport(r) }}
+                  style={{
+                    background: '#fff', border: '1.5px solid #E8EFF6',
+                    borderRadius: 14, padding: '16px 20px',
+                    display: 'flex', alignItems: 'center', gap: 16,
+                    cursor: 'pointer', transition: 'all .15s',
+                  }}
+                  onMouseEnter={function(e) {
+                    e.currentTarget.style.borderColor = P.teal
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(10,191,202,.12)'
+                  }}
+                  onMouseLeave={function(e) {
+                    e.currentTarget.style.borderColor = '#E8EFF6'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  {/* Icon */}
+                  <div style={{
+                    width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+                    background: 'rgba(10,191,202,.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                  }}>
+                    📊
+                  </div>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: P.navy, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.original_name || r.filename || ('Report ' + (i + 1))}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                      {r.report_period && (
+                        <span>📅&nbsp;{r.report_period}</span>
+                      )}
+                      <span>🕐&nbsp;Uploaded {fmtDate(r.uploaded_at)}</span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <Badge label="analysed" color="green" />
+                    <button
+                      onClick={function(e) { e.stopPropagation(); onSelectReport(r) }}
+                      style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: P.teal, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      View Analysis →
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 function ReconEngine() {
   const [platform, setPlatform]   = useState(null)
-  // views: platform_select | docs_gate | upload | processing | analytics
+  // views: platform_select | platform_landing | docs_gate | upload | processing | analytics
   const [view, setView]           = useState('platform_select')
   const [reports, setReports]     = useState([])
   const [selectedReport, setSelectedReport] = useState(null)
+  const [loadingReports, setLoadingReports] = useState(false)
 
   const [uploading, setUploading]         = useState(false)
   const [pendingReport, setPendingReport] = useState(null)
@@ -1248,6 +1394,7 @@ function ReconEngine() {
   const fetchReports = useCallback(function() {
     if (!platform) return
     const primaryKey = getPrimaryDocKey(platform.id)
+    setLoadingReports(true)
     api.get('/' + platform.id + '/reports').then(function(r) {
       const list = r.data.reports || r.data.items || []
       setReports(list)
@@ -1256,9 +1403,12 @@ function ReconEngine() {
       })
       if (primaryDone) {
         setSelectedReport(primaryDone)
-        setView(function(v) { return (v === 'upload' || v === 'docs_gate') && !managingDocs ? 'analytics' : v })
+        // Only auto-advance to analytics when coming from the active upload flow.
+        // Never auto-jump from platform_landing or docs_gate — the user must explicitly
+        // pick a report or click "Proceed to Analysis" themselves.
+        setView(function(v) { return v === 'upload' && !managingDocs ? 'analytics' : v })
       }
-    })
+    }).finally(function() { setLoadingReports(false) })
   }, [platform, managingDocs])
 
   useEffect(function() { fetchReports() }, [fetchReports])
@@ -1293,7 +1443,7 @@ function ReconEngine() {
     setReports([])
     setSelectedReport(null)
     setManagingDocs(false)
-    setView('docs_gate')
+    setView('platform_landing')
   }
 
   function handleAllDocsUploaded() {
@@ -1355,12 +1505,24 @@ function ReconEngine() {
           <PlatformSelect onSelect={handlePlatformSelect} />
         )}
 
+        {view === 'platform_landing' && platform && (
+          <PlatformLanding
+            platform={platform}
+            reports={reports}
+            loading={loadingReports}
+            onSelectReport={function(r) { setSelectedReport(r); setView('analytics') }}
+            onNewUpload={function() { setManagingDocs(false); setView('docs_gate') }}
+            onManageDocs={function() { setManagingDocs(true); setView('docs_gate') }}
+            onBack={function() { setPlatform(null); setView('platform_select') }}
+          />
+        )}
+
         {view === 'docs_gate' && platform && (
           <DocsGate
             platform={platform}
             onAllUploaded={handleAllDocsUploaded}
             onPlFileUploaded={handleFileUploaded}
-            onBack={function() { setPlatform(null); setView('platform_select') }}
+            onBack={function() { setManagingDocs(false); setView('platform_landing') }}
             preventAutoProceed={managingDocs}
           />
         )}
@@ -1387,6 +1549,7 @@ function ReconEngine() {
             onSelectReport={function(r) { setSelectedReport(r) }}
             onNewUpload={function() { setView('upload') }}
             onManageDocs={function(manage) { setManagingDocs(!!manage); setView('docs_gate') }}
+            onBackToList={function() { setView('platform_landing') }}
           />
         )}
       </div>
