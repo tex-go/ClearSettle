@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write   # create GitHub Releases + write tags
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so changelog generator sees all commits
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag matches VERSION file
+        run: |
+          file_ver=$(cat VERSION | tr -d '[:space:]')
+          tag_ver="${{ steps.version.outputs.version }}"
+          if [ "$file_ver" != "$tag_ver" ]; then
+            echo "ERROR: VERSION file ($file_ver) does not match tag ($tag_ver)"
+            echo "Run scripts/tag-release.sh <version> to bump both together."
+            exit 1
+          fi
+
+      - name: Generate changelog since last tag
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${PREV_TAG}..HEAD"
+          fi
+
+          echo "## What's changed" > /tmp/changelog.md
+          echo "" >> /tmp/changelog.md
+
+          # Group commits by type
+          for type in feat fix perf refactor docs test chore ci; do
+            case $type in
+              feat)     label="Features" ;;
+              fix)      label="Bug Fixes" ;;
+              perf)     label="Performance" ;;
+              refactor) label="Refactoring" ;;
+              docs)     label="Documentation" ;;
+              test)     label="Tests" ;;
+              chore)    label="Chores" ;;
+              ci)       label="CI / CD" ;;
+            esac
+            lines=$(git log $RANGE --pretty=format:"- %s (%h)" | grep -E "^- ${type}(\(.+\))?[!]?:" || true)
+            if [ -n "$lines" ]; then
+              echo "### $label" >> /tmp/changelog.md
+              echo "$lines" >> /tmp/changelog.md
+              echo "" >> /tmp/changelog.md
+            fi
+          done
+
+          # Catch anything not matched above
+          other=$(git log $RANGE --pretty=format:"- %s (%h)" | grep -vE "^- (feat|fix|perf|refactor|docs|test|chore|ci)(\(.+\))?[!]?:" || true)
+          if [ -n "$other" ]; then
+            echo "### Other" >> /tmp/changelog.md
+            echo "$other" >> /tmp/changelog.md
+            echo "" >> /tmp/changelog.md
+          fi
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "**Full diff**: [$PREV_TAG → ${{ github.ref_name }}](${{ github.server_url }}/${{ github.repository }}/compare/${PREV_TAG}...${{ github.ref_name }})" >> /tmp/changelog.md
+          fi
+
+          cat /tmp/changelog.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:   ${{ github.ref_name }}
+          name:       ClearSettle ${{ github.ref_name }}
+          body_path:  /tmp/changelog.md
+          draft:      false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  deploy-prod-on-release:
+    name: Deploy Production (tagged release)
+    runs-on: ubuntu-latest
+    needs: release
+    environment: production
+
+    steps:
+      - name: Deploy tagged release to Production VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.PROD_VM_HOST }}
+          username: ${{ secrets.PROD_VM_USER }}
+          key:      ${{ secrets.PROD_VM_SSH_KEY }}
+          script: |
+            cd ~/ClearSettle
+            git fetch --tags origin
+            git checkout ${{ github.ref_name }}
+            cd clearsettle-app
+            docker compose down
+            VERSION=${{ github.ref_name }} docker compose up --build -d
+            echo "Deployed ClearSettle ${{ github.ref_name }} at $(date -u)"

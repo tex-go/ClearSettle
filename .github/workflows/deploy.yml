@@ -1,0 +1,36 @@
+name: Deploy ClearSettle
+
+# Staging:  CI passes on dev  → auto-deploy to staging VM
+# Production: push a vX.Y.Z tag → release.yml handles it (not this file)
+
+on:
+  workflow_run:
+    workflows: ["CI — Test & Lint"]
+    branches: [dev]
+    types: [completed]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Deploy to Staging VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key:      ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd ~/ClearSettle
+            git checkout dev
+            git pull origin dev
+            cd clearsettle-app
+            docker compose down
+            docker compose up --build -d
+            echo "Staging deploy complete at $(date -u)"

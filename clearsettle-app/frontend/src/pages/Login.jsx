@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import api from '../utils/api'
 import useAuthStore from '../store/authStore'
 
@@ -20,23 +20,25 @@ function Login() {
   var [loading, setLoading] = useState(false)
   var [error, setError] = useState('')
 
-  function fillDemo() {
-    setEmail('demo@clearsettle.in')
-    setPassword('demo123')
-    setError('')
-  }
-
   function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     setError('')
     api.post('/auth/login', { email: email, password: password })
       .then(function(res) {
-        login(res.data.access_token, res.data.user)
-        navigate('/onboarding')
+        login(res.data.access_token, res.data.refresh_token, res.data.user)
+        var role = res.data.user && res.data.user.role
+        if (role === 'superadmin' || role === 'super_admin') {
+          navigate('/admin')
+        } else if (res.data.user && res.data.user.registration_completed) {
+          navigate('/')
+        } else {
+          navigate('/onboarding')
+        }
       })
       .catch(function(err) {
-        setError(err.response ? err.response.data.detail : 'Login failed. Check backend is running.')
+        var detail = err.response && err.response.data && err.response.data.detail
+        setError(typeof detail === 'string' ? detail : 'Login failed. Please check your credentials.')
         setLoading(false)
       })
   }
@@ -81,7 +83,7 @@ function Login() {
             Recover every rupee you're owed
           </div>
           <div style={{ fontSize: 14, color: '#4B6080', marginBottom: 32, lineHeight: 1.6 }}>
-            The only reconciliation platform built specifically for Tirupur textile sellers on Indian marketplaces.
+            Detect ecommerce settlement discrepancies and identify potential money leakage across all Indian marketplaces.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {FEATURES.map(function(f, i) {
@@ -128,7 +130,7 @@ function Login() {
                 type="email"
                 value={email}
                 onChange={function(e) { setEmail(e.target.value) }}
-                placeholder="demo@clearsettle.in"
+                placeholder="you@company.in"
                 required
                 style={{
                   padding: '11px 14px', borderRadius: 10,
@@ -139,7 +141,12 @@ function Login() {
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#8FA5BD' }}>Password</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#8FA5BD' }}>Password</label>
+                <Link to="/forgot-password" style={{ fontSize: 12, color: '#0ABFCA', textDecoration: 'none' }}>
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}
@@ -170,21 +177,11 @@ function Login() {
             </button>
           </form>
 
-          <div
-            onClick={fillDemo}
-            style={{
-              marginTop: 20, padding: '10px 14px', borderRadius: 10,
-              background: 'rgba(10,191,202,.08)',
-              border: '1px solid rgba(10,191,202,.2)',
-              cursor: 'pointer', textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#0ABFCA', marginBottom: 4 }}>
-              DEMO CREDENTIALS (click to fill)
-            </div>
-            <div style={{ fontSize: 12, color: '#4B6080', fontFamily: 'JetBrains Mono, monospace' }}>
-              demo@clearsettle.in / demo123
-            </div>
+          <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#4B6080' }}>
+            New to ClearSettle?{' '}
+            <Link to="/register" style={{ color: '#0ABFCA', fontWeight: 700, textDecoration: 'none' }}>
+              Create a free account
+            </Link>
           </div>
         </div>
       </div>

@@ -1,0 +1,615 @@
+"""
+Authentication service — all DB-backed auth logic lives here.
+
+Keeps routers thin: routers validate HTTP input/output, this service
+handles the business rules.
+"""
+import logging
+from datetime import datetime
+
+from fastapi import HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.security import (
+    REFRESH_TOKEN_EXPIRE_DAYS,
+    create_access_token,
+    generate_refresh_token,
+    hash_password,
+    hash_refresh_token,
+    refresh_token_expiry,
+    verify_password,
+)
+from app.core.config import get_settings
+from app.db.models import Company, RefreshToken, User
+
+logger = logging.getLogger(__name__)
+
+_EXPIRES_IN = get_settings().access_token_expire_minutes * 60
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+async def get_user_by_email(email: str, db: AsyncSession) -> User | None:
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.companies))
+        .where(User.email == email, User.deleted_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_id(user_id, db: AsyncSession) -> User | None:
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.companies))
+        .where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+def _build_token_pair(user: User) -> tuple[str, str]:
+    """Return (access_token, refresh_token_plaintext)."""
+    access = create_access_token(
+        user.email,
+        extra_claims={"id": str(user.id), "role": user.role},
+    )
+    refresh = generate_refresh_token()
+    return access, refresh
+
+
+def _user_profile(user: User) -> dict:
+    company = user.companies[0] if user.companies else None
+    return {
+        "id":                     str(user.id),
+        "email":                  user.email,
+        "name":                   user.name,
+        "role":                   user.role,
+        "phone":                  getattr(user, "phone", None),
+        "company":                company.name if company else None,
+        "gstin":                  company.gstin if company else None,
+        "state":                  getattr(company, "state", None) if company else None,
+        "city":                   company.city if company else None,
+        "industry":               company.industry if company else None,
+        "active_platforms":       getattr(company, "active_platforms", None) or [],
+        "registration_completed": bool(getattr(company, "registration_completed", False)) if company else False,
+    }
+
+
+async def _persist_refresh_token(
+    user_id,
+    token_plain: str,
+    db: AsyncSession,
+    *,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
+) -> None:
+    rt = RefreshToken(
+        user_id=user_id,
+        token_hash=hash_refresh_token(token_plain),
+        expires_at=refresh_token_expiry(),
+        user_agent=user_agent,
+        ip_address=ip_address,
+    )
+    db.add(rt)
+    await db.commit()
+
+
+# ── Public service methods ────────────────────────────────────────────────────
+
+async def login(
+    email: str,
+    password: str,
+    db: AsyncSession,
+    *,
+    request: Request | None = None,
+) -> dict:
+    """
+    Verify credentials and return token pair + user profile.
+    Raises 401 on bad credentials.
+    """
+    user = await get_user_by_email(email, db)
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    if not verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    access, refresh = _build_token_pair(user)
+
+    ua = request.headers.get("user-agent") if request else None
+    ip = None
+    if request:
+        fwd = request.headers.get("X-Forwarded-For")
+        ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else None)
+
+    await _persist_refresh_token(user.id, refresh, db, user_agent=ua, ip_address=ip)
+
+    logger.info("Login successful: user=%s", email)
+    return {
+        "access_token": access,
+        "refresh_token": refresh,
+        "token_type": "bearer",
+        "expires_in": _EXPIRES_IN,
+        "user": _user_profile(user),
+    }
+
+
+async def register(
+    email: str,
+    password: str,
+    name: str,
+    company_name: str,
+    db: AsyncSession,
+    *,
+    phone: str | None = None,
+    gstin: str | None = None,
+    pan: str | None = None,
+    state: str | None = None,
+    state_code: str | None = None,
+    city: str | None = None,
+    pincode: str | None = None,
+    address: str | None = None,
+    website: str | None = None,
+    industry: str | None = None,
+    active_platforms: list | None = None,
+    monthly_gmv_range: str | None = None,
+    bank_name: str | None = None,
+    bank_account_number: str | None = None,
+    bank_ifsc: str | None = None,
+    bank_account_name: str | None = None,
+    role: str = "seller",
+    request: Request | None = None,
+) -> dict:
+    """
+    Create user + company, return token pair.
+    Raises 409 if email is already registered.
+    """
+    existing = await get_user_by_email(email, db)
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    # Derive state_code from GSTIN prefix if not provided
+    if gstin and not state_code:
+        state_code = gstin[:2]
+
+    user = User(
+        email=email,
+        hashed_password=hash_password(password),
+        name=name,
+        phone=phone,
+        role=role,
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()  # populate user.id before creating Company
+
+    company = Company(
+        user_id=user.id,
+        name=company_name,
+        phone=phone,
+        gstin=gstin,
+        pan=pan,
+        state=state,
+        state_code=state_code,
+        city=city,
+        pincode=pincode,
+        address=address,
+        website=website,
+        industry=industry,
+        active_platforms=active_platforms or [],
+        monthly_gmv_range=monthly_gmv_range,
+        bank_name=bank_name,
+        bank_account_number=bank_account_number,
+        bank_ifsc=bank_ifsc,
+        bank_account_name=bank_account_name,
+        registration_completed=True,
+    )
+    db.add(company)
+    await db.commit()
+    await db.refresh(user)
+
+    # Re-load with relationships
+    user = await get_user_by_id(user.id, db)
+
+    access, refresh = _build_token_pair(user)
+
+    ua = request.headers.get("user-agent") if request else None
+    ip = None
+    if request:
+        fwd = request.headers.get("X-Forwarded-For")
+        ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else None)
+
+    await _persist_refresh_token(user.id, refresh, db, user_agent=ua, ip_address=ip)
+
+    logger.info("Registered new user: %s (company: %s, role: %s)", email, company_name, role)
+    return {
+        "access_token": access,
+        "refresh_token": refresh,
+        "token_type": "bearer",
+        "expires_in": _EXPIRES_IN,
+        "user": _user_profile(user),
+    }
+
+
+async def refresh_tokens(token_plain: str, db: AsyncSession) -> dict:
+    """
+    Token rotation: validate the incoming refresh token, revoke it,
+    issue a new access + refresh token pair.
+    Raises 401 if the token is invalid, expired, or already revoked.
+    """
+    token_hash = hash_refresh_token(token_plain)
+    now = datetime.utcnow()
+
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.revoked.is_(False),
+            RefreshToken.expires_at > now,
+        )
+    )
+    rt = result.scalar_one_or_none()
+    if not rt:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+
+    # Revoke the old token (rotation)
+    rt.revoked = True
+    db.add(rt)
+
+    user = await get_user_by_id(rt.user_id, db)
+    if not user or not user.is_active:
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+    access, new_refresh = _build_token_pair(user)
+
+    new_rt = RefreshToken(
+        user_id=user.id,
+        token_hash=hash_refresh_token(new_refresh),
+        expires_at=refresh_token_expiry(),
+        user_agent=rt.user_agent,
+        ip_address=rt.ip_address,
+    )
+    db.add(new_rt)
+    await db.commit()
+
+    return {
+        "access_token": access,
+        "refresh_token": new_refresh,
+        "token_type": "bearer",
+        "expires_in": _EXPIRES_IN,
+    }
+
+
+async def logout(token_plain: str | None, db: AsyncSession) -> None:
+    """Revoke the given refresh token (best-effort; no error if not found)."""
+    if not token_plain:
+        return
+    token_hash = hash_refresh_token(token_plain)
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    )
+    rt = result.scalar_one_or_none()
+    if rt:
+        rt.revoked = True
+        db.add(rt)
+        await db.commit()
+
+
+async def change_password(
+    user: User,
+    current_password: str,
+    new_password: str,
+    db: AsyncSession,
+) -> None:
+    """
+    Change password and revoke all existing refresh tokens (force re-login).
+    Raises 400 on wrong current password.
+    """
+    if not verify_password(current_password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    from app.core.security import validate_password_strength
+    errors = validate_password_strength(new_password)
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"password_errors": errors})
+
+    user.hashed_password = hash_password(new_password)
+    db.add(user)
+
+    # Revoke all refresh tokens for security
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user.id,
+            RefreshToken.revoked.is_(False),
+        )
+    )
+    for rt in result.scalars().all():
+        rt.revoked = True
+        db.add(rt)
+
+    await db.commit()
+    logger.info("Password changed for user %s; all refresh tokens revoked", user.email)
+
+
+# ── Forgot / Reset password ───────────────────────────────────────────────────
+
+async def forgot_password(email: str, db: AsyncSession) -> None:
+    """
+    Issue a password reset token.  Always returns successfully (never leaks
+    whether the email exists) — caller must not tell user if email was found.
+    """
+    from datetime import timedelta
+    from app.core.security import generate_secure_token, hash_secure_token
+    from app.db.models.password_reset_token import PasswordResetToken
+    from app.services.email_service import send_password_reset
+
+    settings = get_settings()
+    user = await get_user_by_email(email, db)
+    if not user or not user.is_active:
+        return  # Silent — do not reveal account existence
+
+    # Invalidate any unused existing tokens first
+    existing = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used.is_(False),
+        )
+    )
+    for old_tok in existing.scalars().all():
+        old_tok.used = True
+        db.add(old_tok)
+
+    token_plain = generate_secure_token()
+    prt = PasswordResetToken(
+        user_id=user.id,
+        token_hash=hash_secure_token(token_plain),
+        expires_at=datetime.utcnow() + timedelta(minutes=settings.password_reset_expire_minutes),
+    )
+    db.add(prt)
+    await db.commit()
+
+    send_password_reset(user.email, user.name or "", token_plain)
+    logger.info("Password reset token issued for %s", email)
+
+
+async def reset_password(token_plain: str, new_password: str, db: AsyncSession) -> None:
+    """
+    Redeem a reset token and change the password.
+    Revokes all refresh tokens to force re-login everywhere.
+    """
+    from app.core.security import hash_secure_token, validate_password_strength
+    from app.db.models.password_reset_token import PasswordResetToken
+
+    errors = validate_password_strength(new_password)
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"password_errors": errors})
+
+    token_hash = hash_secure_token(token_plain)
+    now = datetime.utcnow()
+
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used.is_(False),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    prt = result.scalar_one_or_none()
+    if not prt:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired reset token")
+
+    prt.used = True
+    db.add(prt)
+
+    user = await get_user_by_id(prt.user_id, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired reset token")
+
+    user.hashed_password = hash_password(new_password)
+    db.add(user)
+
+    # Revoke all refresh tokens
+    rts = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user.id,
+            RefreshToken.revoked.is_(False),
+        )
+    )
+    for rt in rts.scalars().all():
+        rt.revoked = True
+        db.add(rt)
+
+    await db.commit()
+    logger.info("Password reset completed for user %s", user.email)
+
+
+# ── Email verification ────────────────────────────────────────────────────────
+
+async def send_email_verification(user_id, db: AsyncSession) -> None:
+    """Issue (or re-issue) an email verification token and send the email."""
+    from datetime import timedelta
+    from app.core.security import generate_secure_token, hash_secure_token
+    from app.db.models.email_verification_token import EmailVerificationToken
+    from app.services.email_service import send_email_verification as svc_send
+
+    settings = get_settings()
+    user = await get_user_by_id(user_id, db)
+    if not user:
+        return
+
+    # Invalidate existing unused tokens
+    existing = await db.execute(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.user_id == user.id,
+            EmailVerificationToken.used.is_(False),
+        )
+    )
+    for old in existing.scalars().all():
+        old.used = True
+        db.add(old)
+
+    token_plain = generate_secure_token()
+    evt = EmailVerificationToken(
+        user_id=user.id,
+        token_hash=hash_secure_token(token_plain),
+        expires_at=datetime.utcnow() + timedelta(hours=settings.email_verification_expire_hours),
+    )
+    db.add(evt)
+    await db.commit()
+
+    svc_send(user.email, user.name or "", token_plain)
+    logger.info("Email verification token issued for %s", user.email)
+
+
+async def verify_email(token_plain: str, db: AsyncSession) -> None:
+    """Mark the user's email as verified."""
+    from app.core.security import hash_secure_token
+    from app.db.models.email_verification_token import EmailVerificationToken
+
+    token_hash = hash_secure_token(token_plain)
+    now = datetime.utcnow()
+
+    result = await db.execute(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.token_hash == token_hash,
+            EmailVerificationToken.used.is_(False),
+            EmailVerificationToken.expires_at > now,
+        )
+    )
+    evt = result.scalar_one_or_none()
+    if not evt:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired verification token")
+
+    evt.used = True
+    db.add(evt)
+
+    user = await get_user_by_id(evt.user_id, db)
+    if user:
+        user.email_verified = True
+        db.add(user)
+
+    await db.commit()
+    logger.info("Email verified for user_id %s", evt.user_id)
+
+
+# ── Team invitations ──────────────────────────────────────────────────────────
+
+async def invite_member(
+    inviter: User,
+    email: str,
+    role: str,
+    company_id,
+    db: AsyncSession,
+) -> None:
+    """
+    Invite a user to join a company.  Raises 409 if already a member.
+    The invitation token is emailed to the invitee.
+    """
+    from datetime import timedelta
+    from app.core.security import generate_secure_token, hash_secure_token
+    from app.db.models.invitation import Invitation
+    from app.services.email_service import send_invitation
+
+    settings = get_settings()
+
+    existing_user = await get_user_by_email(email, db)
+    if existing_user:
+        company_ids = [str(c.id) for c in (existing_user.companies or [])]
+        if str(company_id) in company_ids:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail="User is already a member of this company")
+
+    token_plain = generate_secure_token()
+    inv = Invitation(
+        company_id=company_id,
+        invited_by=inviter.id,
+        email=email,
+        role=role,
+        token_hash=hash_secure_token(token_plain),
+        expires_at=datetime.utcnow() + timedelta(days=settings.invitation_expire_days),
+    )
+    db.add(inv)
+    await db.commit()
+
+    company = inviter.companies[0] if inviter.companies else None
+    send_invitation(
+        email,
+        inviter.name or inviter.email,
+        company.name if company else "your team",
+        token_plain,
+        role,
+    )
+    logger.info("Invitation sent to %s by %s", email, inviter.email)
+
+
+async def accept_invitation(token_plain: str, password: str, name: str, db: AsyncSession) -> dict:
+    """
+    Accept an invitation: create or link the user account, log them in.
+    """
+    from app.core.security import hash_secure_token, validate_password_strength
+    from app.db.models.invitation import Invitation
+
+    errors = validate_password_strength(password)
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"password_errors": errors})
+
+    token_hash = hash_secure_token(token_plain)
+    now = datetime.utcnow()
+
+    result = await db.execute(
+        select(Invitation).where(
+            Invitation.token_hash == token_hash,
+            Invitation.accepted.is_(False),
+            Invitation.expires_at > now,
+        )
+    )
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired invitation")
+
+    inv.accepted = True
+    db.add(inv)
+
+    existing = await get_user_by_email(inv.email, db)
+    if existing:
+        user = existing
+    else:
+        user = User(
+            email=inv.email,
+            hashed_password=hash_password(password),
+            name=name,
+            role=inv.role,
+            is_active=True,
+        )
+        db.add(user)
+        await db.flush()
+
+    # Link the user to the invited company if not already linked
+    from app.db.models import Company
+    company = await db.get(Company, inv.company_id)
+    if company and user not in (company.user,):
+        pass  # One-to-many relationship handled via user_id; leave for future membership table
+
+    await db.commit()
+    user = await get_user_by_id(user.id, db)
+
+    access, refresh = _build_token_pair(user)
+    await _persist_refresh_token(user.id, refresh, db)
+
+    logger.info("Invitation accepted by %s", inv.email)
+    return {
+        "access_token": access,
+        "refresh_token": refresh,
+        "token_type": "bearer",
+        "expires_in": _EXPIRES_IN,
+        "user": _user_profile(user),
+    }

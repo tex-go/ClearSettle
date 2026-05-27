@@ -82,8 +82,8 @@ function Settlements() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="tw">
+      {/* Table — switches to card layout on ≤560px via tw-mobile-cards */}
+      <div className="tw tw-mobile-cards">
         <table>
           <thead>
             <tr>
@@ -97,23 +97,25 @@ function Settlements() {
               var deductions = s.comm + s.logi + s.ret + s.tcs + s.pen
               return (
                 <tr key={s.id}>
-                  <td><span className="mono" style={{ color: '#0ABFCA', fontSize: 12 }}>{s.id}</span></td>
-                  <td>
+                  <td data-label="Settlement ID">
+                    <span className="mono" style={{ color: '#0ABFCA', fontSize: 12 }}>{s.id}</span>
+                  </td>
+                  <td data-label="Platform">
                     <span style={{ marginRight: 6 }}>{s.icon}</span>
                     <strong>{s.plat}</strong>
                   </td>
-                  <td style={{ color: '#4B6080' }}>{s.period}</td>
-                  <td>{INR(s.base)}</td>
-                  <td style={{ color: '#E8344A' }}>-{INR(deductions)}</td>
-                  <td style={{ fontWeight: 700 }}>{INR(s.net)}</td>
-                  <td>
+                  <td data-label="Period" style={{ color: '#4B6080' }}>{s.period}</td>
+                  <td data-label="Base Value">{INR(s.base)}</td>
+                  <td data-label="Deductions" style={{ color: '#E8344A' }}>-{INR(deductions)}</td>
+                  <td data-label="Net Settled" style={{ fontWeight: 700 }}>{INR(s.net)}</td>
+                  <td data-label="Penalty">
                     {s.pen > 0
                       ? <span style={{ color: '#E9930D', fontWeight: 600 }}>-{INR(s.pen)}</span>
                       : <span style={{ color: '#0DB07A' }}>—</span>
                     }
                   </td>
-                  <td><StatusChip status={s.status} /></td>
-                  <td>
+                  <td data-label="Status"><StatusChip status={s.status} /></td>
+                  <td data-label="">
                     <button
                       className="btn btn-g btn-sm"
                       onClick={function() { setSelected(s) }}
@@ -148,7 +150,7 @@ function Settlements() {
           }
         >
           {/* Info grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div className="info-grid">
             {[
               { k: 'Orders', v: selected.orders },
               { k: 'Invoices', v: selected.inv },
