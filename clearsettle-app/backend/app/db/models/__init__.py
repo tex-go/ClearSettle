@@ -59,6 +59,11 @@ from app.db.models.password_reset_token import PasswordResetToken
 from app.db.models.email_verification_token import EmailVerificationToken
 from app.db.models.invitation import Invitation
 from app.db.models.audit_log_entry import AuditLogEntry
+# Intelligent Ingestion Engine (Session 14)
+from app.db.models.ingestion import (
+    UploadedFile, ReportDetectionResult, ReportSchemaVersion,
+    ReportProcessingLog, IngestionLedger,
+)
 # Cash Flow Forecast + Meeting System
 from app.db.models.cash_flow_snapshot import CashFlowSnapshot
 from app.db.models.meeting import Meeting
@@ -133,4 +138,9 @@ __all__ = [
     "EmailVerificationToken",
     "Invitation",
     "AuditLogEntry",
+    "UploadedFile",
+    "ReportDetectionResult",
+    "ReportSchemaVersion",
+    "ReportProcessingLog",
+    "IngestionLedger",
 ]

@@ -25,7 +25,7 @@ from app.routers import (
     sp_api, sync, rules, onboarding, api_health, vendor_recon,
     seller_discovery, forecast, meetings,
 )
-from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin
+from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin, ingestion
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +130,7 @@ app.include_router(flipkart_reports.router,  prefix="/flipkart",  tags=["flipkar
 app.include_router(amazon_reports.router,    prefix="/amazon",     tags=["amazon"])
 app.include_router(meesho_reports.router,    prefix="/meesho",     tags=["meesho"])
 app.include_router(admin.router,             prefix="/admin",      tags=["admin"])
+app.include_router(ingestion.router,         prefix="/ingestion",  tags=["ingestion"])
 
 
 @app.get("/")
