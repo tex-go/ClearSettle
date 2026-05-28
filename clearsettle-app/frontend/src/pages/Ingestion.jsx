@@ -119,78 +119,125 @@ function inr(v) {
   return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 })
 }
 
-// ── Upload Zone ────────────────────────────────────────────────────────────────
+// ── Upload Zone (multi-file) ───────────────────────────────────────────────────
 function UploadZone({ onUpload }) {
-  const [dragging, setDragging] = useState(false)
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState('')
+  const [dragging, setDragging]       = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState([])   // Array of File objects
+  const [uploadStates, setUploadStates]   = useState({})   // { fileName: 'pending'|'uploading'|'done'|'error' }
+  const [errors, setErrors]           = useState({})       // { fileName: errorMsg }
+  const [allUploading, setAllUploading]   = useState(false)
   const inputRef = useRef(null)
 
-  function onDragOver(e) { e.preventDefault(); setDragging(true) }
-  function onDragLeave()  { setDragging(false) }
-  function onDrop(e) {
-    e.preventDefault(); setDragging(false)
-    const f = e.dataTransfer.files[0]
-    if (f) { setSelectedFile(f); setError('') }
-  }
-  function onFileChange(e) {
-    const f = e.target.files[0]
-    if (f) { setSelectedFile(f); setError('') }
-    e.target.value = ''
+  const ACCEPTED = ['.xlsx', '.xls', '.csv', '.txt', '.tsv']
+
+  function isValidFile(f) {
+    const name = f.name.toLowerCase()
+    return ACCEPTED.some(ext => name.endsWith(ext))
   }
 
-  async function handleUpload() {
-    if (!selectedFile) return
-    setUploading(true); setError('')
-    try {
-      const fd = new FormData()
-      fd.append('file', selectedFile)
-      const res = await api.post('/ingestion/upload', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      setSelectedFile(null)
-      onUpload(res.data)
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Upload failed — please try again.')
-    } finally {
-      setUploading(false)
+  function addFiles(newFiles) {
+    const valid = Array.from(newFiles).filter(isValidFile)
+    const invalid = Array.from(newFiles).filter(f => !isValidFile(f))
+    setSelectedFiles(prev => {
+      const existing = new Set(prev.map(f => f.name))
+      const toAdd = valid.filter(f => !existing.has(f.name))
+      return [...prev, ...toAdd]
+    })
+    if (invalid.length > 0) {
+      const msg = `Skipped ${invalid.length} unsupported file(s): ${invalid.map(f => f.name).join(', ')}`
+      setErrors(prev => ({ ...prev, _global: msg }))
+    } else {
+      setErrors(prev => { const e = { ...prev }; delete e._global; return e })
     }
   }
 
+  function removeFile(name) {
+    setSelectedFiles(prev => prev.filter(f => f.name !== name))
+    setUploadStates(prev => { const s = { ...prev }; delete s[name]; return s })
+    setErrors(prev => { const e = { ...prev }; delete e[name]; return e })
+  }
+
+  function onDragOver(e) { e.preventDefault(); setDragging(true) }
+  function onDragLeave(e) { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false) }
+  function onDrop(e) {
+    e.preventDefault(); setDragging(false)
+    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files)
+  }
+  function onFileChange(e) {
+    if (e.target.files.length) addFiles(e.target.files)
+    e.target.value = ''
+  }
+
+  async function handleUploadAll() {
+    if (!selectedFiles.length) return
+    setAllUploading(true)
+    const pending = selectedFiles.filter(f => uploadStates[f.name] !== 'done')
+
+    // Upload all pending files in parallel
+    await Promise.all(pending.map(async (file) => {
+      setUploadStates(prev => ({ ...prev, [file.name]: 'uploading' }))
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await api.post('/ingestion/upload', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        setUploadStates(prev => ({ ...prev, [file.name]: 'done' }))
+        onUpload(res.data)
+      } catch (err) {
+        const msg = err.response?.data?.detail || 'Upload failed'
+        setUploadStates(prev => ({ ...prev, [file.name]: 'error' }))
+        setErrors(prev => ({ ...prev, [file.name]: msg }))
+      }
+    }))
+
+    setAllUploading(false)
+    // Remove successfully uploaded files from the queue after a short delay
+    setTimeout(() => {
+      setSelectedFiles(prev => prev.filter(f => uploadStates[f.name] === 'error'))
+      setUploadStates({})
+    }, 1200)
+  }
+
+  const totalBytes = selectedFiles.reduce((s, f) => s + f.size, 0)
+  const doneCount  = Object.values(uploadStates).filter(s => s === 'done').length
+  const hasFiles   = selectedFiles.length > 0
+
   return (
     <div style={{ marginBottom: 28 }}>
+      {/* Drop zone */}
       <div
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-        onClick={() => !selectedFile && inputRef.current?.click()}
+        onClick={() => inputRef.current?.click()}
         style={{
-          border: `2px dashed ${dragging ? P.teal : selectedFile ? P.green : '#CBD5E1'}`,
+          border: `2px dashed ${dragging ? P.teal : hasFiles ? P.green + '99' : '#CBD5E1'}`,
           borderRadius: 18,
-          padding: '40px 32px',
+          padding: hasFiles ? '20px 28px' : '40px 32px',
           textAlign: 'center',
-          background: dragging ? 'rgba(10,191,202,.05)' : selectedFile ? 'rgba(16,185,129,.04)' : '#fff',
-          cursor: selectedFile ? 'default' : 'pointer',
+          background: dragging ? 'rgba(10,191,202,.05)' : '#fff',
+          cursor: 'pointer',
           transition: 'all .2s',
         }}
       >
         <input
-          ref={inputRef} type="file"
+          ref={inputRef} type="file" multiple
           accept=".xlsx,.xls,.csv,.txt,.tsv"
           style={{ display: 'none' }}
           onChange={onFileChange}
         />
-        {!selectedFile ? (
+
+        {!hasFiles ? (
           <>
             <div style={{ fontSize: 48, marginBottom: 14 }}>📂</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: P.navy, marginBottom: 8 }}>
-              Drop any marketplace report file here
+              Drop one or more marketplace report files here
             </div>
             <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16, lineHeight: 1.6 }}>
               Flipkart P&L, Payment Report, Amazon Settlement, Meesho Payment — any format.<br />
-              The engine will automatically detect the platform and report type.
+              Upload multiple files at once and the engine will analyse each independently.
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-              {['.xlsx', '.xls', '.csv', '.txt', '.tsv'].map(ext => (
+              {ACCEPTED.map(ext => (
                 <span key={ext} style={{ background: '#F1F5F9', color: '#64748B', fontSize: 11, fontWeight: 700, borderRadius: 6, padding: '3px 8px' }}>{ext}</span>
               ))}
             </div>
@@ -207,36 +254,97 @@ function UploadZone({ onUpload }) {
           </>
         ) : (
           <>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: P.navy, marginBottom: 4 }}>{selectedFile.name}</div>
-            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>{fmtBytes(selectedFile.size)}</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
+            {/* Summary row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: P.navy }}>
+                  {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} selected
+                </span>
+                <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 10 }}>
+                  {fmtBytes(totalBytes)} total
+                </span>
+              </div>
               <button
-                onClick={() => setSelectedFile(null)}
+                onClick={e => { e.stopPropagation(); inputRef.current?.click() }}
+                style={{ padding: '5px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                + Add more
+              </button>
+            </div>
+
+            {/* File list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, textAlign: 'left' }} onClick={e => e.stopPropagation()}>
+              {selectedFiles.map(file => {
+                const state = uploadStates[file.name] || 'pending'
+                const err   = errors[file.name]
+                const stateColor = state === 'done' ? P.green : state === 'error' ? P.red : state === 'uploading' ? P.teal : '#9CA3AF'
+                const stateIcon  = state === 'done' ? '✅' : state === 'error' ? '❌' : state === 'uploading' ? null : '📄'
+                return (
+                  <div key={file.name} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: state === 'done' ? 'rgba(16,185,129,.05)' : state === 'error' ? 'rgba(232,52,74,.05)' : '#F8FAFC',
+                    border: `1px solid ${state === 'done' ? P.green + '30' : state === 'error' ? P.red + '30' : '#E5E7EB'}`,
+                  }}>
+                    <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {state === 'uploading' ? <Spinner size={16} /> : <span style={{ fontSize: 18 }}>{stateIcon}</span>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: P.navy, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
+                      <div style={{ fontSize: 11, color: err ? P.red : '#9CA3AF', marginTop: 1 }}>
+                        {err || fmtBytes(file.size)}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: stateColor, flexShrink: 0 }}>
+                      {state === 'pending' ? 'Ready' : state === 'uploading' ? 'Uploading…' : state === 'done' ? 'Uploaded' : 'Error'}
+                    </span>
+                    {state !== 'uploading' && state !== 'done' && (
+                      <button
+                        onClick={() => removeFile(file.name)}
+                        style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: '#F3F4F6', color: '#9CA3AF', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }} onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => { setSelectedFiles([]); setUploadStates({}); setErrors({}) }}
                 style={{ padding: '9px 22px', borderRadius: 9, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
               >
-                Remove
+                Clear All
               </button>
               <button
-                onClick={handleUpload} disabled={uploading}
+                onClick={handleUploadAll}
+                disabled={allUploading || selectedFiles.filter(f => uploadStates[f.name] !== 'done').length === 0}
                 style={{
                   padding: '9px 28px', borderRadius: 9, border: 'none',
-                  background: uploading ? '#9CA3AF' : 'linear-gradient(135deg,#0ABFCA,#088F99)',
+                  background: allUploading ? '#9CA3AF' : 'linear-gradient(135deg,#0ABFCA,#088F99)',
                   color: '#fff', fontSize: 13, fontWeight: 700,
-                  cursor: uploading ? 'not-allowed' : 'pointer',
+                  cursor: allUploading ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
                 }}
               >
-                {uploading && <Spinner size={14} />}
-                {uploading ? 'Uploading…' : 'Upload & Analyse'}
+                {allUploading && <Spinner size={14} />}
+                {allUploading
+                  ? `Uploading ${doneCount}/${selectedFiles.length}…`
+                  : `Upload & Analyse ${selectedFiles.filter(f => uploadStates[f.name] !== 'done').length} file${selectedFiles.filter(f => uploadStates[f.name] !== 'done').length !== 1 ? 's' : ''}`
+                }
               </button>
             </div>
           </>
         )}
       </div>
-      {error && (
-        <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(232,52,74,.08)', borderRadius: 10, fontSize: 13, color: P.red, fontWeight: 600 }}>
-          {error}
+
+      {/* Global error (e.g. unsupported file types) */}
+      {errors._global && (
+        <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(233,147,13,.08)', borderRadius: 10, fontSize: 13, color: P.amber, fontWeight: 600 }}>
+          {errors._global}
         </div>
       )}
     </div>
@@ -711,21 +819,29 @@ function ManualReviewPanel({ file, onClose, onDone }) {
 export default function Ingestion() {
   const [files, setFiles]               = useState([])
   const [filesLoading, setFilesLoading] = useState(true)
-  const [activeFileId, setActiveFileId] = useState(null)
-  const [activeFileData, setActiveFileData] = useState(null)
-  const [detection, setDetection]       = useState(null)
+  // activeJobs: { [fileId]: { fileData, detection } }
+  const [activeJobs, setActiveJobs]     = useState({})
   const [ledgerFile, setLedgerFile]     = useState(null)
   const [reviewFile, setReviewFile]     = useState(null)
   const [toast, setToast]               = useState(null)
-  const pollRef = useRef(null)
-  const pollCount = useRef(0)
+  const pollRef      = useRef(null)
+  const activeJobsRef = useRef({})   // mirror of activeJobs for reading inside intervals
+  const pollCounts   = useRef({})    // { [fileId]: tickCount }
+
+  // Keep ref in sync with state so the interval can read current jobs without stale closure
+  function setJobs(updater) {
+    setActiveJobs(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      activeJobsRef.current = next
+      return next
+    })
+  }
 
   function showToast(msg, kind = 'success') {
     setToast({ msg, kind })
     setTimeout(() => setToast(null), 3500)
   }
 
-  // Load file history
   const loadFiles = useCallback(async () => {
     try {
       const res = await api.get('/ingestion/files?per_page=50')
@@ -739,40 +855,59 @@ export default function Ingestion() {
 
   useEffect(() => { loadFiles() }, [loadFiles])
 
-  // Polling for active file
-  const startPolling = useCallback((fileId) => {
-    clearInterval(pollRef.current)
-    pollCount.current = 0
+  // Single interval polls all pending jobs every 2.5s
+  const startGlobalPoll = useCallback(() => {
+    if (pollRef.current) return   // already running
     pollRef.current = setInterval(async () => {
-      pollCount.current++
-      if (pollCount.current > 60) { clearInterval(pollRef.current); return }
-      try {
-        const res = await api.get(`/ingestion/files/${fileId}`)
-        const f = res.data
-        setActiveFileData(f)
-        const done = ['done', 'failed', 'needs_review'].includes(f.upload_status)
-        if (done) {
-          clearInterval(pollRef.current)
-          if (f.upload_status === 'done' || f.upload_status === 'needs_review') {
-            try {
-              const dr = await api.get(`/ingestion/files/${fileId}/detection`)
-              setDetection(dr.data)
-            } catch { /* detection may not exist yet */ }
+      const jobs = activeJobsRef.current
+      const pending = Object.keys(jobs).filter(id => {
+        const s = jobs[id].fileData?.upload_status
+        return !['done', 'failed', 'needs_review'].includes(s)
+      })
+
+      if (pending.length === 0) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+        return
+      }
+
+      // Fire polls for all pending jobs in parallel
+      await Promise.all(pending.map(async (fileId) => {
+        pollCounts.current[fileId] = (pollCounts.current[fileId] || 0) + 1
+        if (pollCounts.current[fileId] > 80) return
+        try {
+          const res = await api.get(`/ingestion/files/${fileId}`)
+          const f = res.data
+          const isDone = ['done', 'failed', 'needs_review'].includes(f.upload_status)
+          setJobs(prev => ({ ...prev, [fileId]: { ...prev[fileId], fileData: f } }))
+          if (isDone) {
+            if (f.upload_status !== 'failed') {
+              try {
+                const dr = await api.get(`/ingestion/files/${fileId}/detection`)
+                setJobs(prev => prev[fileId]
+                  ? { ...prev, [fileId]: { ...prev[fileId], detection: dr.data } }
+                  : prev
+                )
+              } catch { /* detection fetch failed */ }
+            }
+            loadFiles()
           }
-          loadFiles()
-        }
-      } catch { /* ignore poll errors */ }
+        } catch { /* ignore individual poll error */ }
+      }))
     }, 2500)
   }, [loadFiles])
 
-  useEffect(() => () => clearInterval(pollRef.current), [])
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   function onUpload(data) {
-    showToast('File uploaded — analysis started…', 'info')
-    setActiveFileId(data.id || data.file_id)
-    setActiveFileData(data)
-    setDetection(null)
-    startPolling(data.id || data.file_id)
+    const fileId = data.id || data.file_id
+    setJobs(prev => ({ ...prev, [fileId]: { fileData: data, detection: null } }))
+    startGlobalPoll()
+    showToast(`"${data.original_file_name || 'File'}" queued for analysis`, 'info')
+  }
+
+  function dismissJob(fileId) {
+    setJobs(prev => { const j = { ...prev }; delete j[fileId]; return j })
   }
 
   async function handleDelete(fileId) {
@@ -780,7 +915,7 @@ export default function Ingestion() {
     try {
       await api.delete(`/ingestion/files/${fileId}`)
       showToast('File deleted.')
-      if (activeFileId === fileId) { setActiveFileId(null); setActiveFileData(null); setDetection(null) }
+      dismissJob(fileId)
       loadFiles()
     } catch { showToast('Delete failed.', 'error') }
   }
@@ -789,17 +924,16 @@ export default function Ingestion() {
     try {
       await api.post(`/ingestion/files/${fileId}/reprocess`)
       showToast('Reprocessing started…', 'info')
-      setActiveFileId(fileId)
-      setActiveFileData(null); setDetection(null)
-      startPolling(fileId)
+      const existing = activeJobsRef.current[fileId]?.fileData || {}
+      setJobs(prev => ({ ...prev, [fileId]: { fileData: { ...existing, upload_status: 'uploaded' }, detection: null } }))
+      pollCounts.current[fileId] = 0
+      startGlobalPoll()
       loadFiles()
     } catch { showToast('Reprocess failed.', 'error') }
   }
 
   function handleViewFromHistory(f) {
-    setActiveFileId(f.id)
-    setActiveFileData(f)
-    setDetection(f.detection || null)
+    setJobs(prev => ({ ...prev, [f.id]: { fileData: f, detection: f.detection || null } }))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -808,13 +942,16 @@ export default function Ingestion() {
     setReviewFile(null)
     showToast('Override applied — reprocessing…', 'info')
     if (fid) {
-      setActiveFileId(fid); setActiveFileData(null); setDetection(null)
-      startPolling(fid)
+      const existing = activeJobsRef.current[fid]?.fileData || {}
+      setJobs(prev => ({ ...prev, [fid]: { fileData: { ...existing, upload_status: 'uploaded' }, detection: null } }))
+      pollCounts.current[fid] = 0
+      startGlobalPoll()
     }
     loadFiles()
   }
 
-  // Stats from file list
+  const activeJobList = Object.entries(activeJobs)  // [[fileId, {fileData, detection}], ...]
+
   const stats = {
     total: files.length,
     done: files.filter(f => f.upload_status === 'done').length,
@@ -870,14 +1007,37 @@ export default function Ingestion() {
       {/* Upload zone */}
       <UploadZone onUpload={onUpload} />
 
-      {/* Active file tracker */}
-      {activeFileData && (
-        <PipelineTracker
-          file={activeFileData}
-          detection={detection}
-          onViewLedger={() => setLedgerFile({ ...activeFileData, id: activeFileId })}
-          onManualReview={() => setReviewFile({ ...activeFileData, id: activeFileId, detection })}
-        />
+      {/* Active job trackers — one card per uploaded file */}
+      {activeJobList.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 4 }}>
+          {activeJobList.map(([fileId, job]) => (
+            <div key={fileId} style={{ position: 'relative' }}>
+              <PipelineTracker
+                file={job.fileData}
+                detection={job.detection}
+                onViewLedger={() => setLedgerFile(job.fileData)}
+                onManualReview={() => setReviewFile({ ...job.fileData, detection: job.detection })}
+              />
+              {/* Dismiss button — only shown once done/failed */}
+              {['done', 'failed', 'needs_review'].includes(job.fileData?.upload_status) && (
+                <button
+                  onClick={() => dismissJob(fileId)}
+                  title="Dismiss"
+                  style={{
+                    position: 'absolute', top: 14, right: 14,
+                    width: 26, height: 26, borderRadius: 7,
+                    border: '1px solid #E5E7EB', background: '#F8FAFC',
+                    color: '#9CA3AF', fontSize: 14, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 1,
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {/* How it works — info box */}
