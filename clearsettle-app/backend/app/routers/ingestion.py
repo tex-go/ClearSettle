@@ -146,6 +146,8 @@ async def _run_ingestion(
     file_name: str,
     company_id: UUID,
     user_id: UUID,
+    platform_hint: Optional[str] = None,
+    report_type_hint: Optional[str] = None,
 ) -> None:
     """Full ingestion pipeline: detect → parse → persist."""
     if AsyncSessionLocal is None:
@@ -163,7 +165,9 @@ async def _run_ingestion(
             # ── Run pipeline ──────────────────────────────────────────────────
             from app.services.pipeline.router import run_ingestion_pipeline
             pipeline_result, parse_result = run_ingestion_pipeline(
-                file_bytes, file_name, uploaded_file_id
+                file_bytes, file_name, uploaded_file_id,
+                platform_hint=platform_hint,
+                report_type_hint=report_type_hint,
             )
 
             # ── Persist detection result ──────────────────────────────────────
@@ -254,16 +258,22 @@ async def _run_ingestion(
 async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    platform:    Optional[str] = Form(None, description="Platform hint: flipkart | amazon | meesho"),
+    report_type: Optional[str] = Form(None, description="Report type hint: pl_report | payment_report | settlement_report | …"),
     db:   AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
     """
     Upload any marketplace report.
 
-    The system automatically:
+    Optional form fields:
+    - platform: 'flipkart' | 'amazon' | 'meesho' — skips auto-detection when provided
+    - report_type: 'pl_report' | 'payment_report' | 'settlement_report' | … — skips report type detection
+
+    The system automatically (or uses hints when provided):
     1. Fingerprints the file (extracts sheets, headers, column signatures)
-    2. Detects the platform (Flipkart / Amazon / Meesho) with confidence score
-    3. Detects report type (P&L / Payment / Settlement / Tax / Returns)
+    2. Detects the platform with confidence score (or uses platform hint)
+    3. Detects report type (or uses report_type hint)
     4. Detects schema version and flags drift if schema changed
     5. Routes to the correct parser
     6. Normalises into the unified ingestion ledger
@@ -272,6 +282,9 @@ async def upload_file(
     Returns immediately (202) with file_id + confidence preview.
     Processing happens in background — poll GET /ingestion/files/{id} for status.
     """
+    # Normalise hint values
+    platform_hint    = (platform or "").strip().lower() or None
+    report_type_hint = (report_type or "").strip().lower() or None
     company_id = _company_id(user)
 
     fname_lower = (file.filename or "").lower()
@@ -373,6 +386,7 @@ async def upload_file(
         _run_ingestion,
         record.id, file_bytes, file.filename or stored_name,
         company_id, user.id if hasattr(user, "id") else None,
+        platform_hint, report_type_hint,
     )
 
     return {
@@ -380,6 +394,8 @@ async def upload_file(
         "original_file_name": record.original_file_name,
         "file_size_bytes": len(file_bytes),
         "upload_status":  "uploaded",
+        "platform_hint":  platform_hint,
+        "report_type_hint": report_type_hint,
         "preview":        preview,
         "message":        (
             "File uploaded. Detection + ingestion running in background. "

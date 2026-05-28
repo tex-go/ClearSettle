@@ -50,20 +50,25 @@ def run_ingestion_pipeline(
     file_name:  str,
     uploaded_file_id: UUID,
     *,
-    quarter_label: str = "unknown",
+    quarter_label:    str = "unknown",
+    platform_hint:    Optional[str] = None,
+    report_type_hint: Optional[str] = None,
 ) -> PipelineResult:
     """
     Execute the full detection → parse pipeline synchronously.
     Returns a PipelineResult with all metadata needed to persist to DB.
 
+    platform_hint / report_type_hint: when supplied by the user at upload time,
+    these bypass auto-detection for the respective stage (confidence set to 1.0).
+
     Does NOT write to the database — the caller (background task) handles
     async DB writes using the PipelineResult data.
     """
-    from app.services.detection.fingerprinter     import fingerprint_file
-    from app.services.detection.platform_detector import detect_platform
-    from app.services.detection.report_type_detector import detect_report_type
-    from app.services.detection.schema_detector   import detect_schema_version
-    from app.services.parsers.registry            import get_parser
+    from app.services.detection.fingerprinter       import fingerprint_file
+    from app.services.detection.platform_detector   import detect_platform, PlatformDetectionResult
+    from app.services.detection.report_type_detector import detect_report_type, ReportTypeResult
+    from app.services.detection.schema_detector     import detect_schema_version
+    from app.services.parsers.registry              import get_parser
 
     logs: List[Dict[str, Any]] = []
 
@@ -87,26 +92,50 @@ def run_ingestion_pipeline(
         f"{len(fp.all_column_names)} unique columns, sig={fp.schema_signature[:12]}…"
     ), {"sheet_names": [s.sheet_name for s in fp.sheets], "col_count": len(fp.all_column_names)})
 
-    # ── Stage 2: Platform detection ───────────────────────────────────────────
-    _log("info", "detect", f"Detecting platform for '{file_name}'")
-    platform_result = detect_platform(fp)
-    _log("info", "detect", (
-        f"Platform={platform_result.detected_platform} "
-        f"confidence={platform_result.confidence_score:.2%} "
-        f"signals={len(platform_result.matched_signals)}"
-    ), {"matched_signals": platform_result.matched_signals[:10]})
-
-    if platform_result.needs_manual_review:
-        _log("warning", "detect", (
-            f"Platform confidence {platform_result.confidence_score:.2%} below threshold "
-            "— file flagged for manual review"
+    # ── Stage 2: Platform detection (or hint override) ────────────────────────
+    if platform_hint and platform_hint != "unknown":
+        _log("info", "detect", (
+            f"Platform override by user: '{platform_hint}' — skipping auto-detection"
         ))
+        platform_result = PlatformDetectionResult(
+            detected_platform=platform_hint,
+            confidence_score=1.0,
+            matched_signals=[f"user_hint:{platform_hint}"],
+            runner_up_platform=None,
+            runner_up_score=0.0,
+            needs_manual_review=False,
+        )
+    else:
+        _log("info", "detect", f"Detecting platform for '{file_name}'")
+        platform_result = detect_platform(fp)
+        _log("info", "detect", (
+            f"Platform={platform_result.detected_platform} "
+            f"confidence={platform_result.confidence_score:.2%} "
+            f"signals={len(platform_result.matched_signals)}"
+        ), {"matched_signals": platform_result.matched_signals[:10]})
 
-    # ── Stage 3: Report type detection ───────────────────────────────────────
-    type_result = detect_report_type(platform_result.detected_platform, fp)
-    _log("info", "detect", (
-        f"Report type={type_result.report_type} confidence={type_result.confidence:.2%}"
-    ), {"schema_hints": type_result.schema_hints})
+        if platform_result.needs_manual_review:
+            _log("warning", "detect", (
+                f"Platform confidence {platform_result.confidence_score:.2%} below threshold "
+                "— file flagged for manual review"
+            ))
+
+    # ── Stage 3: Report type detection (or hint override) ─────────────────────
+    if report_type_hint and report_type_hint != "unknown":
+        _log("info", "detect", (
+            f"Report type override by user: '{report_type_hint}' — skipping auto-detection"
+        ))
+        type_result = ReportTypeResult(
+            report_type=report_type_hint,
+            confidence=1.0,
+            schema_hints={"user_hint": report_type_hint},
+            matched_signals=[f"user_hint:{report_type_hint}"],
+        )
+    else:
+        type_result = detect_report_type(platform_result.detected_platform, fp)
+        _log("info", "detect", (
+            f"Report type={type_result.report_type} confidence={type_result.confidence:.2%}"
+        ), {"schema_hints": type_result.schema_hints})
 
     # ── Stage 4: Schema version detection ────────────────────────────────────
     schema_result = detect_schema_version(
