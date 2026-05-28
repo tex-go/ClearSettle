@@ -119,16 +119,55 @@ function inr(v) {
   return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 })
 }
 
+const PLATFORM_OPTIONS = [
+  { value: '',          label: '🤖 Auto-detect (recommended)' },
+  { value: 'flipkart',  label: '🛒 Flipkart' },
+  { value: 'amazon',    label: '📦 Amazon' },
+  { value: 'meesho',    label: '🧵 Meesho' },
+]
+
+const REPORT_TYPE_OPTIONS = {
+  flipkart: [
+    { value: '',                   label: '— Auto-detect report type —' },
+    { value: 'pl_report',          label: 'P&L Report' },
+    { value: 'payment_report',     label: 'Payment Report' },
+    { value: 'returns_report',     label: 'Returns Report' },
+    { value: 'commission_invoice', label: 'Commission Invoice' },
+    { value: 'tax_report',         label: 'Tax / GST Report' },
+  ],
+  amazon: [
+    { value: '',                   label: '— Auto-detect report type —' },
+    { value: 'settlement_report',  label: 'Settlement Report' },
+    { value: 'returns_report',     label: 'Returns Report' },
+    { value: 'fba_inventory',      label: 'FBA Inventory' },
+    { value: 'safe_t_report',      label: 'SAFE-T Claim Report' },
+  ],
+  meesho: [
+    { value: '',                   label: '— Auto-detect report type —' },
+    { value: 'payment_report',     label: 'Payment Report' },
+    { value: 'returns_report',     label: 'Returns Report' },
+    { value: 'order_report',       label: 'Order Report' },
+  ],
+}
+
 // ── Upload Zone (multi-file) ───────────────────────────────────────────────────
 function UploadZone({ onUpload }) {
-  const [dragging, setDragging]       = useState(false)
+  const [dragging, setDragging]           = useState(false)
   const [selectedFiles, setSelectedFiles] = useState([])   // Array of File objects
   const [uploadStates, setUploadStates]   = useState({})   // { fileName: 'pending'|'uploading'|'done'|'error' }
-  const [errors, setErrors]           = useState({})       // { fileName: errorMsg }
+  const [errors, setErrors]               = useState({})   // { fileName: errorMsg }
   const [allUploading, setAllUploading]   = useState(false)
+  const [platform, setPlatform]           = useState('')   // '' = auto-detect
+  const [reportType, setReportType]       = useState('')
   const inputRef = useRef(null)
 
   const ACCEPTED = ['.xlsx', '.xls', '.csv', '.txt', '.tsv']
+
+  // Reset report type when platform changes
+  function handlePlatformChange(val) {
+    setPlatform(val)
+    setReportType('')
+  }
 
   function isValidFile(f) {
     const name = f.name.toLowerCase()
@@ -179,6 +218,8 @@ function UploadZone({ onUpload }) {
       try {
         const fd = new FormData()
         fd.append('file', file)
+        if (platform)    fd.append('platform', platform)
+        if (reportType)  fd.append('report_type', reportType)
         const res = await api.post('/ingestion/upload', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         })
@@ -203,8 +244,78 @@ function UploadZone({ onUpload }) {
   const doneCount  = Object.values(uploadStates).filter(s => s === 'done').length
   const hasFiles   = selectedFiles.length > 0
 
+  const reportTypeOpts = platform ? (REPORT_TYPE_OPTIONS[platform] || []) : []
+
   return (
     <div style={{ marginBottom: 28 }}>
+
+      {/* ── Platform + Report Type selectors ── */}
+      <div style={{
+        background: '#fff', borderRadius: 14,
+        border: '1.5px solid #E8EFF6',
+        padding: '16px 20px', marginBottom: 14,
+        display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap',
+      }}>
+        <div style={{ flex: '1 1 220px', minWidth: 180 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>
+            Ecommerce Platform
+          </label>
+          <select
+            value={platform}
+            onChange={e => handlePlatformChange(e.target.value)}
+            style={{
+              width: '100%', padding: '9px 12px', borderRadius: 9,
+              border: `1.5px solid ${platform ? PLATFORM_META[platform]?.color + '80' : '#E5E7EB'}`,
+              fontSize: 13, fontWeight: platform ? 700 : 400,
+              color: platform ? (PLATFORM_META[platform]?.color || '#374151') : '#6B7280',
+              background: platform ? (PLATFORM_META[platform]?.color + '08' || '#fff') : '#fff',
+              cursor: 'pointer', outline: 'none',
+            }}
+          >
+            {PLATFORM_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {!platform && (
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
+              Not sure? Leave this on Auto-detect — the engine will try to identify the platform from the file structure.
+            </div>
+          )}
+          {platform && (
+            <div style={{ fontSize: 11, color: PLATFORM_META[platform]?.color, marginTop: 5, fontWeight: 600 }}>
+              ✓ Platform locked to {PLATFORM_META[platform]?.label} — auto-detection skipped
+            </div>
+          )}
+        </div>
+
+        {platform && (
+          <div style={{ flex: '1 1 200px', minWidth: 180 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>
+              Report Type
+            </label>
+            <select
+              value={reportType}
+              onChange={e => setReportType(e.target.value)}
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 9,
+                border: `1.5px solid ${reportType ? P.teal + '80' : '#E5E7EB'}`,
+                fontSize: 13, color: reportType ? P.navy : '#6B7280',
+                background: '#fff', cursor: 'pointer', outline: 'none',
+              }}
+            >
+              {reportTypeOpts.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {!reportType && (
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
+                Optional — engine will detect the report type from column headers.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Drop zone */}
       <div
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
