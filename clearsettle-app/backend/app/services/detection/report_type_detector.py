@@ -95,14 +95,25 @@ _FLIPKART_TYPE_RULES: List[Tuple[str, List[Tuple[str, int]], str]] = [
         ("tracking id",        5),
     ], "sheet_or_col"),
     ("pl_report", [
-        ("sku wise",           8),
-        ("order wise",         8),
-        ("overall summary",    7),
-        ("p&l",                7),
-        ("gross sales",        5),
-        ("net earnings",       5),
-        ("cancellations",      4),
-        ("total orders",       4),
+        ("profit & loss report",         10),  # content token from cell B4
+        ("profit and loss report",       10),
+        ("profit & loss",                 8),
+        ("pnl summary",                   9),  # section label in Overall Summary
+        ("earnings on platform",          9),  # unique to Flipkart P&L
+        ("bank settlement (projected)",   9),
+        ("estimated net sales",           8),
+        ("accounted net sales",           8),
+        ("sku-level p&l",                 9),  # sheet name
+        ("sku level p&l",                 9),
+        ("orders p&l",                    8),
+        ("sku wise",                      7),
+        ("order wise",                    7),
+        ("overall summary",               6),
+        ("p&l",                           7),
+        ("gross sales",                   5),
+        ("net earnings",                  5),
+        ("cancellations",                 4),
+        ("total orders",                  4),
     ], "sheet_or_col"),
 ]
 
@@ -186,9 +197,10 @@ def detect_report_type(
             matched_signals=[f"no_rules_for_platform:{platform}"],
         )
 
-    sheet_names = {s.sheet_name.lower() for s in fp.sheets}
-    all_cols    = {c.lower() for c in fp.all_column_names}
-    combined    = sheet_names | all_cols
+    sheet_names   = {s.sheet_name.lower() for s in fp.sheets}
+    all_cols      = {c.lower() for c in fp.all_column_names}
+    all_tokens    = {t.lower() for t in getattr(fp, "all_content_tokens", [])}
+    combined      = sheet_names | all_cols | all_tokens
 
     best_type  = _PLATFORM_DEFAULT_TYPE.get(platform, "unknown")
     best_score = 0
