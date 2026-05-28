@@ -7,10 +7,14 @@ Takes a FileFingerprint and returns a PlatformDetectionResult with:
   - matched_signals: list of what fired
   - needs_manual_review: True if confidence < threshold
 
-Detection strategy:
+Detection strategy (4 tiers):
   1. Filename pattern matching (fast, high precision)
   2. Sheet name matching
-  3. Column/header signal matching (broadest, most reliable)
+  3. Column/header signal matching
+  4. Content token matching (cell VALUES from first 100 rows per sheet)
+     ← Critical for Flipkart P&L reports where key identifiers appear as
+       row-values, not column names ("Profit & Loss Report", "Earnings on
+       Platform", "PNL Summary", "Bank Settlement (Projected)", etc.)
 
 Signals are weighted; raw score is normalised to 0–1 by dividing by the
 theoretical max score for each platform.
@@ -18,7 +22,6 @@ theoretical max score for each platform.
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
@@ -42,57 +45,68 @@ class PlatformDetectionResult:
 
 # ── Signal catalogue ──────────────────────────────────────────────────────────
 # Each signal is (pattern_string, score_weight)
-# Pattern matching is substring (lowercase) unless marked with '^' (prefix) or '$' (suffix)
+# Matching is substring (lowercase).
 
 _FILENAME_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
     "flipkart": [
-        ("flipkart",    8),
-        ("fk_",         4),
-        ("_fk_",        4),
-        ("fk-",         3),
-        ("flipkart_pl", 9),
-        ("seller_report", 3),
+        ("flipkart",          9),
+        ("profit and loss",   9),  # "Profit and Loss Report"
+        ("profit_and_loss",   9),
+        ("p&l",               8),  # "P&L Report"
+        ("pnl",               7),  # "PNL_Report"
+        ("fk_",               4),
+        ("_fk_",              4),
+        ("fk-",               3),
+        ("flipkart_pl",       9),
+        ("seller_report",     3),
+        ("pl_report",         8),
+        ("overall_summary",   5),
     ],
     "amazon": [
-        ("amazon",      8),
-        ("amzn",        6),
-        ("settlement",  3),
+        ("amazon",            8),
+        ("amzn",              6),
+        ("settlement",        3),
         ("amazon_settlement", 9),
-        ("amz_",        5),
+        ("amz_",              5),
     ],
     "meesho": [
-        ("meesho",      10),
-        ("meesho_payment", 10),
-        ("meesho_report",  10),
+        ("meesho",            10),
+        ("meesho_payment",    10),
+        ("meesho_report",     10),
     ],
 }
 
 _SHEET_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
     "flipkart": [
-        ("p&l",               5),
-        ("sku wise",          5),
-        ("order wise",        5),
-        ("payment details",   7),
-        ("gst details",       7),
-        ("commission invoice", 7),
-        ("overall summary",   4),
-        ("returns",           2),
+        ("p&l",                  7),   # "SKU-level P&L", "Orders P&L"
+        ("sku-level p&l",        9),
+        ("sku level p&l",        9),
+        ("orders p&l",           8),
+        ("order p&l",            8),
+        ("sku wise",             5),
+        ("order wise",           5),
+        ("overall summary",      6),   # P&L summary tab
+        ("payment details",      7),
+        ("gst details",          7),
+        ("commission invoice",   7),
+        ("report help",          4),   # P&L has a "Report Help" tab
+        ("returns",              2),
     ],
     "amazon": [
-        ("settlement",        6),
-        ("v2 settlement",     7),
-        ("other",             1),
+        ("settlement",           6),
+        ("v2 settlement",        7),
+        ("other",                1),
     ],
     "meesho": [
-        ("meesho",            7),
-        ("payment",           2),
-        ("orders",            1),
+        ("meesho",               7),
+        ("payment",              2),
+        ("orders",               1),
     ],
 }
 
 _COLUMN_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
     "flipkart": [
-        ("fsn",                          8),
+        ("fsn",                          9),
         ("seller sku id",                7),
         ("fixed fee",                    7),
         ("reverse shipping fee",         8),
@@ -113,6 +127,10 @@ _COLUMN_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
         ("gst details igst",             6),
         ("shipment zone",                5),
         ("return type",                  4),
+        ("gross sales",                  5),   # column in P&L reports
+        ("net earnings",                 5),
+        ("estimated net sales",          6),
+        ("earnings on platform",         9),   # unique to Flipkart P&L
     ],
     "amazon": [
         ("amazon-order-id",              10),
@@ -150,11 +168,75 @@ _COLUMN_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
     ],
 }
 
-# Max theoretical score for each platform (sum of all weights)
+# ── Content signals (match against cell VALUES, not column names) ─────────────
+# These fire on what's actually written INSIDE the cells — critical for
+# Flipkart P&L reports where the report structure uses row labels.
+_CONTENT_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
+    "flipkart": [
+        # Report header / metadata rows
+        ("profit & loss report",         10),  # B4: "Profit & Loss Report"
+        ("profit and loss report",       10),
+        ("profit & loss",                 8),
+        # Section labels unique to Flipkart P&L
+        ("earnings on platform",         10),  # A53 in Overall Summary
+        ("bank settlement (projected)",  10),  # A48
+        ("pnl summary",                   9),  # A9
+        ("settlement summary",            8),  # A56
+        ("estimated net sales",           8),  # A17
+        ("accounted net sales",           8),  # A20
+        ("returns and cancellations",     8),  # A12
+        ("total expenses",                7),  # A21
+        ("rewards & other benefits",      7),  # A43
+        ("input tax credits",             7),  # A49
+        ("net margin",                    6),
+        # Fee types that appear as row labels in P&L breakdown
+        ("flipkart",                     10),  # if "Flipkart" appears anywhere as a value
+        ("wallet redeem",                 9),
+        ("seller protection fund",        9),
+        ("super coin",                    8),
+        ("pick and pack fee",             8),
+        ("closing fee",                   7),
+        ("reverse shipping fee",          8),
+        ("fixed fee",                     7),
+        ("collection fee",                6),
+        ("shipment zone",                 6),
+        ("fsn",                           8),  # SKU identifier
+        ("commission invoice",            7),
+        ("flipkart assured",              8),
+    ],
+    "amazon": [
+        ("amazon",                       10),
+        ("fulfillment by amazon",        10),
+        ("seller central",                9),
+        ("amazon.in",                     9),
+        ("fba",                           7),
+        ("asin",                          8),
+        ("safe-t",                        8),
+        ("amazon order id",              10),
+        ("marketplace facilitator",       8),
+        ("principal",                     5),
+        ("referral fee",                  7),
+    ],
+    "meesho": [
+        ("meesho",                       10),
+        ("supplier panel",                9),
+        ("meesho share",                  9),
+        ("sub order number",              9),
+        ("payment cycle",                 8),
+        ("forward shipping charge",       8),
+        ("tds on commission",             8),
+        ("meesho wallet",                 8),
+    ],
+}
+
+# Max theoretical score for each platform (sum of all signal weights across all tiers)
 _MAX_SCORES: Dict[str, float] = {
-    k: sum(w for _, w in _FILENAME_SIGNALS[k])
-       + sum(w for _, w in _SHEET_SIGNALS[k])
-       + sum(w for _, w in _COLUMN_SIGNALS[k])
+    k: (
+        sum(w for _, w in _FILENAME_SIGNALS[k])
+        + sum(w for _, w in _SHEET_SIGNALS[k])
+        + sum(w for _, w in _COLUMN_SIGNALS[k])
+        + sum(w for _, w in _CONTENT_SIGNALS[k])
+    )
     for k in ("flipkart", "amazon", "meesho")
 }
 
@@ -167,20 +249,21 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
     scores: Dict[str, float] = {}
     matched: Dict[str, List[str]] = {p: [] for p in ("flipkart", "amazon", "meesho")}
 
-    fname_lower = fp.file_name.lower()
-    sheet_names_lower = [s.sheet_name.lower() for s in fp.sheets]
-    cols_lower = [c.lower() for c in fp.all_column_names]
+    fname_lower        = fp.file_name.lower()
+    sheet_names_lower  = [s.sheet_name.lower() for s in fp.sheets]
+    cols_lower         = [c.lower() for c in fp.all_column_names]
+    tokens_lower       = [t.lower() for t in fp.all_content_tokens]
 
     for platform in ("flipkart", "amazon", "meesho"):
         raw = 0.0
 
-        # ── Filename signals ─────────────────────────────────────────────────
+        # ── Tier 1: Filename signals ──────────────────────────────────────────
         for pattern, weight in _FILENAME_SIGNALS[platform]:
             if pattern in fname_lower:
                 raw += weight
                 matched[platform].append(f"filename:{pattern}")
 
-        # ── Sheet name signals ───────────────────────────────────────────────
+        # ── Tier 2: Sheet name signals ────────────────────────────────────────
         for pattern, weight in _SHEET_SIGNALS[platform]:
             for sname in sheet_names_lower:
                 if pattern in sname:
@@ -188,7 +271,7 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
                     matched[platform].append(f"sheet:{pattern}")
                     break  # count once per pattern even if in multiple sheets
 
-        # ── Column signals ───────────────────────────────────────────────────
+        # ── Tier 3: Column/header signals ─────────────────────────────────────
         for pattern, weight in _COLUMN_SIGNALS[platform]:
             for col in cols_lower:
                 if pattern in col:
@@ -196,9 +279,17 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
                     matched[platform].append(f"col:{pattern}")
                     break
 
+        # ── Tier 4: Content token signals (cell values) ───────────────────────
+        for pattern, weight in _CONTENT_SIGNALS[platform]:
+            for tok in tokens_lower:
+                if pattern in tok:
+                    raw += weight
+                    matched[platform].append(f"content:{pattern}")
+                    break
+
         scores[platform] = raw
 
-    # Normalise to 0-1 using the max theoretical score but cap at 1.0
+    # Normalise to 0–1 using the max theoretical score (for display transparency)
     norm = {
         p: min(1.0, scores[p] / _MAX_SCORES[p]) if _MAX_SCORES[p] > 0 else 0.0
         for p in scores
@@ -206,10 +297,21 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
 
     ranked = sorted(norm.items(), key=lambda x: x[1], reverse=True)
     best_platform, best_score = ranked[0]
-    runner_up_platform, runner_up_score = (ranked[1][0], ranked[1][1]) if len(ranked) > 1 else (None, 0.0)
+    runner_up_platform, runner_up_score = (
+        (ranked[1][0], ranked[1][1]) if len(ranked) > 1 else (None, 0.0)
+    )
 
-    if best_score < 0.05:
+    if best_score < 0.03:
         best_platform = "unknown"
+
+    # Dominance check: winner must hold ≥60% of the total raw signal score
+    # AND accumulate at least 20 raw points (prevents noise-only matches).
+    # This is more reliable than a fixed normalised threshold because the
+    # theoretical max is unreachable — no single file type fires all signals.
+    total_raw = sum(scores.values())
+    best_raw  = scores.get(best_platform, 0)
+    share     = best_raw / total_raw if total_raw > 0 else 0.0
+    dominance_ok = (share >= 0.60) and (best_raw >= 20) and (best_platform != "unknown")
 
     return PlatformDetectionResult(
         detected_platform=best_platform,
@@ -217,5 +319,5 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
         matched_signals=matched.get(best_platform, []),
         runner_up_platform=runner_up_platform,
         runner_up_score=round(runner_up_score, 4),
-        needs_manual_review=best_score < AUTO_PROCESS_THRESHOLD or best_platform == "unknown",
+        needs_manual_review=not dominance_ok,
     )
