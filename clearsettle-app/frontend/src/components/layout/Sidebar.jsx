@@ -28,7 +28,8 @@ var NAV_ADMIN = [
   {
     group: 'Reconciliation',
     items: [
-      { path: '/recon-engine', label: 'Recon Engine',       icon: '🔬', badge: 'NEW', bc: 'tl' },
+      { path: '/ingestion',    label: 'Report Ingestion',   icon: '📥', badge: 'NEW', bc: 'tl' },
+      { path: '/recon-engine', label: 'Recon Engine',       icon: '🔬' },
       { path: '/bank',         label: 'Bank Reconciliation', icon: '🏦', badge: 2, bc: 'am' },
     ],
   },
@@ -67,7 +68,8 @@ var NAV_SELLER = [
   {
     group: 'Intelligence',
     items: [
-      { path: '/recon-engine', label: 'Settlement Intelligence', icon: '🔬', badge: 'NEW', bc: 'tl' },
+      { path: '/ingestion',    label: 'Report Ingestion',       icon: '📥', badge: 'NEW', bc: 'tl' },
+      { path: '/recon-engine', label: 'Settlement Intelligence', icon: '🔬' },
     ],
   },
   {
