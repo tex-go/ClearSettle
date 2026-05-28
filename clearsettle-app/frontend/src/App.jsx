@@ -29,6 +29,7 @@ import CashFlowForecast from './pages/CashFlowForecast'
 import MeetingCalendar from './pages/MeetingCalendar'
 import Register from './pages/Register'
 import AdminPanel from './pages/AdminPanel'
+import Ingestion from './pages/Ingestion'
 
 function ProtectedRoute({ children, adminOnly }) {
   var isAuth = useAuthStore(function(s) { return s.isAuth })
@@ -137,6 +138,7 @@ function App() {
         <Route path="/seller-discovery" element={<ProtectedRoute><AppLayout><SellerDiscovery /></AppLayout></ProtectedRoute>} />
         <Route path="/forecast"    element={<ProtectedRoute><AppLayout><CashFlowForecast /></AppLayout></ProtectedRoute>} />
         <Route path="/meetings"    element={<ProtectedRoute><AppLayout><MeetingCalendar /></AppLayout></ProtectedRoute>} />
+        <Route path="/ingestion"   element={<ProtectedRoute><AppLayout><Ingestion /></AppLayout></ProtectedRoute>} />
         <Route path="*"            element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
