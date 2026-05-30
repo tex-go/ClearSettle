@@ -7,6 +7,7 @@ abstract final class RouteConstants {
   static const String reconciliationSummary = '/reports/:reportId/reconciliation';
   static const String analytics = '/analytics';
   static const String settings = '/settings';
+  static const String search = '/search';
 
   static String reportDetailPath(String reportId) => '/reports/$reportId';
   static String settlementDetailPath(String reportId) => '/reports/$reportId/settlement';

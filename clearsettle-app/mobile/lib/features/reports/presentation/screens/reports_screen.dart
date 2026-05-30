@@ -21,6 +21,11 @@ class ReportsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Reports'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search_outlined),
+            onPressed: () => context.push(RouteConstants.search),
+            tooltip: 'Search',
+          ),
           if (state.isBusy)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),

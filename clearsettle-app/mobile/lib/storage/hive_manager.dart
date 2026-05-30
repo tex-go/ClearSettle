@@ -1,17 +1,25 @@
+import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/constants/hive_constants.dart';
+import 'entities/discrepancy_hive_object.dart';
 import 'entities/local_report_hive_object.dart';
 import 'entities/marketplace_hive_object.dart';
 import 'entities/pending_action_hive_object.dart';
+import 'entities/report_summary_hive_object.dart';
 import 'entities/settings_hive_object.dart';
 import 'entities/sync_queue_hive_object.dart';
-import 'entities/discrepancy_hive_object.dart';
-import 'entities/report_summary_hive_object.dart';
 import 'entities/sync_status_hive_object.dart';
 import 'entities/user_hive_object.dart';
 
 class HiveManager {
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+  static const _encryptionKeyName = 'cs_hive_aes_key';
+
   static Future<void> initialize() async {
     await Hive.initFlutter();
 
@@ -26,18 +34,24 @@ class HiveManager {
       ..registerAdapter(ReportSummaryHiveObjectAdapter())
       ..registerAdapter(DiscrepancyHiveObjectAdapter());
 
+    final cipher = HiveAesCipher(await _encryptionKey());
+
     await Future.wait([
-      Hive.openBox<UserHiveObject>(HiveConstants.userBox),
+      // Sensitive boxes — encrypted with AES-256
+      Hive.openBox<UserHiveObject>(HiveConstants.userBox, encryptionCipher: cipher),
+      Hive.openBox<LocalReportHiveObject>(HiveConstants.localReportBox, encryptionCipher: cipher),
+      Hive.openBox<ReportSummaryHiveObject>(HiveConstants.reportSummaryBox, encryptionCipher: cipher),
+      Hive.openBox<DiscrepancyHiveObject>(HiveConstants.discrepancyBox, encryptionCipher: cipher),
+      // Non-sensitive boxes — unencrypted for performance
       Hive.openBox<MarketplaceHiveObject>(HiveConstants.marketplaceBox),
-      Hive.openBox<LocalReportHiveObject>(HiveConstants.localReportBox),
       Hive.openBox<SettingsHiveObject>(HiveConstants.settingsBox),
       Hive.openBox<SyncQueueHiveObject>(HiveConstants.syncQueueBox),
       Hive.openBox<PendingActionHiveObject>(HiveConstants.pendingActionsBox),
       Hive.openBox<SyncStatusHiveObject>(HiveConstants.syncStatusBox),
-      Hive.openBox<ReportSummaryHiveObject>(HiveConstants.reportSummaryBox),
-      Hive.openBox<DiscrepancyHiveObject>(HiveConstants.discrepancyBox),
     ]);
   }
+
+  // ── Getters ───────────────────────────────────────────────────────────────
 
   static Box<UserHiveObject> get userBox =>
       Hive.box<UserHiveObject>(HiveConstants.userBox);
@@ -66,6 +80,8 @@ class HiveManager {
   static Box<DiscrepancyHiveObject> get discrepancyBox =>
       Hive.box<DiscrepancyHiveObject>(HiveConstants.discrepancyBox);
 
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
   static Future<void> clearAll() async {
     await Future.wait([
       userBox.clear(),
@@ -80,7 +96,19 @@ class HiveManager {
     ]);
   }
 
-  static Future<void> close() async {
-    await Hive.close();
+  static Future<void> close() async => Hive.close();
+
+  // ── AES-256 key management (security-agent) ───────────────────────────────
+
+  static Future<List<int>> _encryptionKey() async {
+    final stored = await _secureStorage.read(key: _encryptionKeyName);
+    if (stored != null) return base64.decode(stored);
+
+    final key = Hive.generateSecureKey();
+    await _secureStorage.write(
+      key: _encryptionKeyName,
+      value: base64.encode(key),
+    );
+    return key;
   }
 }

@@ -6,6 +6,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../../services/export/export_service.dart';
 import '../../../../shared/widgets/app_error_widget.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../providers/report_detail_provider.dart';
@@ -21,10 +22,17 @@ class ReportDetailScreen extends ConsumerWidget {
     final detailAsync = ref.watch(reportDetailProvider(reportId));
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(
         title: const Text('Report Detail'),
         actions: [
+          detailAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (detail) => _ExportButton(
+              reportName: detail.report.fileName,
+              detail: detail,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_outlined),
             onPressed: () =>
@@ -81,6 +89,110 @@ class ReportDetailScreen extends ConsumerWidget {
   }
 }
 
+// ── Export button (dropdown: PDF / Excel / CSV) ────────────────────────────
+
+class _ExportButton extends ConsumerWidget {
+  const _ExportButton({
+    required this.reportName,
+    required this.detail,
+  });
+
+  final String reportName;
+  final dynamic detail; // ReportDetail
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final service = ref.read(exportServiceProvider);
+
+    return PopupMenuButton<_ExportFormat>(
+      icon: const Icon(Icons.ios_share_outlined),
+      tooltip: 'Export',
+      onSelected: (fmt) => _export(context, service, fmt),
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: _ExportFormat.pdf,
+          child: _ExportMenuItem(
+            icon: Icons.picture_as_pdf_outlined,
+            label: 'Export PDF',
+          ),
+        ),
+        PopupMenuItem(
+          value: _ExportFormat.excel,
+          child: _ExportMenuItem(
+            icon: Icons.table_chart_outlined,
+            label: 'Export Excel',
+          ),
+        ),
+        PopupMenuItem(
+          value: _ExportFormat.csv,
+          child: _ExportMenuItem(
+            icon: Icons.table_rows_outlined,
+            label: 'Export Orders CSV',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _export(
+    BuildContext context,
+    ExportService service,
+    _ExportFormat fmt,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      switch (fmt) {
+        case _ExportFormat.pdf:
+          await service.exportPdf(
+            reportName: reportName,
+            summary: detail.summary,
+            orders: detail.orders,
+            discrepancies: detail.discrepancies,
+          );
+        case _ExportFormat.excel:
+          await service.exportExcel(
+            reportName: reportName,
+            summary: detail.summary,
+            orders: detail.orders,
+            discrepancies: detail.discrepancies,
+          );
+        case _ExportFormat.csv:
+          await service.exportOrdersCsv(
+            reportName: reportName,
+            orders: detail.orders,
+          );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    }
+  }
+}
+
+enum _ExportFormat { pdf, excel, csv }
+
+class _ExportMenuItem extends StatelessWidget {
+  const _ExportMenuItem({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.primary),
+        const SizedBox(width: 10),
+        Text(label),
+      ],
+    );
+  }
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+
 class _HeaderCard extends StatelessWidget {
   const _HeaderCard({
     required this.fileName,
@@ -104,7 +216,7 @@ class _HeaderCard extends StatelessWidget {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.divider),
       ),
@@ -128,15 +240,18 @@ class _HeaderCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _InfoRow(
-              icon: Icons.storefront_outlined,
-              label: marketplace.toUpperCase()),
+            icon: Icons.storefront_outlined,
+            label: marketplace.toUpperCase(),
+          ),
           _InfoRow(
-              icon: Icons.upload_outlined,
-              label: 'Uploaded ${DateFormatter.formatDate(uploadedAt)}'),
+            icon: Icons.upload_outlined,
+            label: 'Uploaded ${DateFormatter.formatDate(uploadedAt)}',
+          ),
           if (parsedAt != null)
             _InfoRow(
-                icon: Icons.check_circle_outline,
-                label: 'Parsed ${DateFormatter.formatRelative(parsedAt!)}'),
+              icon: Icons.check_circle_outline,
+              label: 'Parsed ${DateFormatter.formatRelative(parsedAt!)}',
+            ),
           _InfoRow(icon: Icons.storage_outlined, label: fileSize),
           _InfoRow(
               icon: Icons.code_outlined, label: 'Parser v$parserVersion'),
@@ -166,6 +281,8 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
+
+// ── Stats ──────────────────────────────────────────────────────────────────
 
 class _StatsRow extends StatelessWidget {
   const _StatsRow({
@@ -205,7 +322,8 @@ class _StatsRow extends StatelessWidget {
             icon: Icons.info_outline,
             label: 'Warnings',
             value: warnings.toString(),
-            color: warnings > 0 ? AppColors.warning : AppColors.textSecondary,
+            color:
+                warnings > 0 ? AppColors.warning : AppColors.textSecondary,
           ),
         ),
       ],
@@ -241,9 +359,11 @@ class _StatChip extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value,
-                  style: AppTextStyles.titleMedium
-                      .copyWith(color: color, fontWeight: FontWeight.w700)),
+              Text(
+                value,
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: color, fontWeight: FontWeight.w700),
+              ),
               Text(label, style: AppTextStyles.labelSmall),
             ],
           ),
@@ -252,6 +372,8 @@ class _StatChip extends StatelessWidget {
     );
   }
 }
+
+// ── Action buttons ─────────────────────────────────────────────────────────
 
 class _ActionButtons extends StatelessWidget {
   const _ActionButtons({required this.reportId});
@@ -266,9 +388,8 @@ class _ActionButtons extends StatelessWidget {
           width: double.infinity,
           height: 48,
           child: ElevatedButton.icon(
-            onPressed: () => context.push(
-              RouteConstants.reconciliationPath(reportId),
-            ),
+            onPressed: () =>
+                context.push(RouteConstants.reconciliationPath(reportId)),
             icon: const Icon(Icons.fact_check_outlined, size: 18),
             label: const Text('View Reconciliation'),
           ),
@@ -278,8 +399,8 @@ class _ActionButtons extends StatelessWidget {
           width: double.infinity,
           height: 48,
           child: OutlinedButton.icon(
-            onPressed: () =>
-                context.push(RouteConstants.settlementDetailPath(reportId)),
+            onPressed: () => context
+                .push(RouteConstants.settlementDetailPath(reportId)),
             icon: const Icon(Icons.receipt_long_outlined, size: 18),
             label: const Text('View Settlements'),
           ),

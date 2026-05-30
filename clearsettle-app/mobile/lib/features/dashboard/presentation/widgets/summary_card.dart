@@ -9,6 +9,7 @@ class SummaryCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    this.iconColor,
     this.valueColor,
     this.subtitle,
   });
@@ -16,17 +17,23 @@ class SummaryCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final Color? iconColor;
   final Color? valueColor;
   final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
+    final color = iconColor ?? AppColors.primary;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.dividerDark
+              : AppColors.divider,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,10 +44,10 @@ class SummaryCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: AppColors.primary, size: 18),
+                child: Icon(icon, color: color, size: 18),
               ),
               const Spacer(),
             ],
@@ -49,22 +56,18 @@ class SummaryCard extends StatelessWidget {
           Text(
             value,
             style: AppTextStyles.headlineLarge.copyWith(
-              color: valueColor ?? AppColors.textPrimary,
+              color: valueColor ?? Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: AppTextStyles.bodySmall,
-          ),
+          Text(label, style: AppTextStyles.bodySmall),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
             Text(
               subtitle!,
-              style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.textDisabled,
-              ),
+              style: AppTextStyles.labelSmall
+                  .copyWith(color: AppColors.textDisabled),
             ),
           ],
         ],
