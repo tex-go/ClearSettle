@@ -10,6 +10,18 @@ import '../providers/analytics_provider.dart';
 class AnalyticsFilterBar extends ConsumerWidget {
   const AnalyticsFilterBar({super.key});
 
+  static const _dateFilters = [
+    (DateRangeFilter.today, 'Today'),
+    (DateRangeFilter.yesterday, 'Yesterday'),
+    (DateRangeFilter.last7Days, '7D'),
+    (DateRangeFilter.last30Days, '30D'),
+    (DateRangeFilter.thisMonth, 'This Month'),
+    (DateRangeFilter.lastMonth, 'Last Month'),
+    (DateRangeFilter.last6Months, '6M'),
+    (DateRangeFilter.allTime, 'All'),
+    (DateRangeFilter.custom, 'Custom…'),
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(analyticsFilterProvider);
@@ -19,19 +31,24 @@ class AnalyticsFilterBar extends ConsumerWidget {
       color: Theme.of(context).colorScheme.surface,
       child: Column(
         children: [
-          // Date range row
+          // Date range chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
-              children: DateRangeFilter.values.map((range) {
+              children: _dateFilters.map((entry) {
+                final (range, label) = entry;
                 final selected = filter.dateRange == range;
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: _Chip(
-                    label: _dateLabel(range),
+                  child: _FilterChip(
+                    label: selected && range == DateRangeFilter.custom
+                        ? filter.label
+                        : label,
                     selected: selected,
-                    onTap: () => notifier.setDateRange(range),
+                    onTap: () => range == DateRangeFilter.custom
+                        ? _pickCustomRange(context, ref, notifier, filter)
+                        : notifier.setDateRange(range),
                   ),
                 );
               }).toList(),
@@ -43,7 +60,7 @@ class AnalyticsFilterBar extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
               children: [
-                _Chip(
+                _FilterChip(
                   label: filter.marketplace != null
                       ? AppConstants.marketplaceDisplayNames[filter.marketplace] ??
                           filter.marketplace!
@@ -52,25 +69,34 @@ class AnalyticsFilterBar extends ConsumerWidget {
                   onTap: () => _showMarketplacePicker(context, ref, filter),
                 ),
                 const SizedBox(width: 6),
-                _Chip(
+                _FilterChip(
                   label: _settlementLabel(filter.settlementStatus),
                   selected: filter.settlementStatus != SettlementFilter.all,
-                  onTap: () => _cycleSettlement(notifier, filter),
+                  onTap: () => notifier.setSettlement(
+                    SettlementFilter.values[
+                        (filter.settlementStatus.index + 1) %
+                            SettlementFilter.values.length],
+                  ),
                 ),
                 const SizedBox(width: 6),
-                _Chip(
+                _FilterChip(
                   label: _discrepancyLabel(filter.discrepancyStatus),
                   selected: filter.discrepancyStatus != DiscrepancyFilter.all,
-                  onTap: () => _cycleDiscrepancy(notifier, filter),
+                  onTap: () => notifier.setDiscrepancy(
+                    DiscrepancyFilter.values[
+                        (filter.discrepancyStatus.index + 1) %
+                            DiscrepancyFilter.values.length],
+                  ),
                 ),
-                const SizedBox(width: 6),
-                if (_hasActiveFilter(filter))
-                  _Chip(
+                if (notifier.hasActiveFilter) ...[
+                  const SizedBox(width: 6),
+                  _FilterChip(
                     label: '✕ Clear',
                     selected: false,
                     onTap: notifier.reset,
                     isReset: true,
                   ),
+                ],
               ],
             ),
           ),
@@ -79,61 +105,39 @@ class AnalyticsFilterBar extends ConsumerWidget {
     );
   }
 
-  bool _hasActiveFilter(AnalyticsFilter f) =>
-      f.marketplace != null ||
-      f.settlementStatus != SettlementFilter.all ||
-      f.discrepancyStatus != DiscrepancyFilter.all ||
-      f.dateRange != DateRangeFilter.last6Months;
-
-  String _dateLabel(DateRangeFilter r) {
-    switch (r) {
-      case DateRangeFilter.last7Days:
-        return '7D';
-      case DateRangeFilter.last30Days:
-        return '30D';
-      case DateRangeFilter.last3Months:
-        return '3M';
-      case DateRangeFilter.last6Months:
-        return '6M';
-      case DateRangeFilter.allTime:
-        return 'All';
+  Future<void> _pickCustomRange(
+    BuildContext context,
+    WidgetRef ref,
+    AnalyticsFilterNotifier notifier,
+    AnalyticsFilter current,
+  ) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      initialDateRange: current.dateRange == DateRangeFilter.custom &&
+              current.customStart != null
+          ? DateTimeRange(
+              start: current.customStart!,
+              end: current.customEnd ?? now,
+            )
+          : DateTimeRange(
+              start: now.subtract(const Duration(days: 29)),
+              end: now,
+            ),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                primary: AppColors.primary,
+              ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      notifier.setCustomDateRange(picked.start, picked.end);
     }
-  }
-
-  String _settlementLabel(SettlementFilter f) {
-    switch (f) {
-      case SettlementFilter.all:
-        return 'All Settlements';
-      case SettlementFilter.settled:
-        return 'Settled';
-      case SettlementFilter.pending:
-        return 'Pending';
-    }
-  }
-
-  String _discrepancyLabel(DiscrepancyFilter f) {
-    switch (f) {
-      case DiscrepancyFilter.all:
-        return 'All Reports';
-      case DiscrepancyFilter.hasIssues:
-        return 'Has Issues';
-      case DiscrepancyFilter.clean:
-        return 'Clean';
-    }
-  }
-
-  void _cycleSettlement(
-      AnalyticsFilterNotifier notifier, AnalyticsFilter filter) {
-    final next = SettlementFilter.values[
-        (filter.settlementStatus.index + 1) % SettlementFilter.values.length];
-    notifier.setSettlement(next);
-  }
-
-  void _cycleDiscrepancy(
-      AnalyticsFilterNotifier notifier, AnalyticsFilter filter) {
-    final next = DiscrepancyFilter.values[
-        (filter.discrepancyStatus.index + 1) % DiscrepancyFilter.values.length];
-    notifier.setDiscrepancy(next);
   }
 
   void _showMarketplacePicker(
@@ -171,10 +175,22 @@ class AnalyticsFilterBar extends ConsumerWidget {
       ),
     );
   }
+
+  String _settlementLabel(SettlementFilter f) => switch (f) {
+        SettlementFilter.all => 'All Settlements',
+        SettlementFilter.settled => 'Settled',
+        SettlementFilter.pending => 'Pending',
+      };
+
+  String _discrepancyLabel(DiscrepancyFilter f) => switch (f) {
+        DiscrepancyFilter.all => 'All Reports',
+        DiscrepancyFilter.hasIssues => 'Has Issues',
+        DiscrepancyFilter.clean => 'Clean',
+      };
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -188,34 +204,34 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bg = selected
+        ? AppColors.primary.withValues(alpha: 0.12)
+        : isReset
+            ? AppColors.error.withValues(alpha: 0.08)
+            : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final border = selected
+        ? AppColors.primary
+        : isReset
+            ? AppColors.error.withValues(alpha: 0.4)
+            : AppColors.divider;
+    final textColor = selected
+        ? AppColors.primary
+        : isReset
+            ? AppColors.error
+            : Theme.of(context).colorScheme.onSurface;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withValues(alpha: 0.12)
-              : isReset
-                  ? AppColors.error.withValues(alpha: 0.08)
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: bg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected
-                ? AppColors.primary
-                : isReset
-                    ? AppColors.error.withValues(alpha: 0.4)
-                    : AppColors.divider,
-          ),
+          border: Border.all(color: border),
         ),
         child: Text(
           label,
-          style: AppTextStyles.labelMedium.copyWith(
-            color: selected
-                ? AppColors.primary
-                : isReset
-                    ? AppColors.error
-                    : Theme.of(context).colorScheme.onSurface,
-          ),
+          style: AppTextStyles.labelMedium.copyWith(color: textColor),
         ),
       ),
     );

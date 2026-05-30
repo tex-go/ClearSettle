@@ -6,6 +6,8 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../domain/entities/analytics_entity.dart';
 
+// ── Revenue vs Settlement Line Chart ──────────────────────────────────────────
+
 class RevenueTrendChart extends StatelessWidget {
   const RevenueTrendChart({
     super.key,
@@ -18,9 +20,7 @@ class RevenueTrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (revenueTrend.isEmpty) {
-      return const _NoData();
-    }
+    if (revenueTrend.isEmpty) return const _NoData();
 
     final maxY = revenueTrend
             .map((p) => p.value)
@@ -30,71 +30,67 @@ class RevenueTrendChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _ChartLegend(
-          items: const [
-            _LegendItem(label: 'Gross Revenue', color: AppColors.primary),
-            _LegendItem(label: 'Net Settlement', color: AppColors.accent),
-          ],
-        ),
+        _Legend(items: const [
+          _LegendItem(label: 'Gross Revenue', color: AppColors.primary),
+          _LegendItem(label: 'Net Settlement', color: AppColors.accent),
+        ]),
         const SizedBox(height: 12),
         SizedBox(
           height: 180,
-          child: LineChart(
-            LineChartData(
-              minY: 0,
-              maxY: maxY > 0 ? maxY : 10000,
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                horizontalInterval: maxY > 0 ? maxY / 4 : 2500,
-                getDrawingHorizontalLine: (value) => FlLine(
-                  color: AppColors.divider,
-                  strokeWidth: 1,
-                ),
-              ),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false)),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 64,
-                    getTitlesWidget: (value, _) => Text(
-                      CurrencyFormatter.formatCompact(value),
-                      style: AppTextStyles.labelSmall,
-                    ),
-                  ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    getTitlesWidget: (value, _) {
-                      final idx = value.toInt();
-                      if (idx < 0 || idx >= revenueTrend.length) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          revenueTrend[idx].label,
-                          style: AppTextStyles.labelSmall,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              borderData: FlBorderData(show: false),
-              lineBarsData: [
-                _line(revenueTrend, AppColors.primary),
-                if (settlementTrend.isNotEmpty)
-                  _line(settlementTrend, AppColors.accent),
-              ],
+          child: LineChart(_lineData(maxY)),
+        ),
+      ],
+    );
+  }
+
+  LineChartData _lineData(double maxY) {
+    return LineChartData(
+      minY: 0,
+      maxY: maxY > 0 ? maxY : 10000,
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        horizontalInterval: maxY > 0 ? maxY / 4 : 2500,
+        getDrawingHorizontalLine: (_) =>
+            const FlLine(color: AppColors.divider, strokeWidth: 1),
+      ),
+      titlesData: FlTitlesData(
+        topTitles:
+            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles:
+            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 64,
+            getTitlesWidget: (v, _) => Text(
+              CurrencyFormatter.formatCompact(v),
+              style: AppTextStyles.labelSmall,
             ),
           ),
         ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            getTitlesWidget: (v, _) {
+              final i = v.toInt();
+              if (i < 0 || i >= revenueTrend.length) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child:
+                    Text(revenueTrend[i].label, style: AppTextStyles.labelSmall),
+              );
+            },
+          ),
+        ),
+      ),
+      borderData: FlBorderData(show: false),
+      lineBarsData: [
+        _line(revenueTrend, AppColors.primary),
+        if (settlementTrend.isNotEmpty)
+          _line(settlementTrend, AppColors.accent),
       ],
     );
   }
@@ -106,13 +102,171 @@ class RevenueTrendChart extends StatelessWidget {
       color: color,
       barWidth: 2.5,
       dotData: const FlDotData(show: false),
-      belowBarData: BarAreaData(
-        show: true,
-        color: color.withValues(alpha: 0.08),
+      belowBarData:
+          BarAreaData(show: true, color: color.withValues(alpha: 0.08)),
+    );
+  }
+}
+
+// ── Settlement Trend (standalone) ─────────────────────────────────────────────
+
+class SettlementTrendChart extends StatelessWidget {
+  const SettlementTrendChart({super.key, required this.settlementTrend});
+
+  final List<ChartPoint> settlementTrend;
+
+  @override
+  Widget build(BuildContext context) {
+    if (settlementTrend.isEmpty) return const _NoData();
+    final maxY = settlementTrend
+            .map((p) => p.value)
+            .fold(0.0, (a, b) => a > b ? a : b) *
+        1.2;
+
+    return SizedBox(
+      height: 160,
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: maxY > 0 ? maxY : 10000,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: maxY > 0 ? maxY / 4 : 2500,
+            getDrawingHorizontalLine: (_) =>
+                const FlLine(color: AppColors.divider, strokeWidth: 1),
+          ),
+          titlesData: FlTitlesData(
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 64,
+                getTitlesWidget: (v, _) => Text(
+                  CurrencyFormatter.formatCompact(v),
+                  style: AppTextStyles.labelSmall,
+                ),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (v, _) {
+                  final i = v.toInt();
+                  if (i < 0 || i >= settlementTrend.length) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(settlementTrend[i].label,
+                        style: AppTextStyles.labelSmall),
+                  );
+                },
+              ),
+            ),
+          ),
+          borderData: FlBorderData(show: false),
+          lineBarsData: [
+            LineChartBarData(
+              spots: settlementTrend
+                  .map((p) => FlSpot(p.x, p.value))
+                  .toList(),
+              isCurved: true,
+              color: AppColors.accent,
+              barWidth: 2.5,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: AppColors.accent.withValues(alpha: 0.1),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+// ── Order Growth Bar Chart ─────────────────────────────────────────────────────
+
+class OrderGrowthChart extends StatelessWidget {
+  const OrderGrowthChart({super.key, required this.data});
+
+  final List<ChartPoint> data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) return const _NoData();
+
+    final maxY = data.map((p) => p.value).fold(0.0, (a, b) => a > b ? a : b) *
+        1.2;
+
+    return SizedBox(
+      height: 160,
+      child: BarChart(
+        BarChartData(
+          maxY: maxY > 0 ? maxY : 100,
+          barGroups: data.asMap().entries.map((e) {
+            return BarChartGroupData(
+              x: e.key,
+              barRods: [
+                BarChartRodData(
+                  toY: e.value.value,
+                  color: AppColors.primary,
+                  width: data.length > 6 ? 12 : 20,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(4)),
+                ),
+              ],
+            );
+          }).toList(),
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: maxY > 0 ? maxY / 4 : 25,
+            getDrawingHorizontalLine: (_) =>
+                const FlLine(color: AppColors.divider, strokeWidth: 1),
+          ),
+          titlesData: FlTitlesData(
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 40,
+                getTitlesWidget: (v, _) => Text(
+                  v.toInt().toString(),
+                  style: AppTextStyles.labelSmall,
+                ),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (v, _) {
+                  final i = v.toInt();
+                  if (i < 0 || i >= data.length) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(data[i].label, style: AppTextStyles.labelSmall),
+                  );
+                },
+              ),
+            ),
+          ),
+          borderData: FlBorderData(show: false),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Fee Breakdown Pie Chart ────────────────────────────────────────────────────
 
 class FeeBreakdownChart extends StatefulWidget {
   const FeeBreakdownChart({super.key, required this.slices});
@@ -132,129 +286,217 @@ class _FeeBreakdownChartState extends State<FeeBreakdownChart> {
 
     final total = widget.slices.fold(0.0, (s, e) => s + e.amount);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 180,
-                child: PieChart(
-                  PieChartData(
-                    sections: List.generate(widget.slices.length, (i) {
-                      final slice = widget.slices[i];
-                      final isTouched = i == _touchedIndex;
-                      final pct = total > 0
-                          ? (slice.amount / total * 100).toStringAsFixed(1)
-                          : '0';
-                      return PieChartSectionData(
-                        value: slice.amount,
-                        title: isTouched ? '$pct%' : '',
-                        color: _hexToColor(slice.colorHex),
-                        radius: isTouched ? 72 : 60,
-                        titleStyle: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      );
-                    }),
-                    centerSpaceRadius: 36,
-                    sectionsSpace: 2,
-                    pieTouchData: PieTouchData(
-                      touchCallback: (event, response) {
-                        setState(() {
-                          _touchedIndex =
-                              response?.touchedSection?.touchedSectionIndex;
-                        });
-                      },
+        Expanded(
+          child: SizedBox(
+            height: 180,
+            child: PieChart(
+              PieChartData(
+                sections: List.generate(widget.slices.length, (i) {
+                  final sl = widget.slices[i];
+                  final isTouched = i == _touchedIndex;
+                  final pct = total > 0
+                      ? (sl.amount / total * 100).toStringAsFixed(1)
+                      : '0';
+                  return PieChartSectionData(
+                    value: sl.amount,
+                    title: isTouched ? '$pct%' : '',
+                    color: _hex(sl.colorHex),
+                    radius: isTouched ? 72 : 60,
+                    titleStyle: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ),
+                  );
+                }),
+                centerSpaceRadius: 36,
+                sectionsSpace: 2,
+                pieTouchData: PieTouchData(
+                  touchCallback: (_, r) => setState(() {
+                    _touchedIndex =
+                        r?.touchedSection?.touchedSectionIndex;
+                  }),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: widget.slices.map((s) {
-                final pct = total > 0
-                    ? (s.amount / total * 100).toStringAsFixed(0)
-                    : '0';
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: _hexToColor(s.colorHex),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${s.label} ($pct%)',
-                        style: AppTextStyles.labelSmall,
-                      ),
-                    ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: widget.slices.map((s) {
+            final pct = total > 0
+                ? (s.amount / total * 100).toStringAsFixed(0)
+                : '0';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: _hex(s.colorHex),
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                );
-              }).toList(),
-            ),
-          ],
+                  const SizedBox(width: 6),
+                  Text('${s.label} ($pct%)',
+                      style: AppTextStyles.labelSmall),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ],
     );
   }
 
-  Color _hexToColor(String hex) {
-    final h = hex.replaceFirst('#', '');
-    return Color(int.parse('FF$h', radix: 16));
+  Color _hex(String h) {
+    final v = h.replaceFirst('#', '');
+    return Color(int.parse('FF$v', radix: 16));
   }
 }
 
-class OrderGrowthChart extends StatelessWidget {
-  const OrderGrowthChart({super.key, required this.data});
+// ── Monthly Comparison Grouped Bar Chart ──────────────────────────────────────
 
+class MonthlyComparisonChart extends StatelessWidget {
+  const MonthlyComparisonChart({super.key, required this.data});
+
+  final List<MonthlyData> data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) return const _NoData();
+
+    final maxY = data
+            .expand((d) => [d.grossRevenue, d.netSettlement])
+            .fold(0.0, (a, b) => a > b ? a : b) *
+        1.2;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Legend(items: const [
+          _LegendItem(label: 'Gross', color: AppColors.primary),
+          _LegendItem(label: 'Net', color: AppColors.accent),
+          _LegendItem(label: 'Fees', color: AppColors.warning),
+        ]),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 180,
+          child: BarChart(
+            BarChartData(
+              maxY: maxY > 0 ? maxY : 10000,
+              groupsSpace: 12,
+              barGroups: data.asMap().entries.map((e) {
+                final d = e.value;
+                return BarChartGroupData(
+                  x: e.key,
+                  groupVertically: false,
+                  barsSpace: 3,
+                  barRods: [
+                    BarChartRodData(
+                      toY: d.grossRevenue,
+                      color: AppColors.primary,
+                      width: 8,
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(3)),
+                    ),
+                    BarChartRodData(
+                      toY: d.netSettlement,
+                      color: AppColors.accent,
+                      width: 8,
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(3)),
+                    ),
+                    BarChartRodData(
+                      toY: d.totalFees,
+                      color: AppColors.warning,
+                      width: 8,
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(3)),
+                    ),
+                  ],
+                );
+              }).toList(),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: maxY > 0 ? maxY / 4 : 2500,
+                getDrawingHorizontalLine: (_) =>
+                    const FlLine(color: AppColors.divider, strokeWidth: 1),
+              ),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 64,
+                    getTitlesWidget: (v, _) => Text(
+                      CurrencyFormatter.formatCompact(v),
+                      style: AppTextStyles.labelSmall,
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (v, _) {
+                      final i = v.toInt();
+                      if (i < 0 || i >= data.length) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(data[i].label,
+                            style: AppTextStyles.labelSmall),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              borderData: FlBorderData(show: false),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Fee Trend Line Chart ───────────────────────────────────────────────────────
+
+class FeeTrendChart extends StatelessWidget {
+  const FeeTrendChart({super.key, required this.data});
+
+  // Pass settlementTrend mapped to fees: grossRevenue - netSettlement per period
   final List<ChartPoint> data;
 
   @override
   Widget build(BuildContext context) {
     if (data.isEmpty) return const _NoData();
 
-    final maxY = data.map((p) => p.value).fold(0.0, (a, b) => a > b ? a : b) *
-        1.2;
+    final maxY =
+        data.map((p) => p.value).fold(0.0, (a, b) => a > b ? a : b) * 1.2;
 
     return SizedBox(
-      height: 180,
-      child: BarChart(
-        BarChartData(
-          maxY: maxY > 0 ? maxY : 100,
-          barGroups: data.asMap().entries.map((entry) {
-            return BarChartGroupData(
-              x: entry.key,
-              barRods: [
-                BarChartRodData(
-                  toY: entry.value.value,
-                  color: AppColors.primary,
-                  width: data.length > 6 ? 12 : 20,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(4),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
+      height: 160,
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: maxY > 0 ? maxY : 1000,
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            horizontalInterval: maxY > 0 ? maxY / 4 : 25,
-            getDrawingHorizontalLine: (value) => FlLine(
-              color: AppColors.divider,
-              strokeWidth: 1,
-            ),
+            horizontalInterval: maxY > 0 ? maxY / 4 : 250,
+            getDrawingHorizontalLine: (_) =>
+                const FlLine(color: AppColors.divider, strokeWidth: 1),
           ),
           titlesData: FlTitlesData(
             topTitles:
@@ -264,9 +506,9 @@ class OrderGrowthChart extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 40,
-                getTitlesWidget: (value, _) => Text(
-                  value.toInt().toString(),
+                reservedSize: 64,
+                getTitlesWidget: (v, _) => Text(
+                  CurrencyFormatter.formatCompact(v),
                   style: AppTextStyles.labelSmall,
                 ),
               ),
@@ -274,30 +516,41 @@ class OrderGrowthChart extends StatelessWidget {
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                getTitlesWidget: (value, _) {
-                  final idx = value.toInt();
-                  if (idx < 0 || idx >= data.length) {
+                getTitlesWidget: (v, _) {
+                  final i = v.toInt();
+                  if (i < 0 || i >= data.length) {
                     return const SizedBox.shrink();
                   }
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      data[idx].label,
-                      style: AppTextStyles.labelSmall,
-                    ),
+                    child:
+                        Text(data[i].label, style: AppTextStyles.labelSmall),
                   );
                 },
               ),
             ),
           ),
           borderData: FlBorderData(show: false),
+          lineBarsData: [
+            LineChartBarData(
+              spots: data.map((p) => FlSpot(p.x, p.value)).toList(),
+              isCurved: true,
+              color: AppColors.warning,
+              barWidth: 2.5,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: AppColors.warning.withValues(alpha: 0.1),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ── Shared private widgets ─────────────────────────────────────────────────
+// ── Shared helpers ─────────────────────────────────────────────────────────────
 
 class _NoData extends StatelessWidget {
   const _NoData();
@@ -309,17 +562,16 @@ class _NoData extends StatelessWidget {
       child: Center(
         child: Text(
           'No data for selected period',
-          style: AppTextStyles.bodySmall.copyWith(
-            color: AppColors.textDisabled,
-          ),
+          style: AppTextStyles.bodySmall
+              .copyWith(color: AppColors.textDisabled),
         ),
       ),
     );
   }
 }
 
-class _ChartLegend extends StatelessWidget {
-  const _ChartLegend({required this.items});
+class _Legend extends StatelessWidget {
+  const _Legend({required this.items});
 
   final List<_LegendItem> items;
 
@@ -327,22 +579,16 @@ class _ChartLegend extends StatelessWidget {
   Widget build(BuildContext context) {
     return Wrap(
       spacing: 16,
-      children: items
-          .map(
-            (item) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 12,
-                  height: 3,
-                  color: item.color,
-                ),
-                const SizedBox(width: 4),
-                Text(item.label, style: AppTextStyles.labelSmall),
-              ],
-            ),
-          )
-          .toList(),
+      children: items.map((item) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 12, height: 3, color: item.color),
+            const SizedBox(width: 4),
+            Text(item.label, style: AppTextStyles.labelSmall),
+          ],
+        );
+      }).toList(),
     );
   }
 }
