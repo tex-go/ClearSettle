@@ -6,6 +6,8 @@ import 'entities/marketplace_hive_object.dart';
 import 'entities/pending_action_hive_object.dart';
 import 'entities/settings_hive_object.dart';
 import 'entities/sync_queue_hive_object.dart';
+import 'entities/discrepancy_hive_object.dart';
+import 'entities/report_summary_hive_object.dart';
 import 'entities/sync_status_hive_object.dart';
 import 'entities/user_hive_object.dart';
 
@@ -20,7 +22,9 @@ class HiveManager {
       ..registerAdapter(SettingsHiveObjectAdapter())
       ..registerAdapter(SyncQueueHiveObjectAdapter())
       ..registerAdapter(PendingActionHiveObjectAdapter())
-      ..registerAdapter(SyncStatusHiveObjectAdapter());
+      ..registerAdapter(SyncStatusHiveObjectAdapter())
+      ..registerAdapter(ReportSummaryHiveObjectAdapter())
+      ..registerAdapter(DiscrepancyHiveObjectAdapter());
 
     await Future.wait([
       Hive.openBox<UserHiveObject>(HiveConstants.userBox),
@@ -30,6 +34,8 @@ class HiveManager {
       Hive.openBox<SyncQueueHiveObject>(HiveConstants.syncQueueBox),
       Hive.openBox<PendingActionHiveObject>(HiveConstants.pendingActionsBox),
       Hive.openBox<SyncStatusHiveObject>(HiveConstants.syncStatusBox),
+      Hive.openBox<ReportSummaryHiveObject>(HiveConstants.reportSummaryBox),
+      Hive.openBox<DiscrepancyHiveObject>(HiveConstants.discrepancyBox),
     ]);
   }
 
@@ -54,6 +60,12 @@ class HiveManager {
   static Box<SyncStatusHiveObject> get syncStatusBox =>
       Hive.box<SyncStatusHiveObject>(HiveConstants.syncStatusBox);
 
+  static Box<ReportSummaryHiveObject> get reportSummaryBox =>
+      Hive.box<ReportSummaryHiveObject>(HiveConstants.reportSummaryBox);
+
+  static Box<DiscrepancyHiveObject> get discrepancyBox =>
+      Hive.box<DiscrepancyHiveObject>(HiveConstants.discrepancyBox);
+
   static Future<void> clearAll() async {
     await Future.wait([
       userBox.clear(),
@@ -63,6 +75,8 @@ class HiveManager {
       syncQueueBox.clear(),
       pendingActionsBox.clear(),
       syncStatusBox.clear(),
+      reportSummaryBox.clear(),
+      discrepancyBox.clear(),
     ]);
   }
 

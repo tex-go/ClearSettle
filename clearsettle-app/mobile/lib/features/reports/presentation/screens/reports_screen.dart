@@ -1,161 +1,160 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/utils/date_formatter.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
-import '../../../../storage/entities/local_report_hive_object.dart';
-import '../../../../storage/hive_manager.dart';
+import '../providers/reports_provider.dart';
+import '../widgets/report_card.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final reports = HiveManager.localReportBox.values.toList()
-      ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+    final state = ref.watch(reportsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(
         title: const Text('Reports'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.upload_file_outlined),
-            onPressed: () => _showUploadSheet(context),
-            tooltip: 'Upload report',
+          if (state.isBusy)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textInverse,
+                ),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.upload_file_outlined),
+              onPressed: () => _uploadReport(context, ref),
+              tooltip: 'Upload report',
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (state.errorMessage != null) _ErrorBanner(
+            message: state.errorMessage!,
+            onDismiss: () => ref.read(reportsProvider.notifier).clearError(),
+          ),
+          if (state.isUploading) _UploadProgressBar(
+            fileName: state.uploadingFileName,
+          ),
+          Expanded(
+            child: state.reports.isEmpty
+                ? EmptyStateWidget(
+                    icon: Icons.description_outlined,
+                    title: 'No reports yet',
+                    subtitle: 'Upload a Flipkart settlement Excel file\nto analyse fees and discrepancies.',
+                    action: ElevatedButton.icon(
+                      onPressed: () => _uploadReport(context, ref),
+                      icon: const Icon(Icons.upload_file_outlined, size: 18),
+                      label: const Text('Upload Report'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(200, 46),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: state.reports.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final report = state.reports[index];
+                      return ReportCard(
+                        report: report,
+                        isParsing: state.parsingReportId == report.id,
+                        onTap: () => context.push(
+                          RouteConstants.reportDetailPath(report.id),
+                        ),
+                        onRetry: report.isFailed
+                            ? () => ref
+                                .read(reportsProvider.notifier)
+                                .retryParse(report.id)
+                            : null,
+                        onDelete: () => _confirmDelete(context, ref, report.id),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
-      body: reports.isEmpty
-          ? EmptyStateWidget(
-              icon: Icons.description_outlined,
-              title: 'No reports yet',
-              subtitle:
-                  'Upload your first settlement report to get started.',
-              action: TextButton.icon(
-                onPressed: () => _showUploadSheet(context),
-                icon: const Icon(Icons.upload_file_outlined),
-                label: const Text('Upload Report'),
-              ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: reports.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) =>
-                  _ReportTile(report: reports[index]),
-            ),
     );
   }
 
-  void _showUploadSheet(BuildContext context) {
-    showModalBottomSheet<void>(
+  Future<void> _uploadReport(BuildContext context, WidgetRef ref) async {
+    await ref.read(reportsProvider.notifier).pickAndUpload();
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    String reportId,
+  ) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Report'),
+        content: const Text(
+          'This will permanently delete the report file and all parsed data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
       ),
-      builder: (_) => const _UploadSheet(),
     );
+    if (confirmed == true) {
+      ref.read(reportsProvider.notifier).deleteReport(reportId);
+    }
   }
 }
 
-class _ReportTile extends StatelessWidget {
-  const _ReportTile({required this.report});
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message, required this.onDismiss});
 
-  final LocalReportHiveObject report;
-
-  Color get _statusColor {
-    switch (report.status) {
-      case 'processed':
-        return AppColors.success;
-      case 'failed':
-        return AppColors.error;
-      case 'processing':
-        return AppColors.warning;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
-
-  String get _statusLabel {
-    switch (report.status) {
-      case 'processed':
-        return 'Processed';
-      case 'failed':
-        return 'Failed';
-      case 'processing':
-        return 'Processing';
-      case 'uploaded':
-        return 'Uploaded';
-      default:
-        return 'Pending Upload';
-    }
-  }
+  final String message;
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider),
-      ),
+      color: AppColors.error.withValues(alpha: 0.08),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.table_chart_outlined,
-              color: AppColors.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
+          const Icon(Icons.error_outline, color: AppColors.error, size: 16),
+          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  report.fileName,
-                  style: AppTextStyles.titleMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${report.platform.toUpperCase()} • ${report.reportType}',
-                  style: AppTextStyles.bodySmall,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  DateFormatter.formatDate(
-                    DateTime.tryParse(report.uploadedAt) ?? DateTime.now(),
-                  ),
-                  style: AppTextStyles.labelSmall,
-                ),
-              ],
+            child: Text(
+              message,
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
             ),
           ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              _statusLabel,
-              style: AppTextStyles.labelSmall.copyWith(color: _statusColor),
-            ),
+          IconButton(
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, size: 16),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -163,57 +162,27 @@ class _ReportTile extends StatelessWidget {
   }
 }
 
-class _UploadSheet extends StatelessWidget {
-  const _UploadSheet();
+class _UploadProgressBar extends StatelessWidget {
+  const _UploadProgressBar({this.fileName});
+
+  final String? fileName;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-      ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: AppColors.primary.withValues(alpha: 0.05),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text('Upload Settlement Report', style: AppTextStyles.headlineMedium),
-          const SizedBox(height: 6),
           Text(
-            'Supported: Flipkart settlement Excel (.xlsx)',
+            fileName != null ? 'Uploading $fileName…' : 'Preparing upload…',
             style: AppTextStyles.bodySmall,
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.upload_file_outlined),
-              label: const Text('Choose File'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
+          const SizedBox(height: 6),
+          const LinearProgressIndicator(
+            color: AppColors.primary,
+            backgroundColor: AppColors.surfaceVariant,
           ),
         ],
       ),
