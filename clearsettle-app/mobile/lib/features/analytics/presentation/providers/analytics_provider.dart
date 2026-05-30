@@ -8,7 +8,7 @@ final analyticsRepositoryProvider = Provider<AnalyticsRepository>(
   (_) => AnalyticsRepositoryImpl(),
 );
 
-// ── Filter state ─────────────────────────────────────────────────────────────
+// ── Filter state ───────────────────────────────────────────────────────────────
 
 final analyticsFilterProvider =
     NotifierProvider<AnalyticsFilterNotifier, AnalyticsFilter>(
@@ -21,6 +21,17 @@ class AnalyticsFilterNotifier extends Notifier<AnalyticsFilter> {
 
   void setDateRange(DateRangeFilter range) {
     state = state.copyWith(dateRange: range);
+  }
+
+  void setCustomDateRange(DateTime start, DateTime end) {
+    state = AnalyticsFilter(
+      dateRange: DateRangeFilter.custom,
+      marketplace: state.marketplace,
+      settlementStatus: state.settlementStatus,
+      discrepancyStatus: state.discrepancyStatus,
+      customStart: start,
+      customEnd: end,
+    );
   }
 
   void setMarketplace(String? marketplace) {
@@ -40,9 +51,15 @@ class AnalyticsFilterNotifier extends Notifier<AnalyticsFilter> {
   }
 
   void reset() => state = const AnalyticsFilter();
+
+  bool get hasActiveFilter =>
+      state.marketplace != null ||
+      state.settlementStatus != SettlementFilter.all ||
+      state.discrepancyStatus != DiscrepancyFilter.all ||
+      state.dateRange != DateRangeFilter.last30Days;
 }
 
-// ── Data provider ─────────────────────────────────────────────────────────────
+// ── Analytics data provider ────────────────────────────────────────────────────
 
 final analyticsProvider =
     AsyncNotifierProvider<AnalyticsNotifier, AnalyticsSummary>(
