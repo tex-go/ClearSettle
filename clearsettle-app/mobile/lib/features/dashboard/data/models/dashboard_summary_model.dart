@@ -8,6 +8,8 @@ class DashboardSummaryModel {
     required this.totalOrders,
     required this.netSettlement,
     required this.connectedMarketplaces,
+    this.grossRevenue = 0.0,
+    this.totalFees = 0.0,
     this.lastSync,
   });
 
@@ -16,6 +18,8 @@ class DashboardSummaryModel {
   final int totalReports;
   final int totalOrders;
   final double netSettlement;
+  final double grossRevenue;
+  final double totalFees;
   final List<String> connectedMarketplaces;
   final String? lastSync;
 
@@ -28,6 +32,8 @@ class DashboardSummaryModel {
       totalReports: (json['total_reports'] as int?) ?? 0,
       totalOrders: (json['total_orders'] as int?) ?? 0,
       netSettlement: ((json['net_settlement'] as num?) ?? 0).toDouble(),
+      grossRevenue: ((json['gross_revenue'] as num?) ?? 0).toDouble(),
+      totalFees: ((json['total_fees'] as num?) ?? 0).toDouble(),
       connectedMarketplaces:
           List<String>.from(json['connected_marketplaces'] as List? ?? []),
       lastSync: json['last_sync'] as String?,
@@ -40,6 +46,8 @@ class DashboardSummaryModel {
         'total_reports': totalReports,
         'total_orders': totalOrders,
         'net_settlement': netSettlement,
+        'gross_revenue': grossRevenue,
+        'total_fees': totalFees,
         'connected_marketplaces': connectedMarketplaces,
         'last_sync': lastSync,
       };
@@ -51,6 +59,8 @@ class DashboardSummaryModel {
       totalReports: totalReports,
       totalOrders: totalOrders,
       netSettlement: netSettlement,
+      grossRevenue: grossRevenue,
+      totalFees: totalFees,
       connectedMarketplaces: connectedMarketplaces,
       lastSync: lastSync != null ? DateTime.tryParse(lastSync!) : null,
       isFromCache: isFromCache,
@@ -64,6 +74,8 @@ class DashboardSummaryModel {
       totalReports: entity.totalReports,
       totalOrders: entity.totalOrders,
       netSettlement: entity.netSettlement,
+      grossRevenue: entity.grossRevenue,
+      totalFees: entity.totalFees,
       connectedMarketplaces: entity.connectedMarketplaces,
       lastSync: entity.lastSync?.toIso8601String(),
     );

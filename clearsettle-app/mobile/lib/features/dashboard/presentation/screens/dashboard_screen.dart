@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/currency_formatter.dart';
@@ -23,7 +25,7 @@ class DashboardScreen extends ConsumerWidget {
     final dashboardAsync = ref.watch(dashboardProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.primary,
@@ -31,7 +33,10 @@ class DashboardScreen extends ConsumerWidget {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              _buildAppBar(authState),
+              _DashboardAppBar(
+                authState: authState,
+                onSearch: () => context.push(RouteConstants.search),
+              ),
               dashboardAsync.when(
                 loading: () => const SliverFillRemaining(
                   child: LoadingIndicator(),
@@ -44,15 +49,15 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ),
                 data: (summary) => summary == null
-                    ? SliverFillRemaining(
+                    ? const SliverFillRemaining(
                         child: EmptyStateWidget(
                           icon: Icons.dashboard_outlined,
                           title: 'No data yet',
                           subtitle:
-                              'Connect a marketplace to see your settlement summary.',
+                              'Upload a settlement report to see your financial summary.',
                         ),
                       )
-                    : _buildContent(summary),
+                    : _DashboardContent(summary: summary),
               ),
             ],
           ),
@@ -60,55 +65,52 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildAppBar(dynamic authState) {
+class _DashboardAppBar extends StatelessWidget {
+  const _DashboardAppBar({required this.authState, required this.onSearch});
+
+  final dynamic authState;
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context) {
     return SliverToBoxAdapter(
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        decoration: const BoxDecoration(
-          color: AppColors.primary,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+        color: AppColors.primary,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _getGreeting(),
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textInverse.withOpacity(0.75),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        authState is dynamic && authState.isAuthenticated
-                            ? (authState as dynamic).sellerName
-                            : 'Seller',
-                        style: AppTextStyles.headlineLarge.copyWith(
-                          color: AppColors.textInverse,
-                        ),
-                      ),
-                    ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greeting(),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textInverse.withValues(alpha: 0.75),
+                    ),
                   ),
-                ),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.textInverse.withOpacity(0.1),
-                    shape: BoxShape.circle,
+                  const SizedBox(height: 2),
+                  Text(
+                    authState?.sellerName ?? 'Seller',
+                    style: AppTextStyles.headlineLarge.copyWith(
+                      color: AppColors.textInverse,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.notifications_outlined,
-                    color: AppColors.textInverse,
-                    size: 22,
-                  ),
-                ),
-              ],
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.search, color: AppColors.textInverse),
+              onPressed: onSearch,
+              tooltip: 'Search',
+            ),
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined,
+                  color: AppColors.textInverse),
+              onPressed: () {},
+              tooltip: 'Notifications',
             ),
           ],
         ),
@@ -116,54 +118,84 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(DashboardSummary summary) {
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning,';
+    if (h < 17) return 'Good afternoon,';
+    return 'Good evening,';
+  }
+}
+
+class _DashboardContent extends StatelessWidget {
+  const _DashboardContent({required this.summary});
+
+  final DashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
     return SliverPadding(
       padding: const EdgeInsets.all(16),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
-          if (summary.isFromCache) _buildOfflineBanner(summary.lastSync),
+          if (summary.isFromCache) _OfflineBanner(lastSync: summary.lastSync),
           if (summary.isFromCache) const SizedBox(height: 12),
-          _buildOrgCard(summary),
+          _OrgCard(summary: summary),
           const SizedBox(height: 16),
-          _buildNetSettlementCard(summary),
-          const SizedBox(height: 16),
-          _buildStatsRow(summary),
+          _NetSettlementCard(value: summary.netSettlement),
+          const SizedBox(height: 12),
+          _KpiGrid(summary: summary),
           const SizedBox(height: 20),
-          _buildMarketplacesSection(summary),
+          _MarketplacesSection(summary: summary),
           const SizedBox(height: 24),
         ]),
       ),
     );
   }
+}
 
-  Widget _buildOfflineBanner(DateTime? lastSync) {
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner({this.lastSync});
+
+  final DateTime? lastSync;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.warning.withOpacity(0.1),
+        color: AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off_outlined, color: AppColors.warning, size: 16),
+          const Icon(Icons.cloud_off_outlined,
+              color: AppColors.warning, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               DateFormatter.formatLastSync(lastSync),
-              style: AppTextStyles.bodySmall.copyWith(color: AppColors.warning),
+              style:
+                  AppTextStyles.bodySmall.copyWith(color: AppColors.warning),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildOrgCard(DashboardSummary summary) {
+class _OrgCard extends StatelessWidget {
+  const _OrgCard({required this.summary});
+
+  final DashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.divider),
       ),
@@ -173,10 +205,11 @@ class DashboardScreen extends ConsumerWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.store_outlined, color: AppColors.primary, size: 22),
+            child: const Icon(Icons.store_outlined,
+                color: AppColors.primary, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -190,10 +223,7 @@ class DashboardScreen extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  summary.sellerName,
-                  style: AppTextStyles.bodySmall,
-                ),
+                Text(summary.sellerName, style: AppTextStyles.bodySmall),
               ],
             ),
           ),
@@ -201,20 +231,24 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildNetSettlementCard(DashboardSummary summary) {
-    final isPositive = summary.netSettlement >= 0;
+class _NetSettlementCard extends StatelessWidget {
+  const _NetSettlementCard({required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = value >= 0;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary,
-            AppColors.primaryLight,
-          ],
+          colors: [AppColors.primary, AppColors.primaryLight],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
@@ -224,12 +258,12 @@ class DashboardScreen extends ConsumerWidget {
           Text(
             'Net Settlement',
             style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textInverse.withOpacity(0.8),
+              color: AppColors.textInverse.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            CurrencyFormatter.format(summary.netSettlement),
+            CurrencyFormatter.format(value),
             style: const TextStyle(
               color: AppColors.textInverse,
               fontSize: 32,
@@ -242,16 +276,14 @@ class DashboardScreen extends ConsumerWidget {
             children: [
               Icon(
                 isPositive ? Icons.arrow_upward : Icons.arrow_downward,
-                color: isPositive
-                    ? AppColors.success
-                    : AppColors.error,
+                color: isPositive ? AppColors.success : AppColors.error,
                 size: 14,
               ),
               const SizedBox(width: 4),
               Text(
                 isPositive ? 'Positive settlement' : 'Net payable',
                 style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textInverse.withOpacity(0.75),
+                  color: AppColors.textInverse.withValues(alpha: 0.75),
                 ),
               ),
             ],
@@ -260,40 +292,85 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildStatsRow(DashboardSummary summary) {
-    return Row(
+class _KpiGrid extends StatelessWidget {
+  const _KpiGrid({required this.summary});
+
+  final DashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
       children: [
-        Expanded(
-          child: SummaryCard(
-            label: 'Uploaded Reports',
-            value: summary.totalReports.toString(),
-            icon: Icons.description_outlined,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: SummaryCard(
+                label: 'Gross Revenue',
+                value: CurrencyFormatter.formatCompact(summary.grossRevenue),
+                icon: Icons.trending_up_outlined,
+                iconColor: AppColors.positive,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SummaryCard(
+                label: 'Total Fees',
+                value: CurrencyFormatter.formatCompact(summary.totalFees),
+                icon: Icons.account_balance_outlined,
+                iconColor: AppColors.negative,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: SummaryCard(
-            label: 'Total Orders',
-            value: _formatCount(summary.totalOrders),
-            icon: Icons.shopping_bag_outlined,
-          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: SummaryCard(
+                label: 'Total Reports',
+                value: summary.totalReports.toString(),
+                icon: Icons.description_outlined,
+                iconColor: AppColors.info,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SummaryCard(
+                label: 'Total Orders',
+                value: _compact(summary.totalOrders),
+                icon: Icons.shopping_bag_outlined,
+                iconColor: AppColors.primary,
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildMarketplacesSection(DashboardSummary summary) {
+  String _compact(int n) {
+    if (n >= 100000) return '${(n / 100000).toStringAsFixed(1)}L';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
+}
+
+class _MarketplacesSection extends StatelessWidget {
+  const _MarketplacesSection({required this.summary});
+
+  final DashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Connected Marketplaces', style: AppTextStyles.titleMedium),
         const SizedBox(height: 10),
         if (summary.connectedMarketplaces.isEmpty)
-          Text(
-            'No marketplaces connected',
-            style: AppTextStyles.bodySmall,
-          )
+          Text('No marketplaces connected', style: AppTextStyles.bodySmall)
         else
           Wrap(
             spacing: 8,
@@ -304,18 +381,5 @@ class DashboardScreen extends ConsumerWidget {
           ),
       ],
     );
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning,';
-    if (hour < 17) return 'Good afternoon,';
-    return 'Good evening,';
-  }
-
-  String _formatCount(int count) {
-    if (count >= 100000) return '${(count / 100000).toStringAsFixed(1)}L';
-    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
-    return count.toString();
   }
 }

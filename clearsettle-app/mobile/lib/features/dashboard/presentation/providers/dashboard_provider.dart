@@ -29,20 +29,26 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
 
 class DashboardNotifier extends AsyncNotifier<DashboardSummary?> {
   late final GetDashboardSummaryUseCase _getSummary;
+  late final DashboardLocalDataSource _local;
 
   @override
   Future<DashboardSummary?> build() async {
     _getSummary =
         GetDashboardSummaryUseCase(ref.read(dashboardRepositoryProvider));
+    _local = ref.read(dashboardLocalDataSourceProvider);
     return _fetchOrCache();
   }
 
   Future<DashboardSummary?> _fetchOrCache() async {
     try {
+      // 1. Try remote
       return await _getSummary();
     } catch (_) {
-      // Return null; UI handles empty state
-      return null;
+      // 2. Try JSON cache from previous successful remote call
+      final cached = await _local.getCachedSummary();
+      if (cached != null) return cached;
+      // 3. Build from locally-parsed Hive reports (offline-first)
+      return _local.buildFromHiveReports();
     }
   }
 

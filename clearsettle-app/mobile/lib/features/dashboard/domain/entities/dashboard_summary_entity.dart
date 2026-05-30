@@ -6,6 +6,8 @@ class DashboardSummary {
     required this.totalOrders,
     required this.netSettlement,
     required this.connectedMarketplaces,
+    this.grossRevenue = 0.0,
+    this.totalFees = 0.0,
     this.lastSync,
     this.isFromCache = false,
   });
@@ -15,6 +17,8 @@ class DashboardSummary {
   final int totalReports;
   final int totalOrders;
   final double netSettlement;
+  final double grossRevenue;
+  final double totalFees;
   final List<String> connectedMarketplaces;
   final DateTime? lastSync;
   final bool isFromCache;
@@ -25,6 +29,8 @@ class DashboardSummary {
     int? totalReports,
     int? totalOrders,
     double? netSettlement,
+    double? grossRevenue,
+    double? totalFees,
     List<String>? connectedMarketplaces,
     DateTime? lastSync,
     bool? isFromCache,
@@ -35,6 +41,8 @@ class DashboardSummary {
       totalReports: totalReports ?? this.totalReports,
       totalOrders: totalOrders ?? this.totalOrders,
       netSettlement: netSettlement ?? this.netSettlement,
+      grossRevenue: grossRevenue ?? this.grossRevenue,
+      totalFees: totalFees ?? this.totalFees,
       connectedMarketplaces: connectedMarketplaces ?? this.connectedMarketplaces,
       lastSync: lastSync ?? this.lastSync,
       isFromCache: isFromCache ?? this.isFromCache,
