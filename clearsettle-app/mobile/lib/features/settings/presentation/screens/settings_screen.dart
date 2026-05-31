@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../../../core/config/app_config.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/domain/entities/auth_entity.dart';
@@ -58,6 +61,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 icon: Icons.badge_outlined,
                 label: 'Role',
                 value: user?.role ?? '—',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Connected Platforms ─────────────────────────────────────────
+          _Section(
+            title: 'Connected Platforms',
+            children: [
+              _ActionTile(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Manage Connections',
+                onTap: () => context.push(RouteConstants.connectedPlatforms),
               ),
             ],
           ),

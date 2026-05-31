@@ -41,6 +41,9 @@ dependencies:
   printing: ^5.13.2
   share_plus: ^10.0.2
 
+  # OAuth — browser-based OAuth 2.0 with Chrome Custom Tabs
+  flutter_web_auth_2: ^4.0.0
+
   # Utilities
   equatable: ^2.0.5
   uuid: ^4.4.0

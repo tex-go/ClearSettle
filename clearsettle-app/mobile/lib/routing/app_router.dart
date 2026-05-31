@@ -11,6 +11,7 @@ import '../features/reports/presentation/screens/reconciliation_summary_screen.d
 import '../features/reports/presentation/screens/report_detail_screen.dart';
 import '../features/reports/presentation/screens/reports_screen.dart';
 import '../features/reports/presentation/screens/settlement_detail_screen.dart';
+import '../features/platform_connections/presentation/screens/connected_platforms_screen.dart';
 import '../features/search/presentation/screens/search_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
 import 'app_shell.dart';
@@ -87,6 +88,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: RouteConstants.settings,
             builder: (context, state) => const SettingsScreen(),
+            routes: [
+              GoRoute(
+                path: 'connected-platforms',
+                builder: (context, state) => const ConnectedPlatformsScreen(),
+              ),
+            ],
           ),
         ],
       ),
