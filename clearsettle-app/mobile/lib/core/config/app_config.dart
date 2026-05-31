@@ -4,6 +4,14 @@ abstract final class AppConfig {
     defaultValue: 'http://localhost:8000',
   );
 
+  // Super-admin email prefill on the login screen.
+  // This is the default display email — not a secret.
+  // Override at build time: --dart-define=SUPER_ADMIN_EMAIL=...
+  static const String superAdminEmail = String.fromEnvironment(
+    'SUPER_ADMIN_EMAIL',
+    defaultValue: 'Admin@clearsettle.com',
+  );
+
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration sendTimeout = Duration(seconds: 60);

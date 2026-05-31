@@ -21,6 +21,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    // Prefill the super-admin email for convenience.
+    // The email is not sensitive; the password field is always empty.
+    _emailController.text = AppConfig.superAdminEmail;
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();

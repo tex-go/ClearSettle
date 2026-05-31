@@ -26,6 +26,7 @@ from app.routers import (
     seller_discovery, forecast, meetings,
 )
 from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin, ingestion
+from app.routers import marketplace as marketplace_router
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,8 @@ app.include_router(commission.router,     prefix="/commission",     tags=["commi
 app.include_router(gst.router,            prefix="/gst",            tags=["gst"])
 app.include_router(inventory.router,      prefix="/inventory",      tags=["inventory"])
 app.include_router(analytics.router,      prefix="/analytics",      tags=["analytics"])
-app.include_router(platforms.router,      prefix="/platforms",      tags=["platforms"])
+app.include_router(platforms.router,           prefix="/platforms",    tags=["platforms"])
+app.include_router(marketplace_router.router,  prefix="/marketplace",  tags=["marketplace"])
 app.include_router(reports.router,        prefix="/reports",        tags=["reports"])
 app.include_router(dispute_engine.router, prefix="/dispute-engine", tags=["dispute-engine"])
 app.include_router(recovery.router,       prefix="/recovery",       tags=["recovery"])
