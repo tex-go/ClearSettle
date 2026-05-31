@@ -9,6 +9,7 @@ abstract final class HiveConstants {
 
   static const String reportSummaryBox = 'report_summaries';
   static const String discrepancyBox = 'discrepancies';
+  static const String cacheBox = 'cache';
 
   static const int userTypeId = 0;
   static const int marketplaceTypeId = 1;
@@ -19,4 +20,7 @@ abstract final class HiveConstants {
   static const int syncStatusTypeId = 6;
   static const int reportSummaryTypeId = 7;
   static const int discrepancyTypeId = 8;
+  static const int platformConnectionTypeId = 9;
+
+  static const String platformConnectionBox = 'platform_connections';
 }
