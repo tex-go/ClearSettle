@@ -1,11 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../reconciliation/reconciliation_engine.dart';
+import '../../../../services/file_storage/file_storage_service.dart';
+import '../../../../services/flipkart_api/flipkart_api_service.dart';
 import '../../../../services/oauth/flipkart_oauth_service.dart';
 import '../../data/repositories/platform_connection_repository_impl.dart';
 import '../../domain/entities/platform_connection.dart';
 import '../../domain/usecases/connect_flipkart_usecase.dart';
 import '../../domain/usecases/disconnect_platform_usecase.dart';
 import '../../domain/usecases/get_connections_usecase.dart';
+import '../../domain/usecases/sync_flipkart_data_usecase.dart';
 
 final _repoProvider =
     Provider((_) => PlatformConnectionRepositoryImpl());
@@ -46,5 +50,20 @@ class PlatformConnectionNotifier
       ).execute(platform);
       return GetConnectionsUseCase(_repo).execute();
     });
+  }
+
+  /// Pulls live order data from the Flipkart API, reconciles it, and
+  /// persists it as a synthetic report in Hive — same pipeline as manual upload.
+  Future<SyncFlipkartDataResult> syncFlipkartData({int daysBack = 30}) async {
+    final useCase = SyncFlipkartDataUseCase(
+      apiService: ref.read(flipkartApiServiceProvider),
+      reconciliationEngine: ReconciliationEngine(),
+      fileStorage: ref.read(fileStorageServiceProvider),
+      connectionRepository: _repo,
+    );
+    final result = await useCase.execute(daysBack: daysBack);
+    // Refresh connection list to show updated lastSyncAt
+    state = await AsyncValue.guard(() => GetConnectionsUseCase(_repo).execute());
+    return result;
   }
 }

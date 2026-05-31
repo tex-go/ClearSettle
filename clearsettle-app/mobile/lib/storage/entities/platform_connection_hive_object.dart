@@ -10,6 +10,7 @@ class PlatformConnectionHiveObject extends HiveObject {
     this.sellerName,
     this.connectedAt,
     this.tokenExpiresAt,
+    this.lastSyncAt,
   });
 
   String platform;
@@ -18,6 +19,7 @@ class PlatformConnectionHiveObject extends HiveObject {
   String? sellerName;
   String? connectedAt;    // ISO-8601
   String? tokenExpiresAt; // ISO-8601
+  String? lastSyncAt;     // ISO-8601 — set after each successful API sync
 }
 
 class PlatformConnectionHiveObjectAdapter
@@ -38,13 +40,14 @@ class PlatformConnectionHiveObjectAdapter
       sellerName: fields[3] as String?,
       connectedAt: fields[4] as String?,
       tokenExpiresAt: fields[5] as String?,
+      lastSyncAt: fields[6] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, PlatformConnectionHiveObject obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.platform)
       ..writeByte(1)
@@ -56,6 +59,8 @@ class PlatformConnectionHiveObjectAdapter
       ..writeByte(4)
       ..write(obj.connectedAt)
       ..writeByte(5)
-      ..write(obj.tokenExpiresAt);
+      ..write(obj.tokenExpiresAt)
+      ..writeByte(6)
+      ..write(obj.lastSyncAt);
   }
 }
