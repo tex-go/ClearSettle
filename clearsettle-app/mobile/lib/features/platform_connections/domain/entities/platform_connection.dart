@@ -10,6 +10,7 @@ class PlatformConnection extends Equatable {
     this.sellerName,
     this.connectedAt,
     this.tokenExpiresAt,
+    this.lastSyncAt,
   });
 
   final String platform;
@@ -18,10 +19,21 @@ class PlatformConnection extends Equatable {
   final String? sellerName;
   final DateTime? connectedAt;
   final DateTime? tokenExpiresAt;
+  final DateTime? lastSyncAt;
 
   bool get isConnected => status == ConnectionStatus.connected;
 
+  PlatformConnection copyWith({DateTime? lastSyncAt}) => PlatformConnection(
+        platform: platform,
+        status: status,
+        sellerId: sellerId,
+        sellerName: sellerName,
+        connectedAt: connectedAt,
+        tokenExpiresAt: tokenExpiresAt,
+        lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+      );
+
   @override
   List<Object?> get props =>
-      [platform, status, sellerId, sellerName, connectedAt, tokenExpiresAt];
+      [platform, status, sellerId, sellerName, connectedAt, tokenExpiresAt, lastSyncAt];
 }

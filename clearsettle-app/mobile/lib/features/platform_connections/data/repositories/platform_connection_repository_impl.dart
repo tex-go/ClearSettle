@@ -20,6 +20,7 @@ class PlatformConnectionRepositoryImpl implements PlatformConnectionRepository {
         sellerName: connection.sellerName,
         connectedAt: connection.connectedAt?.toIso8601String(),
         tokenExpiresAt: connection.tokenExpiresAt?.toIso8601String(),
+        lastSyncAt: connection.lastSyncAt?.toIso8601String(),
       ),
     );
   }
@@ -50,6 +51,8 @@ class PlatformConnectionRepositoryImpl implements PlatformConnectionRepository {
       tokenExpiresAt: obj.tokenExpiresAt != null
           ? DateTime.parse(obj.tokenExpiresAt!)
           : null,
+      lastSyncAt:
+          obj.lastSyncAt != null ? DateTime.parse(obj.lastSyncAt!) : null,
     );
   }
 }

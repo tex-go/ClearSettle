@@ -174,6 +174,64 @@ class FlipkartOAuthService {
     ]);
   }
 
+  /// Returns a valid access token — refreshes if expired.
+  /// Throws [FlipkartOAuthException] if no refresh token is stored.
+  Future<String> getValidAccessToken() async {
+    if (await isTokenValid()) {
+      return (await _storage.read(key: FlipkartOAuthConstants.accessTokenKey))!;
+    }
+    await refreshTokens();
+    final token =
+        await _storage.read(key: FlipkartOAuthConstants.accessTokenKey);
+    if (token == null) throw const FlipkartOAuthException('No access token after refresh');
+    return token;
+  }
+
+  /// Uses the stored refresh token to obtain a new access token.
+  Future<void> refreshTokens() async {
+    final refreshToken =
+        await _storage.read(key: FlipkartOAuthConstants.refreshTokenKey);
+    if (refreshToken == null) {
+      throw const FlipkartOAuthException(
+          'No refresh token stored — user must reconnect');
+    }
+
+    final credentials = base64.encode(
+      utf8.encode(
+        '${FlipkartOAuthConstants.clientId}:${FlipkartOAuthConstants.clientSecret}',
+      ),
+    );
+
+    final response = await _dio.post<Map<String, dynamic>>(
+      FlipkartOAuthConstants.tokenEndpoint,
+      data: {
+        'grant_type': 'refresh_token',
+        'refresh_token': refreshToken,
+      },
+      options: Options(
+        headers: {'Authorization': 'Basic $credentials'},
+        contentType: 'application/x-www-form-urlencoded',
+      ),
+    );
+
+    final data = response.data!;
+    final newAccessToken = data['access_token'] as String;
+    final expiresIn = (data['expires_in'] as num).toInt();
+    final expiresAt = DateTime.now().add(Duration(seconds: expiresIn));
+    // Some providers also rotate refresh tokens on refresh
+    final newRefreshToken = data['refresh_token'] as String? ?? refreshToken;
+
+    await Future.wait([
+      _storage.write(
+          key: FlipkartOAuthConstants.accessTokenKey, value: newAccessToken),
+      _storage.write(
+          key: FlipkartOAuthConstants.refreshTokenKey, value: newRefreshToken),
+      _storage.write(
+          key: FlipkartOAuthConstants.tokenExpiryKey,
+          value: expiresAt.toIso8601String()),
+    ]);
+  }
+
   Future<String?> getAccessToken() =>
       _storage.read(key: FlipkartOAuthConstants.accessTokenKey);
 
