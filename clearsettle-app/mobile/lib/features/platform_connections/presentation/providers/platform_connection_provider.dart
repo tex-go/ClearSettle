@@ -4,6 +4,7 @@ import '../../../../reconciliation/reconciliation_engine.dart';
 import '../../../../services/file_storage/file_storage_service.dart';
 import '../../../../services/flipkart_api/flipkart_api_service.dart';
 import '../../../../services/oauth/flipkart_oauth_service.dart';
+import '../../../reports/presentation/providers/reports_provider.dart';
 import '../../data/repositories/platform_connection_repository_impl.dart';
 import '../../domain/entities/platform_connection.dart';
 import '../../domain/usecases/connect_flipkart_usecase.dart';
@@ -64,6 +65,8 @@ class PlatformConnectionNotifier
     final result = await useCase.execute(daysBack: daysBack);
     // Refresh connection list to show updated lastSyncAt
     state = await AsyncValue.guard(() => GetConnectionsUseCase(_repo).execute());
+    // Refresh reports list so the new API sync report appears immediately
+    ref.read(reportsProvider.notifier).refresh();
     return result;
   }
 }

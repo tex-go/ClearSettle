@@ -60,7 +60,7 @@ class ReportsScreen extends ConsumerWidget {
                 ? EmptyStateWidget(
                     icon: Icons.description_outlined,
                     title: 'No reports yet',
-                    subtitle: 'Upload a Flipkart settlement Excel file\nto analyse fees and discrepancies.',
+                    subtitle: 'Connect your Flipkart seller account to sync data automatically, or upload a settlement Excel file manually.',
                     action: ElevatedButton.icon(
                       onPressed: () => _uploadReport(context, ref),
                       icon: const Icon(Icons.upload_file_outlined, size: 18),

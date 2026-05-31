@@ -40,7 +40,10 @@ class ReportListItem {
   bool get isParsing => status == 'parsing';
   bool get isPendingParse => status == 'pending_parse';
 
+  bool get isApiSync => reportType == 'api_sync';
+
   String get fileSizeLabel {
+    if (isApiSync) return 'Live Data';
     if (fileSize < 1024) return '${fileSize}B';
     if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)}KB';
     return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)}MB';
