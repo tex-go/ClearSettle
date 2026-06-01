@@ -126,8 +126,9 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - certbot_certs:/etc/letsencrypt:ro
-      - certbot_www:/var/www/certbot:ro
+      # Host paths match ssl-init.sh output — override named volumes
+      - /opt/clearsettle/certbot/certs:/etc/letsencrypt:ro
+      - /opt/clearsettle/certbot/www:/var/www/certbot:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       backend:
@@ -144,12 +145,18 @@ services:
       retries: 3
     logging: *default-logging
 
-  # ── Certbot (Let's Encrypt renewal) ───────────────────────────────────────
+  # ── Certbot (Let's Encrypt auto-renewal every 12h) ───────────────────────
   certbot:
     image: certbot/certbot:latest
     container_name: clearsettle-certbot
+    <<: *always-restart
     volumes:
-      - certbot_certs:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+      - /opt/clearsettle/certbot/certs:/etc/letsencrypt
+      - /opt/clearsettle/certbot/www:/var/www/certbot
+    entrypoint: >
+      /bin/sh -c 'trap exit TERM;
+      while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet;
+        sleep 12h & wait $${!};
+      done;'
     logging: *default-logging
