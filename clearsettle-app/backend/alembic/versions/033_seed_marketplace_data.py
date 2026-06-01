@@ -181,6 +181,14 @@ def upgrade() -> None:
     bind = op.get_bind()
     now  = datetime.utcnow()
 
+    # ── Ensure is_superadmin column exists on users table ─────────────────────
+    # This column is required by the super-admin seed below but was not present
+    # in the initial users table schema — add it idempotently.
+    bind.execute(sa.text("""
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT FALSE
+    """))
+
     # ── Seed marketplace registry ──────────────────────────────────────────────
     for row in MARKETPLACE_SEED:
         mid = str(uuid.uuid4())
@@ -288,11 +296,15 @@ def upgrade() -> None:
     )
 
     # Create super admin user
+    # Column names match the actual users table schema (User ORM model):
+    #   name           (not full_name)
+    #   email_verified (not is_verified)
+    #   is_superadmin  (added above via ALTER TABLE IF NOT EXISTS)
     bind.execute(
         sa.text("""
             INSERT INTO users (
-                id, email, hashed_password, full_name,
-                is_active, is_verified, is_superadmin,
+                id, email, hashed_password, name,
+                is_active, email_verified, is_superadmin,
                 created_at, updated_at
             ) VALUES (
                 :id, :email, :password, :name,
