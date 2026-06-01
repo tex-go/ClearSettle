@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/exceptions.dart';
+import '../../../../core/network/api_client.dart';
 import '../../domain/entities/dispute_entity.dart';
 
 // ---------------------------------------------------------------------------
@@ -12,6 +14,8 @@ class DisputesState {
     required this.isLoading,
     this.filterStatus,
     this.filterMarketplace,
+    this.totalClaimAmount = 0,
+    this.totalRecoveredAmount = 0,
     this.error,
   });
 
@@ -19,6 +23,8 @@ class DisputesState {
   final bool isLoading;
   final DisputeStatus? filterStatus;
   final String? filterMarketplace;
+  final double totalClaimAmount;
+  final double totalRecoveredAmount;
   final String? error;
 
   List<DisputeEntity> get filtered {
@@ -27,20 +33,11 @@ class DisputesState {
       list = list.where((d) => d.status == filterStatus).toList();
     }
     if (filterMarketplace != null && filterMarketplace!.isNotEmpty) {
-      list = list
-          .where((d) =>
-              d.marketplace.toLowerCase() ==
-              filterMarketplace!.toLowerCase())
-          .toList();
+      list = list.where((d) =>
+          d.marketplace.toLowerCase() == filterMarketplace!.toLowerCase()).toList();
     }
     return list;
   }
-
-  double get totalClaimAmount =>
-      disputes.fold(0, (s, d) => s + d.claimAmount);
-
-  double get totalRecoveredAmount =>
-      disputes.fold(0, (s, d) => s + d.recoveredAmount);
 
   int get openCount => disputes
       .where((d) =>
@@ -54,6 +51,8 @@ class DisputesState {
     DisputeStatus? filterStatus,
     bool clearFilterStatus = false,
     String? filterMarketplace,
+    double? totalClaimAmount,
+    double? totalRecoveredAmount,
     String? error,
   }) =>
       DisputesState(
@@ -61,8 +60,10 @@ class DisputesState {
         isLoading: isLoading ?? this.isLoading,
         filterStatus:
             clearFilterStatus ? null : (filterStatus ?? this.filterStatus),
-        filterMarketplace:
-            filterMarketplace ?? this.filterMarketplace,
+        filterMarketplace: filterMarketplace ?? this.filterMarketplace,
+        totalClaimAmount: totalClaimAmount ?? this.totalClaimAmount,
+        totalRecoveredAmount:
+            totalRecoveredAmount ?? this.totalRecoveredAmount,
         error: error,
       );
 }
@@ -80,8 +81,42 @@ class DisputesNotifier extends Notifier<DisputesState> {
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, error: null);
-    await Future.delayed(const Duration(milliseconds: 500));
-    state = state.copyWith(isLoading: false, disputes: _stubDisputes());
+    try {
+      final client = ref.read(apiClientProvider);
+      final resp = await client.get<Map<String, dynamic>>(
+        '/disputes/',
+        queryParameters: {'size': 50, 'page': 1},
+      );
+
+      final data = resp.data;
+      if (data == null) throw const ServerException(message: 'Empty response');
+
+      final items = (data['items'] as List? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(_fromJson)
+          .toList();
+
+      final summary = data['summary'] as Map<String, dynamic>? ?? {};
+      final totalAmount  = _d(summary['total_amount']);
+      final wonAmount    = _d(summary['won_amount']);
+
+      state = state.copyWith(
+        isLoading: false,
+        disputes: items,
+        totalClaimAmount: totalAmount,
+        totalRecoveredAmount: wonAmount,
+      );
+    } on NetworkException {
+      state = state.copyWith(
+          isLoading: false,
+          error: 'Cannot reach the server. Check your connection.');
+    } on UnauthorizedException {
+      state = state.copyWith(isLoading: false, error: 'Session expired.');
+    } catch (e) {
+      state = state.copyWith(
+          isLoading: false,
+          error: 'Could not load disputes. Please try again.');
+    }
   }
 
   Future<void> refresh() => load();
@@ -103,83 +138,56 @@ final disputesProvider =
     NotifierProvider<DisputesNotifier, DisputesState>(DisputesNotifier.new);
 
 // ---------------------------------------------------------------------------
-// Stub data
+// JSON mapping — backend /disputes/ response
 // ---------------------------------------------------------------------------
 
-List<DisputeEntity> _stubDisputes() {
-  final now = DateTime.now();
-  return [
-    DisputeEntity(
-      id: 'D-2025-001',
-      orderId: 'FKP-882214',
-      marketplace: 'Flipkart',
-      status: DisputeStatus.accepted,
-      claimAmount: 1450.0,
-      recoveredAmount: 1450.0,
-      reason: 'Wrong weight slab charged — 2 kg billed instead of 0.5 kg',
-      createdAt: now.subtract(const Duration(days: 12)),
-      updatedAt: now.subtract(const Duration(hours: 5)),
-      evidence: ['weight_certificate.pdf', 'order_invoice.pdf'],
-      notes: 'Flipkart confirmed wrong weight slab. Full amount approved.',
-    ),
-    DisputeEntity(
-      id: 'D-2025-002',
-      orderId: 'AMZ-991234',
-      marketplace: 'Amazon',
-      status: DisputeStatus.inReview,
-      claimAmount: 3200.0,
-      recoveredAmount: 0,
-      reason: 'Return received damaged — full refund issued to customer but item unusable',
-      createdAt: now.subtract(const Duration(days: 8)),
-      updatedAt: now.subtract(const Duration(days: 2)),
-      evidence: ['damage_photos.jpg', 'return_receipt.pdf'],
-    ),
-    DisputeEntity(
-      id: 'D-2025-003',
-      orderId: 'MEE-773491',
-      marketplace: 'Meesho',
-      status: DisputeStatus.submitted,
-      claimAmount: 890.0,
-      recoveredAmount: 0,
-      reason: 'Settlement deduction not matching order-level fees',
-      createdAt: now.subtract(const Duration(days: 5)),
-      updatedAt: now.subtract(const Duration(days: 5)),
-    ),
-    DisputeEntity(
-      id: 'D-2025-004',
-      orderId: 'FKP-654001',
-      marketplace: 'Flipkart',
-      status: DisputeStatus.rejected,
-      claimAmount: 2100.0,
-      recoveredAmount: 0,
-      reason: 'Commission overcharge on high-value order',
-      createdAt: now.subtract(const Duration(days: 20)),
-      updatedAt: now.subtract(const Duration(days: 15)),
-      notes: 'Rejected — commission matched platform policy. Consider appeal.',
-    ),
-    DisputeEntity(
-      id: 'D-2025-005',
-      orderId: 'AMZ-445882',
-      marketplace: 'Amazon',
-      status: DisputeStatus.recovered,
-      claimAmount: 5600.0,
-      recoveredAmount: 5600.0,
-      reason: 'Duplicate deduction on Prime Day settlement',
-      createdAt: now.subtract(const Duration(days: 30)),
-      updatedAt: now.subtract(const Duration(days: 22)),
-      evidence: ['settlement_report.xlsx', 'reconciliation.pdf'],
-      notes: 'Full recovery received in next settlement cycle.',
-    ),
-    DisputeEntity(
-      id: 'D-2025-006',
-      orderId: 'FKP-901177',
-      marketplace: 'Flipkart',
-      status: DisputeStatus.draft,
-      claimAmount: 720.0,
-      recoveredAmount: 0,
-      reason: 'Storage fee charged for warehouse that was emptied on 1 May',
-      createdAt: now.subtract(const Duration(days: 1)),
-      updatedAt: now.subtract(const Duration(days: 1)),
-    ),
-  ];
+DisputeEntity _fromJson(Map<String, dynamic> j) {
+  return DisputeEntity(
+    id: (j['id'] ?? '').toString(),
+    orderId: (j['order_id'] ?? j['external_id'] ?? '—').toString(),
+    marketplace: _normalisePlatform(
+        (j['platform'] as String?) ?? (j['marketplace'] as String?) ?? ''),
+    status: _statusFromBackend(
+        (j['workflow_state'] as String?) ?? 'detected'),
+    claimAmount: _d(j['variance_amount'] ?? j['claim_amount'] ?? 0),
+    recoveredAmount: _d(j['resolved_amount'] ?? j['recovered_amount'] ?? 0),
+    reason: (j['discrepancy_type'] as String?)
+            ?.replaceAll('_', ' ')
+            .toLowerCase()
+            .split(' ')
+            .map((w) => w.isNotEmpty
+                ? '${w[0].toUpperCase()}${w.substring(1)}'
+                : w)
+            .join(' ') ??
+        (j['reason'] as String?) ??
+        'Discrepancy detected',
+    createdAt: _parseDate(j['created_at']),
+    updatedAt: _parseDate(j['updated_at'] ?? j['created_at']),
+    notes: (j['resolution_note'] ?? j['notes']) as String?,
+  );
+}
+
+DisputeStatus _statusFromBackend(String s) => switch (s.toLowerCase()) {
+      'detected'                  => DisputeStatus.submitted,
+      'reviewed'                  => DisputeStatus.inReview,
+      'filed' || 'acknowledged'   => DisputeStatus.inReview,
+      'resolved'                  => DisputeStatus.recovered,
+      'rejected' || 'dismissed'   => DisputeStatus.rejected,
+      'draft'                     => DisputeStatus.draft,
+      _                           => DisputeStatus.submitted,
+    };
+
+String _normalisePlatform(String p) => switch (p.toLowerCase()) {
+      'flipkart' => 'Flipkart',
+      'amazon'   => 'Amazon',
+      'meesho'   => 'Meesho',
+      'shopify'  => 'Shopify',
+      _          => p.isNotEmpty ? '${p[0].toUpperCase()}${p.substring(1)}' : 'Unknown',
+    };
+
+double _d(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
+
+DateTime _parseDate(dynamic v) {
+  if (v == null) return DateTime.now();
+  try { return DateTime.parse(v.toString()); } catch (_) { return DateTime.now(); }
 }

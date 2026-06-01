@@ -70,15 +70,15 @@ class DashboardLocalDataSource {
     final organization = userObj?.organization ?? 'My Store';
 
     return DashboardSummary(
-      sellerName: sellerName,
+      sellerName:   sellerName,
       organization: organization,
       totalReports: reports.length,
-      totalOrders: totalOrders,
+      totalOrders:  totalOrders,
       netSettlement: netSettlement,
-      grossRevenue: grossRevenue,
-      totalFees: totalFees,
+      grossRevenue:  grossRevenue,
+      totalFees:     totalFees,
       connectedMarketplaces: marketplaces.toList(),
-      lastSync: null,
+      lastSync:    null,
       isFromCache: true,
     );
   }
