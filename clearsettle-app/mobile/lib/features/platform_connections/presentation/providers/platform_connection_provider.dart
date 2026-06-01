@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../reconciliation/reconciliation_engine.dart';
 import '../../../../services/file_storage/file_storage_service.dart';
 import '../../../../services/flipkart_api/flipkart_api_service.dart';
+import '../../../../services/oauth/amazon_oauth_service.dart';
 import '../../../../services/oauth/flipkart_oauth_service.dart';
 import '../../../reports/presentation/providers/reports_provider.dart';
 import '../../data/repositories/platform_connection_repository_impl.dart';
 import '../../domain/entities/platform_connection.dart';
+import '../../domain/usecases/connect_amazon_usecase.dart';
 import '../../domain/usecases/connect_flipkart_usecase.dart';
 import '../../domain/usecases/disconnect_platform_usecase.dart';
 import '../../domain/usecases/get_connections_usecase.dart';
@@ -34,6 +36,18 @@ class PlatformConnectionNotifier
     state = await AsyncValue.guard(() async {
       final oauthService = ref.read(flipkartOAuthServiceProvider);
       await ConnectFlipkartUseCase(
+        oauthService: oauthService,
+        repository: _repo,
+      ).execute();
+      return GetConnectionsUseCase(_repo).execute();
+    });
+  }
+
+  Future<void> connectAmazon() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final oauthService = ref.read(amazonOAuthServiceProvider);
+      await ConnectAmazonUseCase(
         oauthService: oauthService,
         repository: _repo,
       ).execute();

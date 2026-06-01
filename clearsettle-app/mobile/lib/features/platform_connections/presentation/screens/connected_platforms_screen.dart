@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../services/oauth/amazon_oauth_service.dart';
 import '../../../../services/oauth/flipkart_oauth_service.dart';
 import '../../domain/entities/platform_connection.dart';
 import '../providers/platform_connection_provider.dart';
@@ -89,13 +90,15 @@ class _BodyState extends ConsumerState<_Body> {
             const SizedBox(height: 12),
 
             // ── Amazon ───────────────────────────────────────────────────
-            const PlatformTile(
+            PlatformTile(
               platform: 'amazon',
               displayName: 'Amazon',
               logoColor: AppColors.amazon,
               logoIcon: Icons.store_outlined,
-              connection: null,
-              comingSoon: true,
+              connection: _find('amazon'),
+              onConnect: () => _connectAmazon(context, notifier.connectAmazon),
+              onDisconnect: () =>
+                  _confirmDisconnect(context, 'Amazon', notifier, 'amazon'),
             ),
             const SizedBox(height: 12),
 
@@ -163,6 +166,55 @@ class _BodyState extends ConsumerState<_Body> {
       // CallbackActivity is missing from AndroidManifest.xml.
       final msg = e.code == 'CANCELED'
           ? 'Login cancelled or redirect URI not configured in Flipkart Partner Console.'
+          : 'Platform error (${e.code}): ${e.message}';
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connection failed: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _connectAmazon(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Amazon account connected successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } on AmazonOAuthException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } on PlatformException catch (e) {
+      final msg = e.code == 'CANCELED'
+          ? 'Amazon login cancelled or redirect URI not configured in Amazon Developer Console.'
           : 'Platform error (${e.code}): ${e.message}';
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

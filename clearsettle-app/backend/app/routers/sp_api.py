@@ -241,6 +241,7 @@ async def configure_sp_api_credentials(
 
 @router.get("/authorize", response_model=AuthorizeResponse)
 async def initiate_oauth(
+    source: str = Query(default="web", pattern="^(web|mobile)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_db_user),
 ):
@@ -250,6 +251,11 @@ async def initiate_oauth(
     Credentials are resolved in this order:
       1. Values stored in the platform_connections row (via POST /sp-api/config)
       2. Environment variables (SP_API_APP_ID, SP_API_CLIENT_ID, etc.)
+
+    source=mobile  — Prefixes the CSRF state with 'mob.' so the callback
+                     knows to redirect to the Android deep link
+                     (clearsettle://oauth/amazon/callback) instead of the
+                     web frontend URL.
 
     Returns the authorization URL to redirect the user's browser to.
     """
@@ -277,7 +283,11 @@ async def initiate_oauth(
             ),
         )
 
-    state = generate_oauth_state()
+    # Encode mobile source in the state token so the callback can route correctly
+    # without requiring a DB schema change.  Amazon passes state back verbatim.
+    raw_state = generate_oauth_state()
+    state = f"mob.{raw_state}" if source == "mobile" else raw_state
+
     conn.oauth_state          = state
     conn.status               = "oauth_pending"
     conn.sp_client_id         = client_id
@@ -297,6 +307,11 @@ async def initiate_oauth(
         redirect_uri=redirect_uri,
     )
 
+    logger.info(
+        "SP API OAuth initiated: source=%s connection=%s",
+        source, conn.id,
+    )
+
     return AuthorizeResponse(
         authorization_url=auth_url,
         state=state,
@@ -313,11 +328,31 @@ async def oauth_callback(
     selling_partner_id: str,
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Amazon OAuth callback — Amazon redirects here after the seller authorizes.
+
+    Route logic:
+      - If state starts with 'mob.' → redirect to Android deep link
+        clearsettle://oauth/amazon/callback?status=success&connection_id=<id>
+      - Otherwise → redirect to web frontend
+        {frontend_url}/platforms?connected=amazon&status=success
+
+    No authentication required: Amazon calls this URL directly; the CSRF
+    state token is the only protection.
+    """
+    is_mobile = state.startswith("mob.")
+
     result = await db.execute(
         select(PlatformConnection).where(PlatformConnection.oauth_state == state)
     )
     conn = result.scalar_one_or_none()
     if not conn:
+        logger.warning("SP API callback: unknown state '%s'", state[:20])
+        if is_mobile:
+            return RedirectResponse(
+                url="clearsettle://oauth/amazon/callback?status=error&message=invalid_state",
+                status_code=302,
+            )
         raise HTTPException(status_code=400, detail="Invalid OAuth state — possible CSRF or session expired")
 
     # Use credentials stored in the connection row (set during /authorize)
@@ -344,6 +379,11 @@ async def oauth_callback(
         db.add(conn)
         await db.commit()
         logger.error("SP API token exchange failed: %s", exc)
+        if is_mobile:
+            return RedirectResponse(
+                url=f"clearsettle://oauth/amazon/callback?status=error&message=token_exchange_failed",
+                status_code=302,
+            )
         raise HTTPException(status_code=502, detail=f"Token exchange failed: {exc}")
 
     conn.sp_selling_partner_id      = selling_partner_id
@@ -356,7 +396,16 @@ async def oauth_callback(
     db.add(conn)
     await db.commit()
 
-    logger.info("SP API connected: seller=%s connection=%s", selling_partner_id, conn.id)
+    logger.info(
+        "SP API connected: seller=%s connection=%s source=%s",
+        selling_partner_id, conn.id, "mobile" if is_mobile else "web",
+    )
+
+    if is_mobile:
+        return RedirectResponse(
+            url=f"clearsettle://oauth/amazon/callback?status=success&connection_id={conn.id}",
+            status_code=302,
+        )
     return RedirectResponse(
         url=f"{get_settings().frontend_url}/platforms?connected=amazon&status=success",
         status_code=302,
