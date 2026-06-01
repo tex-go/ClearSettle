@@ -48,6 +48,13 @@
                 <data android:scheme="clearsettle"/>
             </intent-filter>
         </activity>
+        <!-- Login with Amazon API key (generated from Amazon Developer Console →
+             Security Profiles → ClearSettle - Security Profile → Android/Kindle Settings).
+             Required for LWA identity verification on Android. -->
+        <meta-data
+            android:name="com.amazon.identity.auth.device.api.workflow.LoginWithAmazon.API_KEY"
+            android:value="eyJhbGciOiJSU0EtU0hBMjU2IiwidmVyIjoiMSJ9.eyJ2ZXIiOiIzIiwiZW5kcG9pbnRzIjp7ImF1dGh6IjoiaHR0cHM6Ly93d3cuYW1hem9uLmNvbS9hcC9vYSIsInRva2VuRXhjaGFuZ2UiOiJodHRwczovL2FwaS5hbWF6b24uY29tL2F1dGgvbzIvdG9rZW4ifSwiY2xpZW50SWQiOiJhbXpuMS5hcHBsaWNhdGlvbi1vYTItY2xpZW50LjdkMWM5ZjExMzE0MjQzYjA4YmI5Y2RkNzc1NWVhNmE4IiwiYXBwRmFtaWx5SWQiOiJhbXpuMS5hcHBsaWNhdGlvbi5lM2FlY2JjYjcwMGU0OWJjYTZjNDRlNzY0OGFmNTRmYSIsImlzcyI6IkFtYXpvbiIsInR5cGUiOiJBUElLZXkiLCJwa2ciOiJpbi5jbGVhcnNldHRsZS5tb2JpbGUiLCJhcHBWYXJpYW50SWQiOiJhbXpuMS5hcHBsaWNhdGlvbi1jbGllbnQuZTJlNWNlOGJlNmM5NDM5Zjk1MmY2Mzk5YzZkY2Y0YzUiLCJ0cnVzdFBvb2wiOm51bGwsImFwcHNpZ1NoYTI1NiI6IkYyOkQ4Ojc1OjVGOkFEOjM4OkUyOkE4OjFCOjU3OkFEOjVEOkQ2OkM5OjE1OjUzOjI3OkE2OjExOkYyOkQwOjlGOjMxOjQ5OjA2OkJGOjUwOkIyOjg5OkIzOkYyOjUxIiwiYXBwc2lnIjoiOUE6REE6MDE6MTk6NzU6QzE6MEY6MEY6MkM6NTY6NkU6Mjg6NEY6OUQ6MDQ6MjMiLCJhcHBJZCI6ImFtem4xLmFwcGxpY2F0aW9uLWNsaWVudC5lMmU1Y2U4YmU2Yzk0MzlmOTUyZjYzOTljNmRjZjRjNSIsImlkIjoiNmQ2NTc1OGQtMjhmZi00Y2RjLTk0MGYtZjY4NGI3ZGNmZTJiIiwiaWF0IjoiMTc4MDM0MDQzNjUyMSJ9.Y6WlGFD8bqyqgugu+Q8i/2yq3eqO52RjPUSY/p0l7q5lgWMPtD+5UrHmvXmvX40kxUf6rFUaBzv7476stOnwrW7ALHPe8IVprPSbyu9RQKpzK1i9OUD9EKoxsBeCxikgyodColUGKNzi0NKsOh1edpEPY8cDY3ue8oRuzgp4Yk55sa2Rrcpod+Q3Me13FAn3yvDN3yP+cv3RetOD/z0XegIr4bYXnSJv1mfP3LLiwIzBxqW/mSK2dOcPlNM4kG4UjZQQrTf8kTjyHSK1/yGiN+owgZoLEmj8c0yLV++WCEiCwJT+QEYTB78AimxKUnVbSitxMkDeDFqftuA7Thh25w==" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
