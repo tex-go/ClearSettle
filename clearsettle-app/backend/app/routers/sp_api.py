@@ -273,14 +273,14 @@ async def initiate_oauth(
     redirect_uri = conn.sp_redirect_uri or s.sp_api_redirect_uri
 
     if not app_id or not client_id or not client_secret_raw:
+        logger.error(
+            "SP API authorize blocked: credentials not configured for company=%s "
+            "(app_id=%s client_id=%s secret_set=%s redirect_uri=%s)",
+            company.id, bool(app_id), bool(client_id), bool(client_secret_raw), bool(redirect_uri),
+        )
         raise HTTPException(
             status_code=503,
-            detail=(
-                "Amazon SP API credentials not configured. "
-                "Use POST /sp-api/config to provide app_id, client_id, client_secret, and redirect_uri. "
-                "Alternatively, set SP_API_APP_ID, SP_API_CLIENT_ID, SP_API_CLIENT_SECRET, "
-                "SP_API_REDIRECT_URI as environment variables."
-            ),
+            detail="Marketplace connection is temporarily unavailable. Please try again later.",
         )
 
     # Encode mobile source in the state token so the callback can route correctly

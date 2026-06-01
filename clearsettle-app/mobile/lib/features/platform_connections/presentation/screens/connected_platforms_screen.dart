@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/errors/oauth_error_mapper.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../services/oauth/amazon_oauth_service.dart';
-import '../../../../services/oauth/flipkart_oauth_service.dart';
 import '../../domain/entities/platform_connection.dart';
 import '../providers/platform_connection_provider.dart';
 import '../widgets/platform_tile.dart';
@@ -22,12 +20,18 @@ class ConnectedPlatformsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Connected Platforms')),
       body: connectionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorView(message: e.toString()),
+        // Initial load failures (Hive unavailable etc.) show friendly error + retry.
+        error: (e, _) => _ErrorView(
+          message: OAuthErrorMapper.toUserMessage(e),
+          onRetry: () => ref.invalidate(platformConnectionProvider),
+        ),
         data: (connections) => _Body(connections: connections),
       ),
     );
   }
 }
+
+// ── Body ──────────────────────────────────────────────────────────────────────
 
 class _Body extends ConsumerStatefulWidget {
   const _Body({required this.connections});
@@ -72,7 +76,11 @@ class _BodyState extends ConsumerState<_Body> {
               logoColor: AppColors.flipkart,
               logoIcon: Icons.shopping_bag_outlined,
               connection: flipkart,
-              onConnect: () => _connect(context, notifier.connectFlipkart),
+              onConnect: () => _runOAuth(
+                context: context,
+                platformName: 'Flipkart',
+                action: notifier.connectFlipkart,
+              ),
               onDisconnect: () =>
                   _confirmDisconnect(context, 'Flipkart', notifier, 'flipkart'),
             ),
@@ -96,7 +104,11 @@ class _BodyState extends ConsumerState<_Body> {
               logoColor: AppColors.amazon,
               logoIcon: Icons.store_outlined,
               connection: _find('amazon'),
-              onConnect: () => _connectAmazon(context, notifier.connectAmazon),
+              onConnect: () => _runOAuth(
+                context: context,
+                platformName: 'Amazon',
+                action: notifier.connectAmazon,
+              ),
               onDisconnect: () =>
                   _confirmDisconnect(context, 'Amazon', notifier, 'amazon'),
             ),
@@ -125,7 +137,7 @@ class _BodyState extends ConsumerState<_Body> {
           ],
         ),
 
-        // Full-screen loading overlay during OAuth or sync
+        // Full-screen overlay during OAuth or sync (prevents double-taps)
         if (isLoading || _syncing)
           Container(
             color: Colors.black.withValues(alpha: 0.3),
@@ -135,106 +147,94 @@ class _BodyState extends ConsumerState<_Body> {
     );
   }
 
-  Future<void> _connect(
-    BuildContext context,
-    Future<void> Function() action,
-  ) async {
+  /// Unified OAuth launcher for all platforms.
+  ///
+  /// On success: shows a brief success snackbar.
+  /// On failure: shows an error dialog with Retry and Cancel buttons.
+  ///   - The error message is always sanitized through [OAuthErrorMapper].
+  ///   - No raw exception text, status codes, or credentials are ever shown.
+  Future<void> _runOAuth({
+    required BuildContext context,
+    required String platformName,
+    required Future<void> Function() action,
+  }) async {
     try {
       await action();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Flipkart account connected successfully!'),
+          SnackBar(
+            content: Text('$platformName connected successfully!'),
             backgroundColor: AppColors.success,
           ),
         );
       }
-    } on FlipkartOAuthException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 8),
-          ),
-        );
-      }
-    } on PlatformException catch (e) {
-      // flutter_web_auth_2 throws PlatformException(CANCELED) when the browser
-      // closes without delivering a callback. This usually means the redirect URI
-      // is not registered in the Flipkart Partner Console, or the
-      // CallbackActivity is missing from AndroidManifest.xml.
-      final msg = e.code == 'CANCELED'
-          ? 'Login cancelled or redirect URI not configured in Flipkart Partner Console.'
-          : 'Platform error (${e.code}): ${e.message}';
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 8),
-          ),
-        );
-      }
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection failed: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      await _showOAuthError(
+        context: context,
+        platformName: platformName,
+        error: e,
+        // Retry runs the same flow again from scratch.
+        onRetry: () => _runOAuth(
+          context: context,
+          platformName: platformName,
+          action: action,
+        ),
+      );
     }
   }
 
-  Future<void> _connectAmazon(
-    BuildContext context,
-    Future<void> Function() action,
-  ) async {
-    try {
-      await action();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Amazon account connected successfully!'),
-            backgroundColor: AppColors.success,
+  /// Shows a modal dialog with a user-friendly error message, a Retry button,
+  /// and a Cancel button.  Never surfaces raw exception text.
+  ///
+  /// Non-async: returns the showDialog Future directly to avoid BuildContext
+  /// usage across an async gap.
+  Future<void> _showOAuthError({
+    required BuildContext context,
+    required String platformName,
+    required Object error,
+    required VoidCallback onRetry,
+  }) {
+    if (!context.mounted) return Future.value();
+
+    final friendlyMessage = OAuthErrorMapper.toUserMessage(error);
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(
+          Icons.cloud_off_outlined,
+          color: AppColors.error,
+          size: 36,
+        ),
+        title: Text(
+          'Unable to Connect $platformName',
+          textAlign: TextAlign.center,
+          style: AppTextStyles.titleMedium,
+        ),
+        content: Text(
+          friendlyMessage,
+          textAlign: TextAlign.center,
+          style: AppTextStyles.bodySmall
+              .copyWith(color: AppColors.textSecondary),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
           ),
-        );
-      }
-    } on AmazonOAuthException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 8),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onRetry();
+            },
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Retry'),
           ),
-        );
-      }
-    } on PlatformException catch (e) {
-      final msg = e.code == 'CANCELED'
-          ? 'Amazon login cancelled or redirect URI not configured in Amazon Developer Console.'
-          : 'Platform error (${e.code}): ${e.message}';
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 8),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection failed: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
+        ],
+      ),
+    );
   }
 
   Future<void> _syncFlipkart(
@@ -259,7 +259,7 @@ class _BodyState extends ConsumerState<_Body> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sync failed: $e'),
+            content: Text(OAuthErrorMapper.toUserMessage(e)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -364,29 +364,42 @@ class _SyncRow extends StatelessWidget {
   }
 }
 
-// ── Error view ────────────────────────────────────────────────────────────────
+// ── Error view (initial load failures) ───────────────────────────────────────
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
+  const _ErrorView({required this.message, this.onRetry});
 
   final String message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
-            const SizedBox(height: 12),
+            const Icon(
+              Icons.cloud_off_outlined,
+              color: AppColors.error,
+              size: 52,
+            ),
+            const SizedBox(height: 16),
             Text(
               message,
               textAlign: TextAlign.center,
               style: AppTextStyles.bodyMedium
                   .copyWith(color: AppColors.textSecondary),
             ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Retry'),
+              ),
+            ],
           ],
         ),
       ),
