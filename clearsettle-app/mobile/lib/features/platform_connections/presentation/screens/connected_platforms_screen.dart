@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/oauth_error_mapper.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -43,8 +45,6 @@ class _Body extends ConsumerStatefulWidget {
 }
 
 class _BodyState extends ConsumerState<_Body> {
-  bool _syncing = false;
-
   PlatformConnection? _find(String platform) =>
       widget.connections.where((c) => c.platform == platform).firstOrNull;
 
@@ -85,13 +85,14 @@ class _BodyState extends ConsumerState<_Body> {
                   _confirmDisconnect(context, 'Flipkart', notifier, 'flipkart'),
             ),
 
-            // Sync row — only shown when Flipkart is connected
+            // Upload row — shown when Flipkart is connected (manual upload mode)
             if (flipkart?.isConnected == true) ...[
               const SizedBox(height: 8),
               _SyncRow(
                 lastSyncAt: flipkart?.lastSyncAt,
-                syncing: _syncing,
-                onSync: () => _syncFlipkart(context, notifier),
+                syncing: false,
+                actionLabel: 'Upload Report',
+                onSync: () => context.go(RouteConstants.reports),
               ),
             ],
 
@@ -137,8 +138,8 @@ class _BodyState extends ConsumerState<_Body> {
           ],
         ),
 
-        // Full-screen overlay during OAuth or sync (prevents double-taps)
-        if (isLoading || _syncing)
+        // Full-screen overlay during OAuth (prevents double-taps)
+        if (isLoading)
           Container(
             color: Colors.black.withValues(alpha: 0.3),
             child: const Center(child: CircularProgressIndicator()),
@@ -237,38 +238,6 @@ class _BodyState extends ConsumerState<_Body> {
     );
   }
 
-  Future<void> _syncFlipkart(
-    BuildContext context,
-    PlatformConnectionNotifier notifier,
-  ) async {
-    setState(() => _syncing = true);
-    try {
-      final result = await notifier.syncFlipkartData();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Synced ${result.ordersCount} orders · '
-              '${result.discrepancyCount} discrepancies found',
-            ),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(OAuthErrorMapper.toUserMessage(e)),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
-  }
-
   Future<void> _confirmDisconnect(
     BuildContext context,
     String platformName,
@@ -312,11 +281,13 @@ class _SyncRow extends StatelessWidget {
     required this.lastSyncAt,
     required this.syncing,
     required this.onSync,
+    this.actionLabel = 'Sync Now',
   });
 
   final DateTime? lastSyncAt;
   final bool syncing;
   final VoidCallback onSync;
+  final String actionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -354,7 +325,7 @@ class _SyncRow extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
-              syncing ? 'Syncing…' : 'Sync Now',
+              syncing ? 'Syncing…' : actionLabel,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
