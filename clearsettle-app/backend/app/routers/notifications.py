@@ -19,8 +19,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, String, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.auth_deps import get_current_user
-from app.db.database import get_async_session
+from app.core.deps import get_current_user, get_db as get_async_session
 from app.db.models.user import User
 
 logger = logging.getLogger(__name__)
