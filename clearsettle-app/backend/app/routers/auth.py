@@ -84,13 +84,93 @@ async def register(req: RegisterRequest, request: Request, db: AsyncSession = De
         bank_account_number=req.bank_account_number,
         bank_ifsc=req.bank_ifsc,
         bank_account_name=req.bank_account_name,
-        role="seller",
+        role=req.role,
         request=request,
     )
-    # Fire-and-forget email verification (errors are swallowed inside the service)
     user_id = result["user"]["id"]
     await send_email_verification(user_id, db)
     return result
+
+
+# ── Public: list roles available for self-registration ───────────────────────
+
+@router.get("/roles")
+async def get_registration_roles():
+    """Public endpoint — returns roles a user can select during self-registration."""
+    return {
+        "roles": [
+            {
+                "id": "company_admin",
+                "name": "Organization Owner",
+                "description": "Full access to organization, users, reports, reconciliation and settings.",
+                "icon": "crown",
+            },
+            {
+                "id": "finance_manager",
+                "name": "Finance Manager",
+                "description": "Manage settlements, reconciliation, disputes and financial reports.",
+                "icon": "account_balance",
+            },
+            {
+                "id": "accountant",
+                "name": "Accountant",
+                "description": "Upload reports, view reconciliation and GST data.",
+                "icon": "calculate",
+            },
+            {
+                "id": "reconciliation_analyst",
+                "name": "Reconciliation Executive",
+                "description": "View and run reconciliation across all marketplaces.",
+                "icon": "compare_arrows",
+            },
+            {
+                "id": "gst_consultant",
+                "name": "GST Executive",
+                "description": "Access GST modules — view, file and export GST returns.",
+                "icon": "receipt_long",
+            },
+            {
+                "id": "branch_manager",
+                "name": "Operations Manager",
+                "description": "Manage branch operations, upload reports and resolve disputes.",
+                "icon": "manage_accounts",
+            },
+            {
+                "id": "auditor",
+                "name": "Auditor",
+                "description": "Read-only access across all modules including audit logs.",
+                "icon": "policy",
+            },
+            {
+                "id": "ca_admin",
+                "name": "CA / Chartered Accountant",
+                "description": "Access client data for review, reconciliation and GST filing.",
+                "icon": "verified_user",
+            },
+            {
+                "id": "viewer",
+                "name": "Viewer",
+                "description": "Read-only access to settlements and reports.",
+                "icon": "visibility",
+            },
+        ]
+    }
+
+
+# ── Email availability check ─────────────────────────────────────────────────
+
+@router.post("/check-email")
+async def check_email(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns available:true if the email is not yet registered."""
+    from app.services.auth_service import get_user_by_email
+    email = body.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    user = await get_user_by_email(email, db)
+    return {"available": user is None}
 
 
 # ── Refresh token ─────────────────────────────────────────────────────────────

@@ -281,14 +281,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               const SizedBox(height: 12),
               Center(
                 child: GestureDetector(
-                  onTap: () =>
-                      context.push(RouteConstants.forgotPassword),
+                  onTap: () => context.push(RouteConstants.forgotPassword),
                   child: const Text(
                     'Forgot password?',
                     style: TextStyle(
                       fontSize: 13,
                       color: Color(0xFF0ABFCA),
                       fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Color(0x1AFFFFFF)),
+              const SizedBox(height: 16),
+              Center(
+                child: GestureDetector(
+                  onTap: () => context.push(RouteConstants.register),
+                  child: RichText(
+                    text: const TextSpan(
+                      text: "Don't have an account?  ",
+                      style: TextStyle(fontSize: 13, color: Color(0xFF4B6080)),
+                      children: [
+                        TextSpan(
+                          text: 'Create Account',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF0ABFCA),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
