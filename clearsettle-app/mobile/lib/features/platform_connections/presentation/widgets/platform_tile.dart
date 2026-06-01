@@ -64,7 +64,7 @@ class PlatformTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(displayName, style: AppTextStyles.titleSmall),
+                  Text(displayName, style: AppTextStyles.titleMedium),
                   const SizedBox(height: 3),
                   _StatusLabel(connection: connection, comingSoon: comingSoon),
                 ],

@@ -13,6 +13,7 @@ Create Date: 2026-05-31
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import uuid
@@ -20,7 +21,6 @@ from datetime import datetime
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +184,14 @@ def upgrade() -> None:
     # ── Seed marketplace registry ──────────────────────────────────────────────
     for row in MARKETPLACE_SEED:
         mid = str(uuid.uuid4())
+        # JSONB columns: pass JSON strings + use ::jsonb cast in SQL.
+        # asyncpg expects plain Python values in bind params — NOT SQLAlchemy
+        # Cast/expression objects. json.dumps() serialises dicts/lists to
+        # strings; PostgreSQL casts them to JSONB server-side via ::jsonb.
+        rcf  = row.get("required_credential_fields")
+        rsup = row.get("region_support")
+        meta = row.get("meta", {})
+
         bind.execute(
             sa.text("""
                 INSERT INTO marketplaces (
@@ -198,37 +206,35 @@ def upgrade() -> None:
                     :id, :name, :slug, :connection_type,
                     :description, :website_url, :docs_url,
                     :is_active, :is_live,
-                    :required_credential_fields, :oauth_scopes,
+                    CAST(:required_credential_fields AS jsonb),
+                    :oauth_scopes,
                     :oauth_auth_url, :oauth_token_url,
-                    :region_support, :sort_order, :meta,
+                    CAST(:region_support AS jsonb),
+                    :sort_order,
+                    CAST(:meta AS jsonb),
                     :created_at, :updated_at
                 ) ON CONFLICT (slug) DO NOTHING
             """),
             {
-                "id":                          mid,
-                "name":                        row["name"],
-                "slug":                        row["slug"],
-                "connection_type":             row["connection_type"],
-                "description":                 row.get("description"),
-                "website_url":                 row.get("website_url"),
-                "docs_url":                    row.get("docs_url"),
-                "is_active":                   True,
-                "is_live":                     row.get("is_live", False),
-                "required_credential_fields":  sa.func.cast(
-                    row.get("required_credential_fields"), postgresql.JSONB()
-                ) if row.get("required_credential_fields") else None,
-                "oauth_scopes":                row.get("oauth_scopes"),
-                "oauth_auth_url":              row.get("oauth_auth_url"),
-                "oauth_token_url":             row.get("oauth_token_url"),
-                "region_support":              sa.func.cast(
-                    row.get("region_support"), postgresql.JSONB()
-                ) if row.get("region_support") else None,
-                "sort_order":                  row.get("sort_order", 0),
-                "meta":                        sa.func.cast(
-                    row.get("meta", {}), postgresql.JSONB()
-                ),
-                "created_at":                  now,
-                "updated_at":                  now,
+                "id":                         mid,
+                "name":                       row["name"],
+                "slug":                       row["slug"],
+                "connection_type":            row["connection_type"],
+                "description":                row.get("description"),
+                "website_url":                row.get("website_url"),
+                "docs_url":                   row.get("docs_url"),
+                "is_active":                  True,
+                "is_live":                    row.get("is_live", False),
+                # Plain JSON strings — asyncpg sends as text, Postgres casts
+                "required_credential_fields": json.dumps(rcf)  if rcf  is not None else "null",
+                "oauth_scopes":               row.get("oauth_scopes"),
+                "oauth_auth_url":             row.get("oauth_auth_url"),
+                "oauth_token_url":            row.get("oauth_token_url"),
+                "region_support":             json.dumps(rsup) if rsup is not None else "null",
+                "sort_order":                 row.get("sort_order", 0),
+                "meta":                       json.dumps(meta),
+                "created_at":                 now,
+                "updated_at":                 now,
             }
         )
 
