@@ -54,7 +54,8 @@
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(grep -E \"\\\\.py$\")",
       "Bash(xargs ls -lh)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(docker version *)"
     ]
   }
 }
