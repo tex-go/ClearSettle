@@ -31,21 +31,16 @@ class PlatformConnectionNotifier
     return GetConnectionsUseCase(_repo).execute();
   }
 
-  /// Connect Flipkart via OAuth.
+  /// Connect Flipkart (manual upload mode).
   ///
-  /// Shows a loading overlay during the flow, then either:
-  ///  - Updates state to the refreshed connections list on success.
-  ///  - Restores the previous state and RETHROWS the exception on failure,
-  ///    so the calling widget can show a user-friendly error dialog with retry.
+  /// Flipkart does not expose a public OAuth API.  This creates a local
+  /// connection record immediately — no browser or credentials required.
+  /// Users upload settlement reports from the Reports section.
   Future<void> connectFlipkart() async {
     final previousState = state;
     state = const AsyncLoading();
     try {
-      final oauthService = ref.read(flipkartOAuthServiceProvider);
-      await ConnectFlipkartUseCase(
-        oauthService: oauthService,
-        repository: _repo,
-      ).execute();
+      await ConnectFlipkartUseCase(repository: _repo).execute();
       state = AsyncData(await GetConnectionsUseCase(_repo).execute());
     } catch (e) {
       // Restore the list view so the screen stays interactive.
