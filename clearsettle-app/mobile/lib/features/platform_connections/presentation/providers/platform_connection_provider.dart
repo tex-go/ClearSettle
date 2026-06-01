@@ -31,28 +31,47 @@ class PlatformConnectionNotifier
     return GetConnectionsUseCase(_repo).execute();
   }
 
+  /// Connect Flipkart via OAuth.
+  ///
+  /// Shows a loading overlay during the flow, then either:
+  ///  - Updates state to the refreshed connections list on success.
+  ///  - Restores the previous state and RETHROWS the exception on failure,
+  ///    so the calling widget can show a user-friendly error dialog with retry.
   Future<void> connectFlipkart() async {
+    final previousState = state;
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       final oauthService = ref.read(flipkartOAuthServiceProvider);
       await ConnectFlipkartUseCase(
         oauthService: oauthService,
         repository: _repo,
       ).execute();
-      return GetConnectionsUseCase(_repo).execute();
-    });
+      state = AsyncData(await GetConnectionsUseCase(_repo).execute());
+    } catch (e) {
+      // Restore the list view so the screen stays interactive.
+      state = previousState;
+      rethrow;
+    }
   }
 
+  /// Connect Amazon SP-API via backend-mediated OAuth.
+  ///
+  /// Same semantics as [connectFlipkart]: restores previous state and
+  /// rethrows on failure so the caller can present a retry dialog.
   Future<void> connectAmazon() async {
+    final previousState = state;
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       final oauthService = ref.read(amazonOAuthServiceProvider);
       await ConnectAmazonUseCase(
         oauthService: oauthService,
         repository: _repo,
       ).execute();
-      return GetConnectionsUseCase(_repo).execute();
-    });
+      state = AsyncData(await GetConnectionsUseCase(_repo).execute());
+    } catch (e) {
+      state = previousState;
+      rethrow;
+    }
   }
 
   Future<void> disconnect(String platform) async {
