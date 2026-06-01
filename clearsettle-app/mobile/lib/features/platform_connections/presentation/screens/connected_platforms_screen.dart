@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -151,6 +152,24 @@ class _BodyState extends ConsumerState<_Body> {
           SnackBar(
             content: Text(e.message),
             backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } on PlatformException catch (e) {
+      // flutter_web_auth_2 throws PlatformException(CANCELED) when the browser
+      // closes without delivering a callback. This usually means the redirect URI
+      // is not registered in the Flipkart Partner Console, or the
+      // CallbackActivity is missing from AndroidManifest.xml.
+      final msg = e.code == 'CANCELED'
+          ? 'Login cancelled or redirect URI not configured in Flipkart Partner Console.'
+          : 'Platform error (${e.code}): ${e.message}';
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 8),
           ),
         );
       }
