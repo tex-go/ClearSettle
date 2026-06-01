@@ -156,9 +156,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # nginx.nossl.conf = HTTP-only (no SSL certs needed).
-      # Switch to nginx.prod.conf after running scripts/ssl-init.sh.
-      - ./nginx/nginx.nossl.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - /opt/clearsettle/certbot/certs:/etc/letsencrypt:ro
       - /opt/clearsettle/certbot/www:/var/www/certbot:ro
       - nginx_logs:/var/log/nginx
     depends_on:
