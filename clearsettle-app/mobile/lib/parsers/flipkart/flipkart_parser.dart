@@ -361,7 +361,7 @@ class FlipkartParser implements AbstractMarketplaceParser {
     if (cell == null) return '';
     final v = cell.value;
     if (v == null) return '';
-    if (v is TextCellValue) return v.value.trim();
+    if (v is TextCellValue) return (v.value.text ?? '').trim();
     if (v is IntCellValue) return v.value.toString();
     if (v is DoubleCellValue) return v.value.toString();
     if (v is BoolCellValue) return v.value.toString();

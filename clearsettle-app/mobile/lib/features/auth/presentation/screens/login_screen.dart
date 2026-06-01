@@ -4,8 +4,10 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../providers/auth_provider.dart';
 
 // ── Dark auth screen design tokens ───────────────────────────────────────────
@@ -275,6 +277,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 label: 'Sign In',
                 isLoading: isLoading,
                 onTap: isLoading ? null : _login,
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: GestureDetector(
+                  onTap: () =>
+                      context.push(RouteConstants.forgotPassword),
+                  child: const Text(
+                    'Forgot password?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF0ABFCA),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

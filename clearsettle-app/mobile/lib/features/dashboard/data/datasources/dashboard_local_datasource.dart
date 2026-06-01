@@ -10,12 +10,12 @@ class DashboardLocalDataSource {
 
   Future<void> cacheSummary(DashboardSummary summary) async {
     final model = DashboardSummaryModel.fromEntity(summary);
-    final box = HiveManager.settingsBox;
+    final box = HiveManager.cacheBox;
     await box.put(_cacheKey, _encode(model.toJson()));
   }
 
   Future<DashboardSummary?> getCachedSummary() {
-    final box = HiveManager.settingsBox;
+    final box = HiveManager.cacheBox;
     final raw = box.get(_cacheKey);
     if (raw == null) return Future.value();
 
