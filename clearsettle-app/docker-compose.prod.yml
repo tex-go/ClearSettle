@@ -131,6 +131,9 @@ services:
     environment:
       PORT:    3000
       API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_started
     networks:
       - frontend_net
       - backend_net
@@ -141,6 +144,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 5
+      start_period: 10s
     logging: *default-logging
 
   # ── NGINX Reverse Proxy + SSL Termination ──────────────────────────────────
