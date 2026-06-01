@@ -27,8 +27,21 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Flipkart OAuth redirect — captures clearsettle://oauth/flipkart/callback -->
-            <intent-filter android:label="ClearSettle OAuth">
+        </activity>
+
+        <!--
+          flutter_web_auth_2 CallbackActivity — REQUIRED for OAuth redirect capture.
+          When Flipkart redirects to clearsettle://oauth/flipkart/callback, Android
+          routes the intent here (not to MainActivity). CallbackActivity delivers the
+          result back to the waiting FlutterWebAuth2.authenticate() call.
+          Without this, the Custom Tab closes with no result → PlatformException(CANCELED).
+        -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="">
+            <intent-filter android:label="ClearSettle OAuth Callback">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
@@ -50,6 +63,10 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Required for flutter_web_auth_2 to open Chrome Custom Tabs on Android 11+ -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService"/>
         </intent>
     </queries>
 </manifest>
