@@ -1,7 +1,10 @@
 abstract final class AppConfig {
+  // Production: http://clearsettle.in/api (nginx strips /api before forwarding to backend)
+  // Local dev:  --dart-define=API_BASE_URL=http://10.0.2.2:8000  (Android emulator)
+  //             --dart-define=API_BASE_URL=http://localhost:8000  (iOS simulator / desktop)
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'http://clearsettle.in/api',
   );
 
   // Super-admin email prefill on the login screen.
