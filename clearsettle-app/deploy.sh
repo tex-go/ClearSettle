@@ -16,7 +16,7 @@ echo "▶ Rebuilding and restarting containers..."
 $COMPOSE up --build -d
 
 echo "▶ Waiting for backend to be healthy..."
-timeout 120 bash -c "until $COMPOSE exec -T backend curl -sf http://localhost:8000/health; do sleep 5; done"
+timeout 120 bash -c "until $COMPOSE exec -T backend python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" 2>/dev/null; do sleep 5; done"
 
 echo "▶ Running migrations..."
 $COMPOSE exec -T backend alembic upgrade head
