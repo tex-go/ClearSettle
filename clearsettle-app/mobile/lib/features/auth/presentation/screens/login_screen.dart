@@ -152,9 +152,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (msg.contains('401') || msg.contains('Unauthorized')) {
       return 'Invalid email or password.';
     }
+    if (msg.contains('429') || msg.contains('locked')) {
+      return 'Too many attempts. Please wait 15 minutes and try again.';
+    }
     if (msg.contains('Network') || msg.contains('connection') ||
         msg.contains('Connection') || msg.contains('timeout')) {
       return 'Cannot reach the server. Please try again.';
+    }
+    if (msg.contains('ServerException')) {
+      final detail = RegExp(r'ServerException\(\d*\): (.+)').firstMatch(msg)?.group(1);
+      if (detail != null && detail != 'Server error.') return detail;
     }
     return 'Login failed. Please try again.';
   }

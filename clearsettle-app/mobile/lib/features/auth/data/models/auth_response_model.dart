@@ -32,6 +32,7 @@ class AuthResponseModel {
           '',
       organization: (user['organization'] as String?) ??
           (user['company_name'] as String?) ??
+          (user['company'] as String?) ??
           '',
       role: (user['role'] as String?) ?? 'seller',
     );
