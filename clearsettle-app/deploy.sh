@@ -9,8 +9,9 @@ echo "▶ Pulling latest code..."
 cd "$REPO_ROOT" && git pull origin dev
 
 echo "▶ Creating required host directories..."
-mkdir -p /opt/clearsettle/certbot/www
-mkdir -p /opt/clearsettle/uploads
+sudo mkdir -p /opt/clearsettle/certbot/www
+sudo mkdir -p /opt/clearsettle/uploads
+sudo chown -R "$USER:$USER" /opt/clearsettle
 
 echo "▶ Rebuilding and restarting containers..."
 $COMPOSE up --build -d
