@@ -5,6 +5,10 @@ abstract final class ApiEndpoints {
   static const String me             = '/auth/me';
   static const String refreshToken   = '/auth/refresh';
   static const String forgotPassword = '/auth/forgot-password';
+  static const String register       = '/auth/register';
+  static const String authRoles      = '/auth/roles';
+  static const String checkEmail     = '/auth/check-email';
+  static const String acceptInvite   = '/auth/accept-invite';
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   static const String dashboardSummary = '/dashboard/summary';

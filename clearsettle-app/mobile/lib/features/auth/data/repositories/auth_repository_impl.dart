@@ -2,6 +2,7 @@ import '../../domain/entities/auth_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_datasource.dart';
 import '../datasources/auth_remote_datasource.dart';
+import '../models/register_request_model.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   const AuthRepositoryImpl({
@@ -18,6 +19,24 @@ class AuthRepositoryImpl implements AuthRepository {
     final state = response.toAuthState();
     await localDataSource.saveSession(state);
     return state;
+  }
+
+  @override
+  Future<AuthAuthenticated> register(RegisterRequestModel request) async {
+    final response = await remoteDataSource.register(request);
+    final state = response.toAuthState();
+    await localDataSource.saveSession(state);
+    return state;
+  }
+
+  @override
+  Future<List<RegistrationRoleModel>> getRoles() {
+    return remoteDataSource.getRoles();
+  }
+
+  @override
+  Future<bool> checkEmailAvailable(String email) {
+    return remoteDataSource.checkEmailAvailable(email);
   }
 
   @override

@@ -8,6 +8,7 @@ import '../features/analytics/presentation/screens/analytics_screen.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
+import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/auth/presentation/screens/splash_screen.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../features/disputes/presentation/screens/disputes_screen.dart';
@@ -40,6 +41,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isPublic = loc == RouteConstants.splash ||
           loc == RouteConstants.login ||
+          loc == RouteConstants.register ||
           loc == RouteConstants.forgotPassword;
 
       if (!isAuthenticated && !isPublic) return RouteConstants.login;
@@ -59,6 +61,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteConstants.login,
         builder: (_, __) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: RouteConstants.register,
+        builder: (_, __) => const RegisterScreen(),
       ),
       GoRoute(
         path: RouteConstants.forgotPassword,

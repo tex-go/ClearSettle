@@ -22,12 +22,15 @@ class RegisterRequest(BaseModel):
     confirm_password: str
     name:             str
 
+    # ── Role — defaults to company_admin for self-registration ────────────────
+    role: str = "company_admin"
+
     # ── Business profile — mandatory ──────────────────────────────────────────
     company_name: str
-    gstin:        str
     state:        str
 
     # ── Business profile — optional ───────────────────────────────────────────
+    gstin:             Optional[str] = None
     pan:               Optional[str] = None
     city:              Optional[str] = None
     pincode:           Optional[str] = None
@@ -35,9 +38,7 @@ class RegisterRequest(BaseModel):
     website:           Optional[str] = None
     industry:          Optional[str] = None
     monthly_gmv_range: Optional[str] = None
-
-    # ── Marketplace selection (at least one required) ─────────────────────────
-    active_platforms: list[str] = []
+    active_platforms:  list[str] = []
 
     # ── Banking — all optional ────────────────────────────────────────────────
     bank_name:           Optional[str] = None
@@ -61,7 +62,9 @@ class RegisterRequest(BaseModel):
 
     @field_validator("gstin")
     @classmethod
-    def gstin_format(cls, v: str) -> str:
+    def gstin_format(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
         pattern = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
         if not re.match(pattern, v.upper()):
             raise ValueError("Invalid GSTIN format (expected: 22AAAAA0000A1Z5)")
@@ -75,11 +78,18 @@ class RegisterRequest(BaseModel):
             raise ValueError("Invalid phone number")
         return v
 
-    @field_validator("active_platforms")
+    @field_validator("role")
     @classmethod
-    def at_least_one_platform(cls, v: list) -> list:
-        if not v:
-            raise ValueError("Select at least one marketplace")
+    def valid_role(cls, v: str) -> str:
+        allowed = {
+            "company_admin", "business_owner", "finance_manager", "accountant",
+            "reconciliation_analyst", "gst_consultant", "auditor",
+            "ca_admin", "ca_reviewer", "ca_staff", "ca_viewer",
+            "branch_manager", "branch_accountant", "branch_viewer",
+            "admin", "member", "finance", "seller", "viewer",
+        }
+        if v not in allowed:
+            raise ValueError(f"Invalid role: {v}")
         return v
 
 

@@ -30,6 +30,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   );
 });
 
+
 // — Notifier —
 
 class AuthNotifier extends AsyncNotifier<AuthState> {
