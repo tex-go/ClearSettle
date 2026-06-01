@@ -101,7 +101,7 @@ class ExportService {
   }
 
   Future<void> _share(File file, String subject) async {
-    await SharePlus.instance.shareXFiles(
+    await Share.shareXFiles(
       [XFile(file.path)],
       subject: subject,
     );

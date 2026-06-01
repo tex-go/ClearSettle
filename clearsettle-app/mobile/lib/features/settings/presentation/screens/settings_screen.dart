@@ -79,6 +79,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
+          // ── Reports ─────────────────────────────────────────────────────
+          _Section(
+            title: 'Reports & Analytics',
+            children: [
+              _ActionTile(
+                icon: Icons.description_outlined,
+                label: 'Settlement Reports',
+                onTap: () => context.push(RouteConstants.reports),
+              ),
+              _ActionTile(
+                icon: Icons.bar_chart_outlined,
+                label: 'Analytics',
+                onTap: () => context.push('/settings/analytics'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
           // ── Preferences ────────────────────────────────────────────────
           _Section(
             title: 'Preferences',
