@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/exceptions.dart';
+import '../../../../core/network/api_client.dart';
 import '../../domain/entities/settlement_entity.dart';
 
 // ---------------------------------------------------------------------------
@@ -24,11 +26,8 @@ class SettlementsState {
   List<SettlementEntity> get filtered {
     var list = settlements;
     if (filterMarketplace != null && filterMarketplace!.isNotEmpty) {
-      list = list
-          .where((s) =>
-              s.marketplace.toLowerCase() ==
-              filterMarketplace!.toLowerCase())
-          .toList();
+      list = list.where((s) =>
+          s.marketplace.toLowerCase() == filterMarketplace!.toLowerCase()).toList();
     }
     if (filterStatus != null) {
       list = list.where((s) => s.status == filterStatus).toList();
@@ -78,8 +77,33 @@ class SettlementsNotifier extends Notifier<SettlementsState> {
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, error: null);
-    await Future.delayed(const Duration(milliseconds: 500));
-    state = state.copyWith(isLoading: false, settlements: _stubSettlements());
+    try {
+      final client = ref.read(apiClientProvider);
+      final resp = await client.get<Map<String, dynamic>>(
+        '/settlements/',
+        queryParameters: {'size': 50, 'page': 1},
+      );
+
+      final data = resp.data;
+      if (data == null) throw const ServerException(message: 'Empty response');
+
+      final items = (data['items'] as List? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(_fromJson)
+          .toList();
+
+      state = state.copyWith(isLoading: false, settlements: items);
+    } on NetworkException {
+      state = state.copyWith(
+          isLoading: false,
+          error: 'Cannot reach the server. Check your connection.');
+    } on UnauthorizedException {
+      state = state.copyWith(isLoading: false, error: 'Session expired.');
+    } catch (e) {
+      state = state.copyWith(
+          isLoading: false,
+          error: 'Could not load settlements. Please try again.');
+    }
   }
 
   Future<void> refresh() => load();
@@ -102,79 +126,45 @@ final settlementsProvider =
         SettlementsNotifier.new);
 
 // ---------------------------------------------------------------------------
-// Stub data
+// JSON mapping — backend /settlements/ response
 // ---------------------------------------------------------------------------
 
-List<SettlementEntity> _stubSettlements() {
-  final now = DateTime.now();
-  return [
-    SettlementEntity(
-      id: 'FK-2025-0598',
-      marketplace: 'Flipkart',
-      settlementDate: now.subtract(const Duration(days: 2)),
-      expectedAmount: 84320.00,
-      receivedAmount: 80000.00,
-      status: SettlementStatus.mismatch,
-      notes: '₹4,320 short — under review',
-    ),
-    SettlementEntity(
-      id: 'AMZ-2025-1123',
-      marketplace: 'Amazon',
-      settlementDate: now.subtract(const Duration(days: 3)),
-      expectedAmount: 125000.00,
-      receivedAmount: 125000.00,
-      status: SettlementStatus.matched,
-    ),
-    SettlementEntity(
-      id: 'MEE-2025-0441',
-      marketplace: 'Meesho',
-      settlementDate: now.subtract(const Duration(days: 5)),
-      expectedAmount: 38750.00,
-      receivedAmount: 0,
-      status: SettlementStatus.pending,
-      notes: 'Settlement delayed — 3 days overdue',
-    ),
-    SettlementEntity(
-      id: 'SH-2025-1023',
-      marketplace: 'Shopify',
-      settlementDate: now.subtract(const Duration(days: 6)),
-      expectedAmount: 11500.00,
-      receivedAmount: 8200.00,
-      status: SettlementStatus.underInvestigation,
-      notes: 'Partial payment — dispute raised',
-    ),
-    SettlementEntity(
-      id: 'FK-2025-0590',
-      marketplace: 'Flipkart',
-      settlementDate: now.subtract(const Duration(days: 9)),
-      expectedAmount: 62100.00,
-      receivedAmount: 62100.00,
-      status: SettlementStatus.matched,
-    ),
-    SettlementEntity(
-      id: 'AMZ-2025-1098',
-      marketplace: 'Amazon',
-      settlementDate: now.subtract(const Duration(days: 11)),
-      expectedAmount: 95500.00,
-      receivedAmount: 95500.00,
-      status: SettlementStatus.matched,
-    ),
-    SettlementEntity(
-      id: 'FK-2025-0577',
-      marketplace: 'Flipkart',
-      settlementDate: now.subtract(const Duration(days: 16)),
-      expectedAmount: 71800.00,
-      receivedAmount: 68900.00,
-      status: SettlementStatus.mismatch,
-      notes: '₹2,900 deducted without reason code',
-    ),
-    SettlementEntity(
-      id: 'MEE-2025-0410',
-      marketplace: 'Meesho',
-      settlementDate: now.subtract(const Duration(days: 18)),
-      expectedAmount: 29300.00,
-      receivedAmount: 29300.00,
-      status: SettlementStatus.matched,
-    ),
-  ];
+SettlementEntity _fromJson(Map<String, dynamic> j) {
+  return SettlementEntity(
+    id: (j['id'] ?? j['external_id'] ?? '').toString(),
+    marketplace: _normalisePlatform(
+        (j['platform'] as String?) ?? (j['marketplace'] as String?) ?? ''),
+    settlementDate: _parseDate(j['period_end'] ?? j['created_at']),
+    expectedAmount: _d(j['total_amount']),
+    receivedAmount: _d(j['fund_transfer_amount'] ?? j['net_amount'] ?? 0),
+    status: _statusFromBackend(
+        (j['status'] as String?) ?? 'pending'),
+    notes: j['notes'] as String?,
+  );
+}
+
+SettlementStatus _statusFromBackend(String s) => switch (s.toLowerCase()) {
+      'closed' || 'matched' => SettlementStatus.matched,
+      'mismatch'            => SettlementStatus.mismatch,
+      'open' || 'pending'   => SettlementStatus.pending,
+      'processing' || 'under_investigation' => SettlementStatus.underInvestigation,
+      _                     => SettlementStatus.pending,
+    };
+
+String _normalisePlatform(String p) {
+  return switch (p.toLowerCase()) {
+    'flipkart' => 'Flipkart',
+    'amazon'   => 'Amazon',
+    'meesho'   => 'Meesho',
+    'shopify'  => 'Shopify',
+    'myntra'   => 'Myntra',
+    _          => p.isNotEmpty ? '${p[0].toUpperCase()}${p.substring(1)}' : 'Unknown',
+  };
+}
+
+double _d(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
+
+DateTime _parseDate(dynamic v) {
+  if (v == null) return DateTime.now();
+  try { return DateTime.parse(v.toString()); } catch (_) { return DateTime.now(); }
 }

@@ -7,6 +7,8 @@ import '../../data/repositories/dashboard_repository_impl.dart';
 import '../../domain/entities/dashboard_summary_entity.dart';
 import '../../domain/repositories/dashboard_repository.dart';
 import '../../domain/usecases/get_dashboard_summary_usecase.dart';
+import '../../../auth/domain/entities/auth_entity.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 // — DI —
 
@@ -40,16 +42,26 @@ class DashboardNotifier extends AsyncNotifier<DashboardSummary?> {
   }
 
   Future<DashboardSummary?> _fetchOrCache() async {
+    // Resolve seller identity from auth state (not in /dashboard/summary payload)
+    final authState = ref.read(authProvider).valueOrNull;
+    final sellerName  = authState is AuthAuthenticated ? authState.sellerName  : '';
+    final organisation = authState is AuthAuthenticated ? authState.organization : '';
+
+    DashboardSummary? result;
     try {
-      // 1. Try remote
-      return await _getSummary();
+      result = await _getSummary();
     } catch (_) {
-      // 2. Try JSON cache from previous successful remote call
-      final cached = await _local.getCachedSummary();
-      if (cached != null) return cached;
-      // 3. Build from locally-parsed Hive reports (offline-first)
-      return _local.buildFromHiveReports();
+      result = await _local.getCachedSummary();
+      result ??= await _local.buildFromHiveReports();
     }
+
+    if (result == null) return null;
+
+    // Inject seller identity when backend doesn't provide it
+    return result.copyWith(
+      sellerName:   result.sellerName.isEmpty   ? sellerName   : null,
+      organization: result.organization.isEmpty ? organisation : null,
+    );
   }
 
   Future<void> refresh() async {
