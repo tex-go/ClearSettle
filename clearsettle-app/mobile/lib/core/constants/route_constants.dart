@@ -11,26 +11,51 @@ abstract final class RouteConstants {
   static const String disputes    = '/disputes';
   static const String settings    = '/settings';
 
-  // ── Nested under Dashboard ────────────────────────────────────────────────
+  // ── Full-screen modals ────────────────────────────────────────────────────
   static const String search = '/search';
 
-  // ── Nested under Settlements ──────────────────────────────────────────────
+  // ── Finance ───────────────────────────────────────────────────────────────
+  static const String bankReconciliation = '/bank-reconciliation';
+  static const String returns            = '/returns';
+  static const String commissionAudit    = '/commission-audit';
+  static const String cashFlow           = '/cash-flow';
+
+  // ── Operations ────────────────────────────────────────────────────────────
+  static const String connectors    = '/connectors';
+  static const String profitability = '/profitability';
+  static const String inventorySync = '/inventory-sync';
+
+  // ── Compliance / GST ─────────────────────────────────────────────────────
+  static const String gst               = '/gst';
+  static const String gstr1             = '/gst/gstr1';
+  static const String gstr3b            = '/gst/gstr3b';
+  static const String gstReconciliation = '/gst/reconciliation';
+  static const String gstSummary        = '/gst/summary';
+
+  // ── Intelligence ──────────────────────────────────────────────────────────
+  static const String disputeRules     = '/dispute-rules';
+  static const String anomalyDetection = '/anomaly-detection';
+  static const String aiInsights       = '/ai-insights';
+
+  // ── Administration ────────────────────────────────────────────────────────
+  static const String connectedPlatforms = '/settings/connected-platforms';
+  static const String analytics          = '/settings/analytics';
+  static const String helpCenter         = '/help';
+
+  // ── Settlement detail ─────────────────────────────────────────────────────
   static const String settlementDetail = '/settlements/:id';
   static String settlementDetailPath(String id) => '/settlements/$id';
 
-  // ── Nested under Disputes ─────────────────────────────────────────────────
+  // ── Dispute detail ────────────────────────────────────────────────────────
   static const String disputeDetail = '/disputes/:id';
   static String disputeDetailPath(String id) => '/disputes/$id';
 
-  // ── Nested under Settings ─────────────────────────────────────────────────
-  static const String connectedPlatforms = '/settings/connected-platforms';
-
-  // ── Legacy report routes (kept for Reports feature in Settings) ───────────
-  static const String reports               = '/reports';
-  static const String reportDetail          = '/reports/:reportId';
+  // ── Report routes ─────────────────────────────────────────────────────────
+  static const String reports                = '/reports';
+  static const String reportDetail           = '/reports/:reportId';
   static const String reportSettlementDetail = '/reports/:reportId/settlement';
   static const String reconciliationSummary  = '/reports/:reportId/reconciliation';
-  static String reportDetailPath(String reportId)  => '/reports/$reportId';
-  static String reportSettlementPath(String id)    => '/reports/$id/settlement';
-  static String reconciliationPath(String id)      => '/reports/$id/reconciliation';
+  static String reportDetailPath(String id)     => '/reports/$id';
+  static String reportSettlementPath(String id) => '/reports/$id/settlement';
+  static String reconciliationPath(String id)   => '/reports/$id/reconciliation';
 }

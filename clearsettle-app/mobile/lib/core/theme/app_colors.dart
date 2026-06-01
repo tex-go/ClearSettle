@@ -55,6 +55,10 @@ abstract final class AppColors {
   static const Color meesho    = Color(0xFF9B1FE8);
   static const Color myntra    = Color(0xFFFF3E6C);
   static const Color shopify   = Color(0xFF96BF48);
+  static const Color nykaa     = Color(0xFFFC2779); // Nykaa pink
+  static const Color ajio      = Color(0xFFE03018); // AJIO orange-red
+  static const Color snapdeal  = Color(0xFFE40046); // Snapdeal red
+  static const Color jiomart   = Color(0xFF0071F6); // JioMart blue
 
   // ── Accent (primary interactive) ─────────────────────────────────────────
   /// Use teal as the accent — matches all web CTA buttons and focus states
