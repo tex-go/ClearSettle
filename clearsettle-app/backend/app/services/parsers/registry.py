@@ -21,10 +21,13 @@ from app.services.parsers.base import BaseParser
 
 
 def _build_registry() -> Dict[str, Type[BaseParser]]:
-    from app.services.parsers.flipkart.pl_parser      import FlipkartPLParser
-    from app.services.parsers.flipkart.payment_parser import FlipkartPaymentParser
+    from app.services.parsers.flipkart.pl_parser       import FlipkartPLParser
+    from app.services.parsers.flipkart.payment_parser  import FlipkartPaymentParser
     from app.services.parsers.amazon.settlement_parser import AmazonSettlementParser
-    from app.services.parsers.meesho.payment_parser   import MeeshoPaymentParser
+    from app.services.parsers.meesho.payment_parser    import MeeshoPaymentParser
+    from app.services.parsers.generic_parser import (
+        GenericCSVParser, MyntraParser, AjioParser, ShopifyParser, CustomCSVParser,
+    )
 
     return {
         cls.parser_name: cls
@@ -33,6 +36,11 @@ def _build_registry() -> Dict[str, Type[BaseParser]]:
             FlipkartPaymentParser,
             AmazonSettlementParser,
             MeeshoPaymentParser,
+            MyntraParser,
+            AjioParser,
+            ShopifyParser,
+            CustomCSVParser,
+            GenericCSVParser,
         ]
     }
 

@@ -250,5 +250,13 @@ def _default_parser(platform: str, report_type: str) -> str:
         ("flipkart", "returns_report"):    "FlipkartPLParser",
         ("amazon",   "settlement_report"): "AmazonSettlementParser",
         ("meesho",   "payment_report"):    "MeeshoPaymentParser",
+        ("myntra",   "order_report"):      "MyntraParser",
+        ("ajio",     "order_report"):      "AjioParser",
+        ("shopify",  "order_report"):      "ShopifyParser",
+        ("custom",   "order_report"):      "CustomCSVParser",
     }
-    return defaults.get((platform, report_type), "GenericParser")
+    # Generic CSV parser is the fallback for all other known platforms
+    generic_platforms = {"myntra", "ajio", "shopify", "custom"}
+    if platform in generic_platforms:
+        return defaults.get((platform, report_type), "GenericCSVParser")
+    return defaults.get((platform, report_type), "GenericCSVParser")
