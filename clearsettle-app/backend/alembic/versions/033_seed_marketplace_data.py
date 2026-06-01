@@ -317,16 +317,6 @@ def upgrade() -> None:
         {"id": admin_company_id, "user_id": admin_id, "name": "ClearSettle Platform", "now": now},
     )
 
-    # Associate admin with company
-    bind.execute(
-        sa.text("""
-            INSERT INTO user_companies (user_id, company_id, role, created_at)
-            VALUES (:uid, :cid, 'owner', :now)
-            ON CONFLICT DO NOTHING
-        """),
-        {"uid": admin_id, "cid": admin_company_id, "now": now},
-    )
-
     logger.info("Super admin seeded: %s", admin_email)
 
 
