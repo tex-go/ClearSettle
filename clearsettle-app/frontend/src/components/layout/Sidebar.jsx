@@ -28,7 +28,7 @@ var NAV_ADMIN = [
   {
     group: 'Reconciliation',
     items: [
-      { path: '/ingestion',    label: 'Report Ingestion',   icon: '📥', badge: 'NEW', bc: 'tl' },
+      { path: '/ingestion',    label: 'Upload Center',      icon: '📥', badge: 'NEW', bc: 'tl' },
       { path: '/recon-engine', label: 'Recon Engine',       icon: '🔬' },
       { path: '/bank',         label: 'Bank Reconciliation', icon: '🏦', badge: 2, bc: 'am' },
     ],

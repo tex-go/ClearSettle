@@ -4,20 +4,25 @@ Intelligent Report Ingestion Engine — API Router.
 Prefix: /ingestion
 
 Endpoints:
-  POST   /ingestion/upload                  — upload any marketplace report (auto-detect)
-  GET    /ingestion/files                   — list uploaded files with detection status
-  GET    /ingestion/files/{id}              — single file metadata
-  GET    /ingestion/files/{id}/detection    — detection result + confidence + signals
-  GET    /ingestion/files/{id}/logs         — processing audit trail
-  GET    /ingestion/files/{id}/ledger       — normalized ledger records (paginated)
-  POST   /ingestion/files/{id}/reprocess    — re-run pipeline (e.g. after schema update)
-  POST   /ingestion/files/{id}/manual-review — admin override: set platform/type/parser
-  GET    /ingestion/schema-drifts           — list files with schema drift alerts
-  DELETE /ingestion/files/{id}              — delete file + all derived data
+  POST   /ingestion/upload                      — upload any marketplace report (auto-detect)
+  GET    /ingestion/files                       — list uploaded files with detection status
+  GET    /ingestion/files/{id}                  — single file metadata
+  GET    /ingestion/files/{id}/detection        — detection result + confidence + signals
+  GET    /ingestion/files/{id}/logs             — processing audit trail
+  GET    /ingestion/files/{id}/ledger           — normalized ledger records (paginated)
+  GET    /ingestion/files/{id}/summary          — financial KPI summary
+  GET    /ingestion/files/{id}/reconciliation   — discrepancy list computed from ledger
+  GET    /ingestion/files/{id}/export           — download ledger as CSV
+  POST   /ingestion/files/{id}/reprocess        — re-run pipeline (e.g. after schema update)
+  POST   /ingestion/files/{id}/manual-review    — admin override: set platform/type/parser
+  GET    /ingestion/schema-drifts               — list files with schema drift alerts
+  DELETE /ingestion/files/{id}                  — delete file + all derived data
 """
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import logging
 import os
 import uuid
@@ -30,6 +35,7 @@ from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form,
     HTTPException, Query, UploadFile, status,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -497,7 +503,28 @@ async def get_detection(
             "message":      "Detection not yet complete. File may still be processing.",
         }
 
-    return _detection_to_dict(detection)
+    result = _detection_to_dict(detection)
+
+    # Enrich with live DB counts so frontend ledger_records_count / recon_issue_count are accurate
+    ledger_count = (await db.execute(
+        select(func.count()).where(IngestionLedger.uploaded_file_id == file_id)
+    )).scalar_one()
+    result["ledger_records_count"] = ledger_count
+
+    # Recon issue count: warnings from processing logs that contain "variance"
+    warning_count = (await db.execute(
+        select(func.count())
+        .where(ReportProcessingLog.uploaded_file_id == file_id)
+        .where(ReportProcessingLog.level == "warning")
+    )).scalar_one()
+    result["recon_issue_count"] = warning_count
+
+    # Include drift alert from metadata for convenient frontend access
+    meta = detection.detection_metadata or {}
+    if meta.get("drift_alert"):
+        result["drift_alert"] = meta["drift_alert"]
+
+    return result
 
 
 # ── Processing logs ───────────────────────────────────────────────────────────
@@ -763,6 +790,257 @@ async def get_schema_drifts(
         })
 
     return {"total": total, "page": page, "limit": limit, "items": items}
+
+
+# ── Financial summary ─────────────────────────────────────────────────────────
+
+@router.get("/files/{file_id}/summary", summary="Financial KPI summary for a file")
+async def get_file_summary(
+    file_id: UUID,
+    db:   AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Aggregate ledger records into financial KPIs: gross revenue, fees, net settlement, etc."""
+    company_id = _company_id(user)
+    record = await db.get(UploadedFile, file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found.")
+    _assert_owner(record, company_id)
+
+    rows = (await db.execute(
+        select(IngestionLedger)
+        .where(IngestionLedger.uploaded_file_id == file_id)
+    )).scalars().all()
+
+    gross_revenue = Decimal("0")
+    returns_total = Decimal("0")
+    fees_total    = Decimal("0")
+    tax_total     = Decimal("0")
+    payout_total  = Decimal("0")
+    order_ids     = set()
+    platforms     = set()
+
+    for r in rows:
+        amt = r.amount or Decimal("0")
+        tx  = (r.transaction_type or "").lower()
+        platforms.add(r.platform)
+        if r.order_id:
+            order_ids.add(r.order_id)
+        if tx in ("sale", "order"):
+            gross_revenue += amt
+        elif tx == "return":
+            returns_total += amt
+        elif tx == "fee":
+            fees_total += amt
+        elif tx in ("tax", "tds", "tcs", "gst"):
+            tax_total += amt
+        elif tx in ("payout", "settlement", "transfer"):
+            payout_total += amt
+
+    net_sales = gross_revenue + returns_total  # returns are typically negative
+    net_settlement = net_sales + fees_total + tax_total
+
+    detection = (await db.execute(
+        select(ReportDetectionResult)
+        .where(ReportDetectionResult.uploaded_file_id == file_id)
+    )).scalar_one_or_none()
+
+    return {
+        "file_id":         str(file_id),
+        "file_name":       record.original_file_name,
+        "platform":        detection.detected_platform if detection else "unknown",
+        "report_type":     detection.detected_report_type if detection else "unknown",
+        "total_records":   len(rows),
+        "unique_orders":   len(order_ids),
+        "platforms":       list(platforms),
+        "gross_revenue":   float(gross_revenue),
+        "returns_total":   float(returns_total),
+        "net_sales":       float(net_sales),
+        "fees_total":      float(fees_total),
+        "tax_total":       float(tax_total),
+        "payout_total":    float(payout_total),
+        "net_settlement":  float(net_settlement),
+        "variance":        float(payout_total - net_settlement) if payout_total else None,
+    }
+
+
+# ── Reconciliation: compute discrepancies from ledger ─────────────────────────
+
+@router.get("/files/{file_id}/reconciliation", summary="Per-order discrepancy list")
+async def get_reconciliation(
+    file_id:    UUID,
+    min_variance: float = Query(1.0, description="Minimum absolute variance to include (default ₹1)"),
+    severity:   Optional[str] = Query(None, description="critical (>500) | warning (>50) | info"),
+    page:  int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=500),
+    db:   AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Computes expected vs actual settlement per order from IngestionLedger.
+    Expected = gross sale amount. Actual = payout/settlement amount.
+    Returns orders where |variance| > min_variance, sorted by |variance| desc.
+    """
+    company_id = _company_id(user)
+    record = await db.get(UploadedFile, file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found.")
+    _assert_owner(record, company_id)
+
+    rows = (await db.execute(
+        select(IngestionLedger)
+        .where(IngestionLedger.uploaded_file_id == file_id)
+        .order_by(IngestionLedger.source_row_number)
+    )).scalars().all()
+
+    # Group by order_id
+    by_order: Dict[str, Dict] = {}
+    ungrouped = []  # rows without order_id
+
+    for r in rows:
+        key = r.order_id or f"__row_{r.source_row_number}"
+        if key not in by_order:
+            by_order[key] = {
+                "order_id":   r.order_id,
+                "sku":        r.sku,
+                "platform":   r.platform,
+                "date":       r.transaction_date or r.settlement_date,
+                "expected":   Decimal("0"),
+                "actual":     Decimal("0"),
+                "fees":       Decimal("0"),
+                "taxes":      Decimal("0"),
+            }
+        amt = r.amount or Decimal("0")
+        tx  = (r.transaction_type or "").lower()
+        if tx in ("sale", "order"):
+            by_order[key]["expected"] += amt
+        elif tx == "return":
+            by_order[key]["expected"] += amt  # negative amount reduces expected
+        elif tx in ("payout", "settlement", "transfer"):
+            by_order[key]["actual"] += amt
+        elif tx == "fee":
+            by_order[key]["fees"] += amt
+        elif tx in ("tax", "tds", "tcs", "gst"):
+            by_order[key]["taxes"] += amt
+
+    # Build discrepancy list
+    issues = []
+    for key, o in by_order.items():
+        # If we have both expected and actual, compute variance
+        if o["expected"] != 0:
+            # Actual should equal expected + fees + taxes (fees are usually negative)
+            computed_actual = o["expected"] + o["fees"] + o["taxes"]
+            reported_actual = o["actual"] if o["actual"] != 0 else computed_actual
+            variance = float(reported_actual - computed_actual)
+        elif o["actual"] != 0:
+            variance = float(o["actual"])
+        else:
+            continue
+
+        abs_var = abs(variance)
+        if abs_var < min_variance:
+            continue
+
+        sev = "critical" if abs_var >= 500 else "warning" if abs_var >= 50 else "info"
+        if severity and sev != severity:
+            continue
+
+        issues.append({
+            "order_id":         o["order_id"] or key,
+            "sku":              o["sku"],
+            "platform":         o["platform"],
+            "date":             o["date"],
+            "expected_amount":  float(o["expected"]),
+            "actual_amount":    float(reported_actual),
+            "fees":             float(o["fees"]),
+            "taxes":            float(o["taxes"]),
+            "variance":         variance,
+            "abs_variance":     abs_var,
+            "severity":         sev,
+            "direction":        "under_paid" if variance < 0 else "over_paid",
+        })
+
+    issues.sort(key=lambda x: x["abs_variance"], reverse=True)
+
+    total = len(issues)
+    paginated = issues[(page - 1) * limit : page * limit]
+
+    summary = {
+        "total_issues":    total,
+        "critical_count":  sum(1 for i in issues if i["severity"] == "critical"),
+        "warning_count":   sum(1 for i in issues if i["severity"] == "warning"),
+        "info_count":      sum(1 for i in issues if i["severity"] == "info"),
+        "total_variance":  round(sum(i["variance"] for i in issues), 2),
+        "recoverable":     round(sum(i["abs_variance"] for i in issues if i["direction"] == "under_paid"), 2),
+    }
+
+    return {
+        "file_id":   str(file_id),
+        "summary":   summary,
+        "total":     total,
+        "page":      page,
+        "limit":     limit,
+        "items":     paginated,
+    }
+
+
+# ── CSV Export ────────────────────────────────────────────────────────────────
+
+@router.get("/files/{file_id}/export", summary="Download ledger as CSV")
+async def export_ledger_csv(
+    file_id: UUID,
+    db:   AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Stream all IngestionLedger records for the file as a CSV download."""
+    company_id = _company_id(user)
+    record = await db.get(UploadedFile, file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found.")
+    _assert_owner(record, company_id)
+
+    rows = (await db.execute(
+        select(IngestionLedger)
+        .where(IngestionLedger.uploaded_file_id == file_id)
+        .order_by(IngestionLedger.source_row_number)
+    )).scalars().all()
+
+    def _generate():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([
+            "source_row", "platform", "report_type", "order_id", "shipment_id",
+            "settlement_id", "sku", "product_title", "category",
+            "transaction_type", "fee_type", "amount", "tax_amount", "currency",
+            "transaction_date", "settlement_date", "return_status", "payout_status",
+        ])
+        yield buf.getvalue()
+        buf.truncate(0)
+        buf.seek(0)
+
+        for r in rows:
+            writer.writerow([
+                r.source_row_number, r.platform, r.report_type,
+                r.order_id, r.shipment_id, r.settlement_id,
+                r.sku, r.product_title, r.category,
+                r.transaction_type, r.fee_type,
+                float(r.amount) if r.amount is not None else "",
+                float(r.tax_amount) if r.tax_amount is not None else "",
+                r.currency, r.transaction_date, r.settlement_date,
+                r.return_status, r.payout_status,
+            ])
+            yield buf.getvalue()
+            buf.truncate(0)
+            buf.seek(0)
+
+    safe_name = (record.original_file_name or "export").replace(" ", "_").split(".")[0]
+    filename  = f"{safe_name}_ledger.csv"
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Delete file ───────────────────────────────────────────────────────────────

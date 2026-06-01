@@ -12,6 +12,10 @@ const PLATFORM_META = {
   flipkart: { label: 'Flipkart', icon: '🛒', color: '#FF6B35' },
   amazon:   { label: 'Amazon',   icon: '📦', color: '#FF9900' },
   meesho:   { label: 'Meesho',   icon: '🧵', color: '#7B2D8B' },
+  myntra:   { label: 'Myntra',   icon: '👗', color: '#FF3F6C' },
+  ajio:     { label: 'Ajio',     icon: '🛍️', color: '#000000' },
+  shopify:  { label: 'Shopify',  icon: '🏪', color: '#96BF48' },
+  custom:   { label: 'Custom CSV', icon: '📋', color: '#6B7280' },
   unknown:  { label: 'Unknown',  icon: '❓', color: '#9CA3AF' },
 }
 
@@ -124,6 +128,10 @@ const PLATFORM_OPTIONS = [
   { value: 'flipkart',  label: '🛒 Flipkart' },
   { value: 'amazon',    label: '📦 Amazon' },
   { value: 'meesho',    label: '🧵 Meesho' },
+  { value: 'myntra',    label: '👗 Myntra' },
+  { value: 'ajio',      label: '🛍️ Ajio' },
+  { value: 'shopify',   label: '🏪 Shopify' },
+  { value: 'custom',    label: '📋 Custom CSV' },
 ]
 
 const REPORT_TYPE_OPTIONS = {
@@ -148,6 +156,13 @@ const REPORT_TYPE_OPTIONS = {
     { value: 'returns_report',     label: 'Returns Report' },
     { value: 'order_report',       label: 'Order Report' },
   ],
+  myntra:  [{ value: 'order_report', label: 'Order / Settlement Report' }],
+  ajio:    [{ value: 'order_report', label: 'Order / Settlement Report' }],
+  shopify: [
+    { value: 'order_report',       label: 'Orders Export' },
+    { value: 'payment_report',     label: 'Payouts Report' },
+  ],
+  custom:  [{ value: 'order_report', label: 'Generic CSV Upload' }],
 }
 
 // ── Upload Zone (multi-file) ───────────────────────────────────────────────────
@@ -463,7 +478,7 @@ function UploadZone({ onUpload }) {
 }
 
 // ── Pipeline Tracker (shown while a file is processing) ────────────────────────
-function PipelineTracker({ file, detection, onViewLedger, onManualReview }) {
+function PipelineTracker({ file, detection, onViewLedger, onViewRecon, onManualReview }) {
   const [stageIdx, setStageIdx] = useState(0)
   const timerRef = useRef(null)
 
@@ -511,9 +526,14 @@ function PipelineTracker({ file, detection, onViewLedger, onManualReview }) {
         {isDone && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {status === 'done' && (
+              <>
+              <button onClick={onViewRecon} style={{ padding: '7px 16px', borderRadius: 9, background: P.navy, border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Reconciliation
+              </button>
               <button onClick={onViewLedger} style={{ padding: '7px 16px', borderRadius: 9, background: 'linear-gradient(135deg,#0ABFCA,#088F99)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 View Ledger
               </button>
+              </>
             )}
             {status === 'needs_review' && (
               <button onClick={onManualReview} style={{ padding: '7px 16px', borderRadius: 9, background: P.amber, border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -624,7 +644,7 @@ function ResultField({ label, children }) {
 }
 
 // ── File History Table ─────────────────────────────────────────────────────────
-function FileHistory({ files, loading, onView, onLedger, onManualReview, onDelete, onReprocess }) {
+function FileHistory({ files, loading, onView, onLedger, onRecon, onExport, onManualReview, onDelete, onReprocess }) {
   if (loading) return (
     <div style={{ textAlign: 'center', padding: '48px 0', color: '#9CA3AF', fontSize: 14 }}>
       <Spinner size={28} /><br />Loading file history…
@@ -681,7 +701,11 @@ function FileHistory({ files, loading, onView, onLedger, onManualReview, onDelet
                 <td style={{ padding: '12px' }}>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
                     {f.upload_status === 'done' && (
-                      <ActionBtn label="Ledger" color={P.teal} onClick={() => onLedger(f)} />
+                      <>
+                        <ActionBtn label="Ledger"  color={P.teal}    onClick={() => onLedger(f)} />
+                        <ActionBtn label="Recon"   color={P.navy}    onClick={() => onRecon(f)} />
+                        <ActionBtn label="Export"  color='#6B7280'   onClick={() => onExport(f)} />
+                      </>
                     )}
                     {f.upload_status === 'needs_review' && (
                       <ActionBtn label="Review" color={P.amber} onClick={() => onManualReview(f)} />
@@ -716,6 +740,200 @@ function ActionBtn({ label, color, onClick }) {
     >
       {label}
     </button>
+  )
+}
+
+// ── Reconciliation Modal ──────────────────────────────────────────────────────
+const SEV_COLOR = { critical: P.red, warning: P.amber, info: P.blue }
+const SEV_BG    = { critical: 'rgba(232,52,74,.10)', warning: 'rgba(233,147,13,.10)', info: 'rgba(59,130,246,.08)' }
+
+function ReconModal({ file, onClose }) {
+  const [data, setData]         = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [severity, setSeverity] = useState('')
+  const [page, setPage]         = useState(1)
+  const [total, setTotal]       = useState(0)
+  const perPage = 50
+
+  const fetchData = useCallback(async (p, sev) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page: p, limit: perPage })
+      if (sev) params.set('severity', sev)
+      const res = await api.get(`/ingestion/files/${file.id}/reconciliation?${params}`)
+      setData(res.data)
+      setTotal(res.data.total || 0)
+    } catch {
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [file.id])
+
+  useEffect(() => { fetchData(1, severity) }, [fetchData, severity])
+
+  function goPage(p) { setPage(p); fetchData(p, severity) }
+  function changeSev(sev) { setSeverity(sev); setPage(1) }
+
+  const totalPages = Math.ceil(total / perPage)
+  const summary    = data?.summary || {}
+
+  function handleExport() {
+    const token = localStorage.getItem('cs_token') || sessionStorage.getItem('cs_token')
+    const url   = `/api/ingestion/files/${file.id}/export`
+    const a     = document.createElement('a')
+    a.href      = url
+    if (token) a.href = url  // auth handled via cookie/interceptor
+    a.download  = `${file.original_file_name?.split('.')[0] || 'export'}_ledger.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        width: '100%', maxWidth: 1100, maxHeight: '90vh',
+        background: '#fff', borderRadius: '20px 20px 0 0',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{ padding: '20px 28px 16px', borderBottom: '1px solid #F1F5F9' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: P.navy }}>Reconciliation Results</div>
+              <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
+                {file.original_file_name} · {total.toLocaleString()} discrepanc{total === 1 ? 'y' : 'ies'}
+              </div>
+            </div>
+
+            {/* Severity filter */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['', 'critical', 'warning', 'info'].map(sev => (
+                <button key={sev || 'all'}
+                  onClick={() => changeSev(sev)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    border: `1px solid ${sev ? SEV_COLOR[sev] + '50' : '#E5E7EB'}`,
+                    background: severity === sev ? (sev ? SEV_BG[sev] : '#F1F5F9') : '#fff',
+                    color: sev ? SEV_COLOR[sev] : '#6B7280',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {sev === '' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1)}
+                  {sev === 'critical' && summary.critical_count != null && ` (${summary.critical_count})`}
+                  {sev === 'warning'  && summary.warning_count  != null && ` (${summary.warning_count})`}
+                  {sev === 'info'     && summary.info_count     != null && ` (${summary.info_count})`}
+                </button>
+              ))}
+            </div>
+
+            {/* Export + close */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleExport} style={{
+                padding: '7px 16px', borderRadius: 9, border: `1px solid ${P.teal}40`,
+                background: `rgba(10,191,202,.08)`, color: P.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}>
+                ⬇ Export CSV
+              </button>
+              <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, background: '#F3F4F6', border: 'none', fontSize: 18, cursor: 'pointer', color: '#6B7280' }}>×</button>
+            </div>
+          </div>
+
+          {/* Summary KPIs */}
+          {summary.total_issues != null && (
+            <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Total Issues',   value: summary.total_issues,   color: P.navy },
+                { label: 'Critical',       value: summary.critical_count, color: P.red },
+                { label: 'Warnings',       value: summary.warning_count,  color: P.amber },
+                { label: 'Total Variance', value: summary.total_variance != null ? inr(summary.total_variance) : '—', color: summary.total_variance < 0 ? P.red : P.green },
+                { label: 'Recoverable',    value: summary.recoverable != null ? inr(summary.recoverable) : '—', color: P.teal },
+              ].map(k => (
+                <div key={k.label} style={{ padding: '8px 16px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E8EFF6' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' }}>{k.label}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: k.color, marginTop: 2 }}>{k.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Table */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}><Spinner size={32} /></div>
+          ) : !data || data.items?.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#9CA3AF' }}>No discrepancies found</div>
+              <div style={{ fontSize: 13, color: '#CBD5E1', marginTop: 6 }}>
+                {severity ? `No ${severity} issues for this file.` : 'All orders reconcile within ₹1 tolerance.'}
+              </div>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#F8FAFC', zIndex: 1 }}>
+                <tr>
+                  {['Severity', 'Order ID', 'SKU', 'Platform', 'Expected', 'Actual', 'Fees', 'Variance', 'Direction', 'Date'].map(h => (
+                    <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#9CA3AF', fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap', borderBottom: '2px solid #F1F5F9' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((issue, i) => {
+                  const sc = SEV_COLOR[issue.severity] || '#9CA3AF'
+                  const sb = SEV_BG[issue.severity]   || 'transparent'
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid #F8FAFC' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={{ padding: '8px 12px' }}>
+                        <span style={{ background: sb, color: sc, borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>
+                          {issue.severity?.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: P.navy, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {issue.order_id || '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151' }}>
+                        {issue.sku || '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px' }}><PlatformChip platform={issue.platform} /></td>
+                      <td style={{ padding: '8px 12px', fontWeight: 600, color: P.navy }}>{inr(issue.expected_amount)}</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 600, color: P.navy }}>{inr(issue.actual_amount)}</td>
+                      <td style={{ padding: '8px 12px', color: '#6B7280' }}>{inr(issue.fees)}</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 800, color: issue.variance < 0 ? P.red : P.green }}>
+                        {issue.variance < 0 ? '−' : '+'}{inr(Math.abs(issue.variance))}
+                      </td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: issue.direction === 'under_paid' ? P.red : P.green }}>
+                          {issue.direction === 'under_paid' ? '⬇ Under-paid' : '⬆ Over-paid'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 12px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{issue.date || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ padding: '12px 24px', borderTop: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>Page {page} of {totalPages} · {total} issues</span>
+            <button disabled={page <= 1} onClick={() => goPage(page - 1)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: page > 1 ? 'pointer' : 'not-allowed', color: '#6B7280' }}>‹ Prev</button>
+            <button disabled={page >= totalPages} onClick={() => goPage(page + 1)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: page < totalPages ? 'pointer' : 'not-allowed', color: '#6B7280' }}>Next ›</button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -848,7 +1066,7 @@ function ManualReviewPanel({ file, onClose, onDone }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]           = useState('')
 
-  const PLATFORMS_LIST = ['flipkart', 'amazon', 'meesho']
+  const PLATFORMS_LIST = ['flipkart', 'amazon', 'meesho', 'myntra', 'ajio', 'shopify', 'custom']
   const REPORT_TYPES = [
     'pl_report', 'payment_report', 'settlement_report',
     'tax_report', 'returns_report', 'commission_invoice',
@@ -933,6 +1151,7 @@ export default function Ingestion() {
   // activeJobs: { [fileId]: { fileData, detection } }
   const [activeJobs, setActiveJobs]     = useState({})
   const [ledgerFile, setLedgerFile]     = useState(null)
+  const [reconFile, setReconFile]       = useState(null)
   const [reviewFile, setReviewFile]     = useState(null)
   const [toast, setToast]               = useState(null)
   const pollRef      = useRef(null)
@@ -1021,6 +1240,17 @@ export default function Ingestion() {
     setJobs(prev => { const j = { ...prev }; delete j[fileId]; return j })
   }
 
+  function handleExport(f) {
+    const link = document.createElement('a')
+    // api base URL from axios defaults
+    const baseURL = api.defaults.baseURL || ''
+    link.href = `${baseURL}/ingestion/files/${f.id}/export`
+    link.download = `${(f.original_file_name || 'export').split('.')[0]}_ledger.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   async function handleDelete(fileId) {
     if (!window.confirm('Delete this file and all its analysis data?')) return
     try {
@@ -1088,8 +1318,8 @@ export default function Ingestion() {
       {/* Page header */}
       <div className="page-hd">
         <div>
-          <div className="page-title">Report Ingestion Engine</div>
-          <div className="page-sub">Upload any Flipkart, Amazon or Meesho report — auto-detect, parse and normalise</div>
+          <div className="page-title">Report Upload Center</div>
+          <div className="page-sub">Upload Flipkart, Amazon, Meesho, Myntra, Ajio, Shopify or any CSV report — auto-detected, parsed and reconciled</div>
         </div>
       </div>
 
@@ -1127,6 +1357,7 @@ export default function Ingestion() {
                 file={job.fileData}
                 detection={job.detection}
                 onViewLedger={() => setLedgerFile(job.fileData)}
+                onViewRecon={() => setReconFile(job.fileData)}
                 onManualReview={() => setReviewFile({ ...job.fileData, detection: job.detection })}
               />
               {/* Dismiss button — only shown once done/failed */}
@@ -1164,7 +1395,7 @@ export default function Ingestion() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
               { icon: '🔬', text: 'Fingerprints sheet names & column headers' },
-              { icon: '📡', text: 'Scores 40+ platform signals (Flipkart/Amazon/Meesho)' },
+              { icon: '📡', text: 'Scores 40+ platform signals (Flipkart/Amazon/Meesho/Myntra/Ajio/Shopify)' },
               { icon: '🗂️', text: 'Matches schema against known versions (Jaccard similarity)' },
               { icon: '⚙️', text: 'Routes to correct parser automatically' },
               { icon: '📊', text: 'Normalises all records into a unified ledger' },
@@ -1194,6 +1425,8 @@ export default function Ingestion() {
             loading={filesLoading}
             onView={handleViewFromHistory}
             onLedger={setLedgerFile}
+            onRecon={setReconFile}
+            onExport={handleExport}
             onManualReview={f => setReviewFile(f)}
             onDelete={handleDelete}
             onReprocess={handleReprocess}
@@ -1203,6 +1436,9 @@ export default function Ingestion() {
 
       {/* Ledger modal */}
       {ledgerFile && <LedgerModal file={ledgerFile} onClose={() => setLedgerFile(null)} />}
+
+      {/* Reconciliation modal */}
+      {reconFile && <ReconModal file={reconFile} onClose={() => setReconFile(null)} />}
 
       {/* Manual review modal */}
       {reviewFile && <ManualReviewPanel file={reviewFile} onClose={() => setReviewFile(null)} onDone={handleReviewDone} />}

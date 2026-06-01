@@ -74,6 +74,21 @@ _FILENAME_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
         ("meesho_payment",    10),
         ("meesho_report",     10),
     ],
+    "myntra": [
+        ("myntra",            10),
+        ("myntra_order",      10),
+        ("myntra_payment",    10),
+    ],
+    "ajio": [
+        ("ajio",              10),
+        ("ajio_order",        10),
+        ("ajio_payment",      10),
+    ],
+    "shopify": [
+        ("shopify",           10),
+        ("shopify_order",     10),
+        ("shopify_payout",    10),
+    ],
 }
 
 _SHEET_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
@@ -227,18 +242,45 @@ _CONTENT_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
         ("tds on commission",             8),
         ("meesho wallet",                 8),
     ],
+    "myntra": [
+        ("myntra",                       10),
+        ("myntra.com",                    9),
+    ],
+    "ajio": [
+        ("ajio",                         10),
+        ("ajio.com",                      9),
+        ("reliance retail",               8),
+    ],
+    "shopify": [
+        ("shopify",                      10),
+        ("shopify.com",                   9),
+        ("shopify payments",              8),
+    ],
 }
+
+# Sheet signals for new platforms
+for _p in ("myntra", "ajio", "shopify"):
+    if _p not in _SHEET_SIGNALS:
+        _SHEET_SIGNALS[_p] = [(_p, 8)]
+
+# Column signals for new platforms
+_COLUMN_SIGNALS.setdefault("myntra",  [("myntra order id", 10), ("style id", 7), ("vendor id", 6)])
+_COLUMN_SIGNALS.setdefault("ajio",    [("ajio order id", 10), ("site order id", 8), ("courier partner", 6)])
+_COLUMN_SIGNALS.setdefault("shopify", [("shopify order", 10), ("variant sku", 7), ("payment gateway", 8)])
 
 # Max theoretical score for each platform (sum of all signal weights across all tiers)
 _MAX_SCORES: Dict[str, float] = {
     k: (
-        sum(w for _, w in _FILENAME_SIGNALS[k])
-        + sum(w for _, w in _SHEET_SIGNALS[k])
-        + sum(w for _, w in _COLUMN_SIGNALS[k])
-        + sum(w for _, w in _CONTENT_SIGNALS[k])
+        sum(w for _, w in _FILENAME_SIGNALS.get(k, []))
+        + sum(w for _, w in _SHEET_SIGNALS.get(k, []))
+        + sum(w for _, w in _COLUMN_SIGNALS.get(k, []))
+        + sum(w for _, w in _CONTENT_SIGNALS.get(k, []))
     )
-    for k in ("flipkart", "amazon", "meesho")
+    for k in ("flipkart", "amazon", "meesho", "myntra", "ajio", "shopify")
 }
+
+
+_ALL_PLATFORMS = ("flipkart", "amazon", "meesho", "myntra", "ajio", "shopify")
 
 
 def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
@@ -247,24 +289,24 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
     Returns the platform with highest normalised confidence score.
     """
     scores: Dict[str, float] = {}
-    matched: Dict[str, List[str]] = {p: [] for p in ("flipkart", "amazon", "meesho")}
+    matched: Dict[str, List[str]] = {p: [] for p in _ALL_PLATFORMS}
 
     fname_lower        = fp.file_name.lower()
     sheet_names_lower  = [s.sheet_name.lower() for s in fp.sheets]
     cols_lower         = [c.lower() for c in fp.all_column_names]
     tokens_lower       = [t.lower() for t in fp.all_content_tokens]
 
-    for platform in ("flipkart", "amazon", "meesho"):
+    for platform in _ALL_PLATFORMS:
         raw = 0.0
 
         # ── Tier 1: Filename signals ──────────────────────────────────────────
-        for pattern, weight in _FILENAME_SIGNALS[platform]:
+        for pattern, weight in _FILENAME_SIGNALS.get(platform, []):
             if pattern in fname_lower:
                 raw += weight
                 matched[platform].append(f"filename:{pattern}")
 
         # ── Tier 2: Sheet name signals ────────────────────────────────────────
-        for pattern, weight in _SHEET_SIGNALS[platform]:
+        for pattern, weight in _SHEET_SIGNALS.get(platform, []):
             for sname in sheet_names_lower:
                 if pattern in sname:
                     raw += weight
@@ -272,7 +314,7 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
                     break  # count once per pattern even if in multiple sheets
 
         # ── Tier 3: Column/header signals ─────────────────────────────────────
-        for pattern, weight in _COLUMN_SIGNALS[platform]:
+        for pattern, weight in _COLUMN_SIGNALS.get(platform, []):
             for col in cols_lower:
                 if pattern in col:
                     raw += weight
@@ -280,7 +322,7 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
                     break
 
         # ── Tier 4: Content token signals (cell values) ───────────────────────
-        for pattern, weight in _CONTENT_SIGNALS[platform]:
+        for pattern, weight in _CONTENT_SIGNALS.get(platform, []):
             for tok in tokens_lower:
                 if pattern in tok:
                     raw += weight
@@ -291,7 +333,7 @@ def detect_platform(fp: FileFingerprint) -> PlatformDetectionResult:
 
     # Normalise to 0–1 using the max theoretical score (for display transparency)
     norm = {
-        p: min(1.0, scores[p] / _MAX_SCORES[p]) if _MAX_SCORES[p] > 0 else 0.0
+        p: min(1.0, scores[p] / _MAX_SCORES[p]) if _MAX_SCORES.get(p, 0) > 0 else 0.0
         for p in scores
     }
 
