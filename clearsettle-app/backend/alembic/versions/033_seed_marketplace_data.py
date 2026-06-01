@@ -285,21 +285,7 @@ def upgrade() -> None:
         logger.info("Super admin %s already exists — skipping seed.", admin_email)
         return
 
-    # Create admin company
-    bind.execute(
-        sa.text("""
-            INSERT INTO companies (id, name, created_at, updated_at)
-            VALUES (:id, :name, :now, :now)
-            ON CONFLICT DO NOTHING
-        """),
-        {"id": admin_company_id, "name": "ClearSettle Platform", "now": now},
-    )
-
-    # Create super admin user
-    # Column names match the actual users table schema (User ORM model):
-    #   name           (not full_name)
-    #   email_verified (not is_verified)
-    #   is_superadmin  (added above via ALTER TABLE IF NOT EXISTS)
+    # Create super admin user first (company needs user_id FK)
     bind.execute(
         sa.text("""
             INSERT INTO users (
@@ -319,6 +305,16 @@ def upgrade() -> None:
             "name":     admin_name,
             "now":      now,
         },
+    )
+
+    # Create admin company with user_id (NOT NULL FK to users)
+    bind.execute(
+        sa.text("""
+            INSERT INTO companies (id, user_id, name, created_at, updated_at)
+            VALUES (:id, :user_id, :name, :now, :now)
+            ON CONFLICT DO NOTHING
+        """),
+        {"id": admin_company_id, "user_id": admin_id, "name": "ClearSettle Platform", "now": now},
     )
 
     # Associate admin with company
