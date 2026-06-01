@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,6 +40,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _errorMessage = null);
 
+    // Pre-flight: check real device connectivity before hitting the server.
+    // DioExceptionType.connectionError fires for both "no internet" AND
+    // "server unreachable" — we need the actual radio state to tell them apart.
+    final connectivity = await Connectivity().checkConnectivity();
+    final hasInternet = connectivity.any((r) => r != ConnectivityResult.none);
+    if (!hasInternet) {
+      setState(() => _errorMessage =
+          'No internet connection. Check your Wi-Fi or mobile data.');
+      return;
+    }
+
     await ref.read(authProvider.notifier).login(
           _emailController.text.trim(),
           _passwordController.text,
@@ -56,8 +68,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (msg.contains('401') || msg.contains('Unauthorized')) {
       return 'Invalid email or password.';
     }
-    if (msg.contains('Network') || msg.contains('connection')) {
-      return 'No internet connection. Check your network.';
+    // Internet is confirmed available (checked before login) but server
+    // rejected or timed out — don't say "no internet".
+    if (msg.contains('Network') || msg.contains('connection') ||
+        msg.contains('Connection') || msg.contains('timeout')) {
+      return 'Cannot reach the server. Please try again.';
     }
     return 'Login failed. Please try again.';
   }
@@ -111,24 +126,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildLogo() {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: const Center(
-        child: Text(
-          'CS',
-          style: TextStyle(
-            color: AppColors.textInverse,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-          ),
-        ),
-      ),
+    return Image.asset(
+      'assets/images/clear_settle_logo.png',
+      width: 80,
+      height: 80,
     );
   }
 

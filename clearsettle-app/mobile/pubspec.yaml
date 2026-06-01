@@ -56,6 +56,19 @@ dev_dependencies:
   hive_generator: ^2.0.1
   build_runner: ^2.4.11
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/clear_settle_logo.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/clear_settle_logo.png"
+  web:
+    generate: false
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
