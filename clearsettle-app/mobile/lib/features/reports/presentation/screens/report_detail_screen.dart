@@ -9,6 +9,7 @@ import '../../../../core/utils/date_formatter.dart';
 import '../../../../services/export/export_service.dart';
 import '../../../../shared/widgets/app_error_widget.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
+import '../../domain/entities/report_intelligence.dart';
 import '../providers/report_detail_provider.dart';
 import '../providers/reports_provider.dart';
 import '../widgets/summary_financials_widget.dart';
@@ -112,6 +113,16 @@ class ReportDetailScreen extends ConsumerWidget {
                   child: _ActionButtons(reportId: reportId),
                 ),
               ),
+              // ── Intelligence Card (shown when available) ──────────────────
+              if (detail.parseResult.intelligence != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: _IntelligenceCard(
+                      intelligence: detail.parseResult.intelligence!,
+                    ),
+                  ),
+                ),
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
             ],
           );
@@ -438,6 +449,366 @@ class _ActionButtons extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Intelligence Card ──────────────────────────────────────────────────────
+
+class _IntelligenceCard extends StatelessWidget {
+  const _IntelligenceCard({required this.intelligence});
+
+  final ReportIntelligence intelligence;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppColors.teal, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Intelligence Analysis',
+                style: AppTextStyles.titleMedium
+                    .copyWith(fontWeight: FontWeight.w700),
+              ),
+              const Spacer(),
+              _PlatformBadge(
+                platform: intelligence.platform,
+                confidence: intelligence.platformConfidence,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            intelligence.reportTypeLabel,
+            style: AppTextStyles.bodySmall
+                .copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+
+          // Quality score
+          _QualityScoreRow(score: intelligence.qualityScore),
+          const SizedBox(height: 12),
+
+          // Key metrics
+          _MetricsGrid(intelligence: intelligence),
+          const SizedBox(height: 12),
+
+          // Readiness badge
+          _ReadinessBadge(
+            status: intelligence.reconciliationStatus,
+            score: intelligence.readinessScore,
+          ),
+
+          // Discrepancies
+          if (intelligence.discrepanciesFound > 0) ...[
+            const SizedBox(height: 10),
+            _DiscrepancyRow(
+              count: intelligence.discrepanciesFound,
+              recoverable: intelligence.totalRecoverable,
+            ),
+          ],
+
+          // Insights (up to 3)
+          if (intelligence.insights.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Text(
+              'Key Insights',
+              style: AppTextStyles.labelSmall
+                  .copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            ...intelligence.insights
+                .take(3)
+                .map((i) => _InsightTile(insight: i)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PlatformBadge extends StatelessWidget {
+  const _PlatformBadge({required this.platform, required this.confidence});
+
+  final String platform;
+  final double confidence;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '${platform.toUpperCase()} ${(confidence * 100).toStringAsFixed(0)}%',
+        style: AppTextStyles.labelSmall.copyWith(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+}
+
+class _QualityScoreRow extends StatelessWidget {
+  const _QualityScoreRow({required this.score});
+
+  final double score;
+
+  Color get _color {
+    if (score >= 80) return AppColors.success;
+    if (score >= 50) return AppColors.warning;
+    return AppColors.error;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text('Quality Score', style: AppTextStyles.bodySmall),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: _color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '${score.toStringAsFixed(0)}/100',
+            style: AppTextStyles.labelSmall.copyWith(
+              color: _color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetricsGrid extends StatelessWidget {
+  const _MetricsGrid({required this.intelligence});
+
+  final ReportIntelligence intelligence;
+
+  String _fmt(double v) {
+    if (v >= 10000000) return '₹${(v / 10000000).toStringAsFixed(1)}Cr';
+    if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) return '₹${(v / 1000).toStringAsFixed(1)}K';
+    return '₹${v.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _MetricCell(
+            label: 'Gross Sales',
+            value: _fmt(intelligence.grossSales),
+          ),
+        ),
+        Expanded(
+          child: _MetricCell(
+            label: 'Net Settlement',
+            value: _fmt(intelligence.netSettlement),
+          ),
+        ),
+        Expanded(
+          child: _MetricCell(
+            label: 'Orders',
+            value: intelligence.totalOrders.toString(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetricCell extends StatelessWidget {
+  const _MetricCell({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: AppTextStyles.titleMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.primary,
+          ),
+        ),
+        Text(label, style: AppTextStyles.labelSmall),
+      ],
+    );
+  }
+}
+
+class _ReadinessBadge extends StatelessWidget {
+  const _ReadinessBadge({required this.status, required this.score});
+
+  final String status;
+  final double score;
+
+  Color get _color {
+    if (status == 'full_reconciliation_ready') return AppColors.success;
+    if (status == 'partial_reconciliation') return AppColors.warning;
+    return AppColors.neutral;
+  }
+
+  String get _label {
+    switch (status) {
+      case 'full_reconciliation_ready':
+        return 'Full Recon Ready';
+      case 'partial_reconciliation':
+        return 'Partial Recon';
+      case 'single_report':
+        return 'Single Report';
+      default:
+        return 'Insufficient Data';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.fact_check_outlined, size: 14, color: _color),
+        const SizedBox(width: 6),
+        Text(
+          '$_label — ${score.toStringAsFixed(0)}%',
+          style: AppTextStyles.bodySmall.copyWith(color: _color),
+        ),
+      ],
+    );
+  }
+}
+
+class _DiscrepancyRow extends StatelessWidget {
+  const _DiscrepancyRow({required this.count, required this.recoverable});
+
+  final int count;
+  final double recoverable;
+
+  String _fmt(double v) {
+    if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) return '₹${(v / 1000).toStringAsFixed(1)}K';
+    return '₹${v.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_outlined,
+              size: 14, color: AppColors.warning),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '$count discrepancies found',
+              style: AppTextStyles.bodySmall,
+            ),
+          ),
+          if (recoverable > 0)
+            Text(
+              '${_fmt(recoverable)} recoverable',
+              style: AppTextStyles.labelSmall.copyWith(
+                color: AppColors.success,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightTile extends StatelessWidget {
+  const _InsightTile({required this.insight});
+
+  final IntelligenceInsight insight;
+
+  Color get _color {
+    switch (insight.severity) {
+      case 'critical':
+        return AppColors.error;
+      case 'warning':
+        return AppColors.warning;
+      default:
+        return AppColors.info;
+    }
+  }
+
+  IconData get _icon {
+    switch (insight.severity) {
+      case 'critical':
+        return Icons.error_outline;
+      case 'warning':
+        return Icons.warning_amber_outlined;
+      default:
+        return Icons.info_outline;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(_icon, size: 14, color: _color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  insight.title,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: _color,
+                  ),
+                ),
+                if (insight.metricValue != null)
+                  Text(
+                    insight.metricValue!,
+                    style: AppTextStyles.labelSmall,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
