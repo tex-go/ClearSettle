@@ -4,14 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'clearsettle-app/mobile/**'
-      - '.github/workflows/distribute.yml'
-      # Ignore auto-version bot commits (they only bump pubspec.yaml / VERSION)
-    paths-ignore:
+      - 'clearsettle-app/mobile/lib/**'
+      - 'clearsettle-app/mobile/android/**'
       - 'clearsettle-app/mobile/pubspec.yaml'
-      - 'VERSION'
+      - '.github/workflows/distribute.yml'
 
-  workflow_dispatch:   # allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 concurrency:
   group: distribute-${{ github.ref }}
@@ -21,68 +19,61 @@ jobs:
   distribute:
     name: Build signed APK → Firebase App Distribution
     runs-on: ubuntu-latest
-    # Skip version-bump commits from auto-version bot
+    # Skip version-bump-only commits from the auto-version bot
     if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
 
     steps:
-      # ── Checkout ───────────────────────────────────────────────────────────
       - uses: actions/checkout@v4
 
-      # ── Flutter ────────────────────────────────────────────────────────────
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.x'
           channel: stable
           cache: true
 
-      # ── Java 17 (Gradle needs it) ──────────────────────────────────────────
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      # ── Restore release keystore from secret ───────────────────────────────
+      # Decode release keystore from GitHub secret
       - name: Decode keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode \
             > clearsettle-app/mobile/android/app/clearsettle-release.jks
 
-      # ── Write key.properties (never committed) ─────────────────────────────
+      # Write key.properties so Gradle signing config can read it
       - name: Write key.properties
         run: |
-          cat > clearsettle-app/mobile/android/key.properties <<EOF
+          cat > clearsettle-app/mobile/android/key.properties << 'EOF'
           storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
           storeFile=app/clearsettle-release.jks
           EOF
 
-      # ── Write Firebase service-account JSON ────────────────────────────────
-      - name: Write Firebase service account
-        run: |
-          mkdir -p /tmp/clearsettle
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' \
-            > /tmp/clearsettle/firebase-service-account.json
-          echo "FIREBASE_SERVICE_ACCOUNT_FILE=/tmp/clearsettle/firebase-service-account.json" \
-            >> $GITHUB_ENV
-
-      # ── Install packages ───────────────────────────────────────────────────
       - name: Flutter pub get
         working-directory: clearsettle-app/mobile
         run: flutter pub get
 
-      # ── Build signed release APK ───────────────────────────────────────────
-      - name: Build release APK
+      - name: Build signed release APK
         working-directory: clearsettle-app/mobile
         run: flutter build apk --release
 
-      # ── Upload to Firebase App Distribution ────────────────────────────────
+      # Upload APK directly to Firebase App Distribution (no Gradle wrapper needed)
       - name: Upload to Firebase App Distribution
-        working-directory: clearsettle-app/mobile/android
-        run: ./gradlew appDistributionUploadRelease
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: testers
+          file: clearsettle-app/mobile/build/app/outputs/flutter-apk/app-release.apk
+          releaseNotes: |
+            ${{ github.event.head_commit.message }}
+            Commit: ${{ github.sha }}
 
-      # ── Save APK as workflow artifact ──────────────────────────────────────
-      - name: Upload APK artifact
+      # Save APK as downloadable workflow artifact (30 days)
+      - name: Save APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: clearsettle-release-${{ github.sha }}
