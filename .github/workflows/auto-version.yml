@@ -1,0 +1,149 @@
+name: Auto Version + Release
+
+# Triggers on every merge to main.
+# Reads conventional commit messages since the last tag to decide
+# whether to bump major / minor / patch, then:
+#   1. Updates VERSION, package.json, pubspec.yaml
+#   2. Commits those changes back to main
+#   3. Pushes an annotated vX.Y.Z tag  →  triggers release.yml
+#
+# The release.yml workflow then creates a GitHub Release with a
+# generated changelog and deploys to production.
+#
+# Skip condition: if HEAD commit message starts with "chore: release v"
+# (i.e. this bot's own version-bump commit), do nothing — prevents an
+# infinite trigger loop.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # needed to push commit + tag back to main
+
+jobs:
+  auto-version:
+    name: Detect bump · bump files · tag
+    runs-on: ubuntu-latest
+
+    # Guard: skip the bot's own version-bump commits to avoid infinite loop
+    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use PAT so the pushed tag can trigger release.yml
+          # (the default GITHUB_TOKEN can't trigger downstream workflows)
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # ── 1. Detect bump type from conventional commits ─────────────────────
+      - name: Detect bump type
+        id: bump
+        shell: bash
+        run: |
+          LAST_TAG=$(git tag --sort=-version:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          echo "Last tag  : ${LAST_TAG:-none}"
+          echo "Commit range: $RANGE"
+
+          COMMITS=$(git log "$RANGE" --pretty=format:"%s%n%b")
+
+          # Breaking change → major
+          if echo "$COMMITS" | grep -qE 'BREAKING CHANGE|^feat(\(.+\))?!:|^fix(\(.+\))?!:|^refactor(\(.+\))?!:'; then
+            BUMP="major"
+          # New feature → minor
+          elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
+            BUMP="minor"
+          # Anything else (fix, chore, test, ci, docs, refactor, perf …) → patch
+          else
+            BUMP="patch"
+          fi
+
+          echo "Bump type : $BUMP"
+          echo "type=$BUMP"         >> "$GITHUB_OUTPUT"
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+
+      # ── 2. Calculate new version ──────────────────────────────────────────
+      - name: Calculate new version
+        id: version
+        shell: bash
+        run: |
+          CURRENT=$(cat VERSION | tr -d '[:space:]')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "${{ steps.bump.outputs.type }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW="$MAJOR.$MINOR.$PATCH"
+          echo "version=$NEW"   >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEW"      >> "$GITHUB_OUTPUT"
+          echo "New version: $NEW (was $CURRENT, bump=${{ steps.bump.outputs.type }})"
+
+      # ── 3. Update all version files ───────────────────────────────────────
+      - name: Bump VERSION
+        run: echo "${{ steps.version.outputs.version }}" > VERSION
+
+      - name: Bump frontend package.json
+        run: |
+          NEW="${{ steps.version.outputs.version }}"
+          # jq is pre-installed on ubuntu-latest
+          jq --arg v "$NEW" '.version = $v' \
+            clearsettle-app/frontend/package.json > /tmp/pkg.json
+          mv /tmp/pkg.json clearsettle-app/frontend/package.json
+          echo "frontend/package.json → $NEW"
+
+      - name: Bump Flutter pubspec.yaml
+        run: |
+          NEW="${{ steps.version.outputs.version }}"
+          PUBSPEC="clearsettle-app/mobile/pubspec.yaml"
+          # Current line looks like: "version: 1.0.0+1"
+          # Increment build number alongside semver
+          CURRENT_LINE=$(grep "^version:" "$PUBSPEC")
+          BUILD=$(echo "$CURRENT_LINE" | sed 's/.*+//')
+          NEW_BUILD=$((BUILD + 1))
+          sed -i "s/^version:.*/version: ${NEW}+${NEW_BUILD}/" "$PUBSPEC"
+          echo "mobile/pubspec.yaml → ${NEW}+${NEW_BUILD}"
+
+      # ── 4. Commit, tag, push ──────────────────────────────────────────────
+      - name: Commit version bump
+        run: |
+          git config user.name  "clearsettle-bot[actions]"
+          git config user.email "actions@users.noreply.github.com"
+          git add VERSION \
+              clearsettle-app/frontend/package.json \
+              clearsettle-app/mobile/pubspec.yaml
+          git commit -m "chore: release ${{ steps.version.outputs.tag }}"
+
+      - name: Push annotated tag
+        run: |
+          git tag -a "${{ steps.version.outputs.tag }}" \
+            -m "Release ${{ steps.version.outputs.tag }} — auto-versioned from ${{ steps.bump.outputs.type }} bump"
+          git push origin main
+          git push origin "${{ steps.version.outputs.tag }}"
+          echo "Pushed tag ${{ steps.version.outputs.tag }} → release.yml will now create the GitHub Release and deploy to production"
+
+      # ── 5. Post job summary ───────────────────────────────────────────────
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Release Bot Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Bump type | **${{ steps.bump.outputs.type }}** |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Previous tag | \`${{ steps.bump.outputs.last_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| New tag | \`${{ steps.version.outputs.tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Triggered by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Next: **release.yml** is creating the GitHub Release and deploying to production." >> "$GITHUB_STEP_SUMMARY"
