@@ -67,16 +67,20 @@ jobs:
       - name: Upload to Firebase App Distribution
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Pass as env var to avoid shell-quoting issues with multi-line messages
+          RELEASE_NOTES: ${{ github.event.head_commit.message }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/svc.json
+          # Write to file — avoids "Too many arguments" from special chars in message
+          printf '%s' "$RELEASE_NOTES" > /tmp/release-notes.txt
           GOOGLE_APPLICATION_CREDENTIALS=/tmp/svc.json \
           firebase appdistribution:distribute \
             clearsettle-app/mobile/build/app/outputs/flutter-apk/app-release.apk \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "clear_settle_testers" \
-            --release-notes "${{ github.event.head_commit.message }}" \
+            --release-notes-file /tmp/release-notes.txt \
             --project clearsettle-mobile
-          rm -f /tmp/svc.json
+          rm -f /tmp/svc.json /tmp/release-notes.txt
 
       # Save APK as downloadable workflow artifact (30 days)
       - name: Save APK artifact
