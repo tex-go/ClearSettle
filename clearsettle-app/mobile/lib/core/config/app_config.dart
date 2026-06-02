@@ -4,7 +4,7 @@ abstract final class AppConfig {
   //             --dart-define=API_BASE_URL=http://localhost:8000  (iOS simulator / desktop)
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://clearsettle.in/api',
+    defaultValue: 'https://clearsettle.in/api',
   );
 
   // Super-admin email prefill on the login screen.
