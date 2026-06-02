@@ -13,7 +13,7 @@ on:
 
 concurrency:
   group: distribute-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # never cancel — auto-version bot would kill real builds
 
 jobs:
   distribute:
