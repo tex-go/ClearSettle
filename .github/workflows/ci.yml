@@ -2,9 +2,14 @@ name: CI — Test & Coverage
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main]
   push:
-    branches: [dev]
+    branches: [main]
+    # Skip CI on the bot's own version-bump commits (auto-version.yml handles those)
+    paths-ignore:
+      - "VERSION"
+      - "clearsettle-app/frontend/package.json"
+      - "clearsettle-app/mobile/pubspec.yaml"
 
 jobs:
   backend-test:
@@ -60,7 +65,6 @@ jobs:
             --cov-report=json:coverage.json \
             --cov-config=.coveragerc \
             --junitxml=test-results.xml
-        # continue-on-error so coverage summary still posts even if a test fails
         continue-on-error: true
 
       - name: Coverage summary → GitHub Step Summary
@@ -74,7 +78,7 @@ jobs:
           python -m coverage report --rcfile=.coveragerc 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "Coverage data not available" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Test result badge line
+      - name: Test result summary
         working-directory: clearsettle-app/backend
         if: always()
         run: |
@@ -92,7 +96,7 @@ jobs:
         if: steps.pytest.outcome == 'failure'
         run: exit 1
 
-      - name: Upload coverage XML
+      - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
