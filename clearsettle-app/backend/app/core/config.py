@@ -76,6 +76,29 @@ class Settings(BaseSettings):
     sp_api_region: str = "eu"
     sp_api_endpoint: str = "https://sellingpartnerapi-eu.amazon.com"
 
+    # ── Super Admin ───────────────────────────────────────────────────────────
+    # Credentials for the platform super-admin seeded in migration 033.
+    # NEVER hardcode real passwords here — override via environment variables.
+    super_admin_email:    str = "Admin@clearsettle.com"
+    super_admin_password: str = "Admin@123"
+    super_admin_name:     str = "ClearSettle Admin"
+
+    # ── Marketplace Integration Framework ─────────────────────────────────────
+    # Shopify OAuth
+    shopify_api_key:      str = ""
+    shopify_api_secret:   str = ""
+    shopify_redirect_uri: str = ""
+    shopify_scopes:       str = "read_orders,read_finances,read_products,read_inventory"
+
+    # WooCommerce (per-store — base URL is set per-connection, not globally)
+    woocommerce_api_version: str = "wc/v3"
+
+    # Marketplace sync behaviour
+    marketplace_sync_interval_minutes:         int   = 60
+    marketplace_max_sync_retry:                int   = 3
+    marketplace_access_token_refresh_buffer_m: int   = 5
+    marketplace_oauth_state_ttl_minutes:       int   = 10
+
     # ── Seller Discovery Engine ───────────────────────────────────────────────
     anthropic_api_key: str = ""
     scraper_proxy_url: str = ""

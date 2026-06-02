@@ -33,6 +33,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     role             = Column(String(50), default="admin", nullable=False)
     is_active        = Column(Boolean, default=True, nullable=False)
     email_verified   = Column(Boolean, default=False, nullable=False)
+    is_superadmin    = Column(Boolean, default=False, nullable=False)
 
     # Relationships
     companies      = relationship("Company",      back_populates="user", cascade="all, delete-orphan", lazy="selectin")

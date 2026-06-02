@@ -1,0 +1,1 @@
+"""Amazon parser adapters."""

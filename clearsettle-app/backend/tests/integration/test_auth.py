@@ -38,10 +38,11 @@ class TestRegister:
         r = await client.post("/auth/register", json=payload)
         assert r.status_code == 422
 
-    async def test_register_no_platform_rejected(self, client: AsyncClient):
+    async def test_register_no_platform_accepted(self, client: AsyncClient):
+        # active_platforms is optional since RBAC update — empty list is valid
         payload = valid_register_payload(active_platforms=[])
         r = await client.post("/auth/register", json=payload)
-        assert r.status_code == 422
+        assert r.status_code in (200, 201)
 
     async def test_register_invalid_email_rejected(self, client: AsyncClient):
         payload = valid_register_payload(email="not-an-email")

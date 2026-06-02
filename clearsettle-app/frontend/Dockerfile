@@ -9,7 +9,7 @@ RUN npm run build
 
 FROM nginx:alpine
 # gettext provides envsubst (needed for runtime env injection)
-RUN apk add --no-cache gettext
+RUN apk add --no-cache gettext curl
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 

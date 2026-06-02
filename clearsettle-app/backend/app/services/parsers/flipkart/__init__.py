@@ -1,0 +1,1 @@
+"""Flipkart parser adapters."""

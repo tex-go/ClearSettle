@@ -42,3 +42,12 @@ class Company(Base, TimestampMixin, SoftDeleteMixin):
     # Relationships
     user        = relationship("User",               back_populates="companies")
     connections = relationship("PlatformConnection", back_populates="company", cascade="all, delete-orphan", lazy="selectin")
+    branches    = relationship("Branch",             back_populates="company",  cascade="all, delete-orphan", lazy="selectin")
+    # Marketplace Integration Framework connections
+    mkt_connections = relationship(
+        "MarketplaceConnection",
+        back_populates="company",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        foreign_keys="[MarketplaceConnection.company_id]",
+    )

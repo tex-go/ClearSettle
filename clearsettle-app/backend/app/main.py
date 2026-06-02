@@ -9,11 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 
 # Read version from repo-root VERSION file; fall back to package default.
+# Guards against IndexError when running inside Docker where the path is
+# shallower (e.g. /app/app/main.py has only 3 parent levels, indices 0-2).
 def _read_version() -> str:
-    for candidate in [
-        Path(__file__).resolve().parents[3] / "VERSION",  # repo root
-        Path(__file__).resolve().parents[2] / "VERSION",
-    ]:
+    p = Path(__file__).resolve()
+    for i in range(min(5, len(p.parents))):
+        candidate = p.parents[i] / "VERSION"
         if candidate.exists():
             return candidate.read_text().strip()
     return os.environ.get("APP_VERSION", "0.0.0")
@@ -24,7 +25,10 @@ from app.routers import (
     sp_api, sync, rules, onboarding, api_health, vendor_recon,
     seller_discovery, forecast, meetings,
 )
-from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin
+from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin, ingestion
+from app.routers import marketplace as marketplace_router
+from app.routers import notifications
+from app.routers import rbac_admin
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +115,8 @@ app.include_router(commission.router,     prefix="/commission",     tags=["commi
 app.include_router(gst.router,            prefix="/gst",            tags=["gst"])
 app.include_router(inventory.router,      prefix="/inventory",      tags=["inventory"])
 app.include_router(analytics.router,      prefix="/analytics",      tags=["analytics"])
-app.include_router(platforms.router,      prefix="/platforms",      tags=["platforms"])
+app.include_router(platforms.router,           prefix="/platforms",    tags=["platforms"])
+app.include_router(marketplace_router.router,  prefix="/marketplace",  tags=["marketplace"])
 app.include_router(reports.router,        prefix="/reports",        tags=["reports"])
 app.include_router(dispute_engine.router, prefix="/dispute-engine", tags=["dispute-engine"])
 app.include_router(recovery.router,       prefix="/recovery",       tags=["recovery"])
@@ -129,6 +134,9 @@ app.include_router(flipkart_reports.router,  prefix="/flipkart",  tags=["flipkar
 app.include_router(amazon_reports.router,    prefix="/amazon",     tags=["amazon"])
 app.include_router(meesho_reports.router,    prefix="/meesho",     tags=["meesho"])
 app.include_router(admin.router,             prefix="/admin",      tags=["admin"])
+app.include_router(ingestion.router,         prefix="/ingestion",  tags=["ingestion"])
+app.include_router(notifications.router,     prefix="/notifications", tags=["notifications"])
+app.include_router(rbac_admin.router,        tags=["RBAC Admin"])
 
 
 @app.get("/")

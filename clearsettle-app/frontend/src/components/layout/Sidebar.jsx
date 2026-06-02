@@ -1,90 +1,68 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
+import usePermissions from '../../hooks/usePermissions'
 
-var NAV_ADMIN = [
+// All nav items with permission gates
+// permission: single permission required
+// anyOf: any of these permissions grants access
+var ALL_NAV = [
   {
     group: 'Overview',
     items: [
-      { path: '/', label: 'Dashboard', icon: '⚡' },
+      { path: '/', label: 'Dashboard', icon: '⚡', permission: 'dashboard.view' },
     ],
   },
   {
     group: 'Finance',
     items: [
-      { path: '/settlements',  label: 'Settlements',      icon: '💳', badge: 3, bc: 'rd' },
-      { path: '/disputes',     label: 'Disputes',         icon: '⚖️', badge: 1, bc: 'am' },
-      { path: '/returns',      label: 'Returns',          icon: '↩️' },
-      { path: '/commission',   label: 'Commission Audit', icon: '🔍', badge: 2, bc: 'am' },
-      { path: '/gst',          label: 'GST / TCS',        icon: '🧾' },
+      { path: '/settlements',  label: 'Settlements',      icon: '💳', badge: 3, bc: 'rd', permission: 'settlements.view' },
+      { path: '/returns',      label: 'Returns',          icon: '↩️', permission: 'settlements.view' },
+      { path: '/commission',   label: 'Commission Audit', icon: '🔍', badge: 2, bc: 'am', permission: 'reconciliation.view' },
+      { path: '/gst',          label: 'GST / TCS',        icon: '🧾', permission: 'gst.view' },
     ],
   },
   {
     group: 'Operations',
     items: [
-      { path: '/inventory', label: 'Inventory Sync',      icon: '📦', badge: 3, bc: 'am' },
-      { path: '/forecast',  label: 'Cash Flow Forecast',  icon: '📈', badge: 'NEW', bc: 'tl' },
-      { path: '/analytics', label: 'Profitability',       icon: '💰' },
+      { path: '/inventory', label: 'Inventory Sync',  icon: '📦', badge: 3, bc: 'am', permission: 'reports.view' },
+      { path: '/analytics', label: 'Analytics',       icon: '💰', badge: 'NEW', bc: 'tl', permission: 'dashboard.view' },
     ],
   },
   {
     group: 'Reconciliation',
     items: [
-      { path: '/recon-engine', label: 'Recon Engine',       icon: '🔬', badge: 'NEW', bc: 'tl' },
-      { path: '/bank',         label: 'Bank Reconciliation', icon: '🏦', badge: 2, bc: 'am' },
+      { path: '/ingestion',    label: 'Upload Center',       icon: '📥', badge: 'NEW', bc: 'tl', permission: 'reports.upload' },
+      { path: '/recon-engine', label: 'Recon Engine',        icon: '🔬', permission: 'reconciliation.view' },
+      { path: '/bank',         label: 'Bank Reconciliation', icon: '🏦', badge: 2, bc: 'am', permission: 'bank_reconciliation.view' },
+    ],
+  },
+  {
+    group: 'Marketplace',
+    items: [
+      { path: '/platforms', label: 'Platform Settings', icon: '⚙️', permission: 'marketplace.view' },
     ],
   },
   {
     group: 'Intelligence',
     items: [
-      { path: '/dispute-engine',    label: 'Dispute Rule Engine', icon: '🤖', badge: 8, bc: 'tl' },
-      { path: '/rules',             label: 'Rule Manager',        icon: '⚙️' },
-      { path: '/recovery',          label: 'Recovery Tracker',    icon: '🎯', badge: 3, bc: 'rd' },
-      { path: '/competitors',       label: 'Market Intelligence', icon: '🔭' },
-      { path: '/seller-discovery',  label: 'Seller Discovery',    icon: '🧲', badge: 'NEW', bc: 'tl' },
-      { path: '/meetings',          label: 'Meeting Calendar',    icon: '📆' },
+      { path: '/recovery-center',  label: 'Recovery Center',    icon: '🛡️', badge: 3, bc: 'rd', permission: 'disputes.view' },
+      { path: '/rules',            label: 'Rule Manager',       icon: '⚙️', permission: 'reconciliation.view' },
+      { path: '/competitors',      label: 'Market Intelligence', icon: '🔭', permission: 'ai.view' },
+      { path: '/seller-discovery', label: 'Seller Discovery',   icon: '🧲', badge: 'NEW', bc: 'tl', permission: 'users.view' },
+      { path: '/meetings',         label: 'Meeting Calendar',   icon: '📆', permission: 'dashboard.view' },
     ],
   },
   {
-    group: 'Account',
+    group: 'Reports',
     items: [
-      { path: '/platforms', label: 'Platform Settings', icon: '⚙️' },
-      { path: '/reports',   label: 'Reports',           icon: '📊' },
+      { path: '/reports', label: 'Reports', icon: '📊', permission: 'reports.view' },
     ],
   },
   {
     group: 'Admin',
     items: [
-      { path: '/admin', label: 'Admin Panel', icon: '🛡️', badge: 'ADMIN', bc: 'rd' },
-    ],
-  },
-]
-
-var NAV_SELLER = [
-  {
-    group: 'Overview',
-    items: [
-      { path: '/', label: 'Dashboard', icon: '⚡' },
-    ],
-  },
-  {
-    group: 'Intelligence',
-    items: [
-      { path: '/recon-engine', label: 'Settlement Intelligence', icon: '🔬', badge: 'NEW', bc: 'tl' },
-    ],
-  },
-  {
-    group: 'Finance',
-    items: [
-      { path: '/settlements', label: 'Settlements', icon: '💳' },
-      { path: '/returns',     label: 'Returns',     icon: '↩️' },
-      { path: '/gst',         label: 'GST / TCS',   icon: '🧾' },
-    ],
-  },
-  {
-    group: 'Account',
-    items: [
-      { path: '/platforms', label: 'Platform Settings', icon: '⚙️' },
+      { path: '/admin', label: 'Admin Panel', icon: '🛡️', badge: 'ADMIN', bc: 'rd', anyOf: ['users.create', 'roles.assign'] },
     ],
   },
 ]
@@ -98,11 +76,15 @@ var badgeColors = {
 function Sidebar({ open, onClose }) {
   var { user, logout } = useAuthStore()
   var navigate = useNavigate()
+  var { can, canAny } = usePermissions()
 
-  var role    = user && user.role
-  var isSeller = role === 'seller'
-  var NAV     = isSeller ? NAV_SELLER : NAV_ADMIN
   var initials = user && user.name ? user.name.split(' ').map(function(n) { return n[0] }).slice(0,2).join('') : 'U'
+
+  function isVisible(item) {
+    if (item.anyOf) return canAny(item.anyOf)
+    if (item.permission) return can(item.permission)
+    return true
+  }
 
   function handleLogout() {
     logout()
@@ -201,7 +183,9 @@ function Sidebar({ open, onClose }) {
 
       {/* ── Navigation ── */}
       <nav style={{ flex: 1, padding: '0 6px', overflowY: 'auto' }} role="navigation">
-        {NAV.map(function(group) {
+        {ALL_NAV.map(function(group) {
+          var visibleItems = group.items.filter(isVisible)
+          if (visibleItems.length === 0) return null
           return (
             <div key={group.group} style={{ marginBottom: 4 }}>
               <div style={{
@@ -214,7 +198,7 @@ function Sidebar({ open, onClose }) {
               }}>
                 {group.group}
               </div>
-              {group.items.map(function(item) {
+              {visibleItems.map(function(item) {
                 return (
                   <NavLink
                     key={item.path}
