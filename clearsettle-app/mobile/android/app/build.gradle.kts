@@ -69,7 +69,7 @@ android {
                 firebaseAppDistribution {
                     serviceCredentialsFile = firebaseSvcAccount
                     testers      = "sudo.ranjith@gmail.com"
-                    releaseNotes = "Internal test build"
+                    releaseNotes = "v1.0.5 — BUG014/015/016 fixes, Firebase FCM, release signing, App Distribution"
                 }
             }
         }
