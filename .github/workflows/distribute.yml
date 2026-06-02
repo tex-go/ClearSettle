@@ -60,17 +60,23 @@ jobs:
         working-directory: clearsettle-app/mobile
         run: flutter build apk --release
 
-      # Upload APK directly to Firebase App Distribution (no Gradle wrapper needed)
+      # Upload APK via Firebase CLI (official, no tester-group required)
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@latest
+
       - name: Upload to Firebase App Distribution
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          groups: testers
-          file: clearsettle-app/mobile/build/app/outputs/flutter-apk/app-release.apk
-          releaseNotes: |
-            ${{ github.event.head_commit.message }}
-            Commit: ${{ github.sha }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/svc.json
+          GOOGLE_APPLICATION_CREDENTIALS=/tmp/svc.json \
+          firebase appdistribution:distribute \
+            clearsettle-app/mobile/build/app/outputs/flutter-apk/app-release.apk \
+            --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --testers "sudo.ranjith@gmail.com" \
+            --release-notes "${{ github.event.head_commit.message }}" \
+            --project clearsettle-mobile
+          rm -f /tmp/svc.json
 
       # Save APK as downloadable workflow artifact (30 days)
       - name: Save APK artifact
