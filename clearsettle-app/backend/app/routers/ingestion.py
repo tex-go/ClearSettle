@@ -46,6 +46,7 @@ from app.db.models.ingestion import (
     UploadedFile, ReportDetectionResult,
     ReportProcessingLog, IngestionLedger,
 )
+from app.services.intelligence.pipeline import IntelligencePipeline
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -176,6 +177,57 @@ async def _run_ingestion(
                 report_type_hint=report_type_hint,
             )
 
+            # ── Run 14-agent Intelligence Pipeline ───────────────────────────────
+            parsed_data_for_intel: dict = {}
+            if parse_result and not parse_result.is_empty:
+                parsed_data_for_intel = {
+                    "orders": [
+                        {k: str(v) if hasattr(v, "__class__") and v.__class__.__name__ == "Decimal" else v
+                         for k, v in (o.__dict__ if hasattr(o, "__dict__") else o).items()
+                         if not k.startswith("_")}
+                        for o in (parse_result.ledger_records or [])[:500]
+                    ],
+                    "summary": {},
+                }
+
+            intel_result = None
+            try:
+                intel_pipeline = IntelligencePipeline()
+                intel_result = await intel_pipeline.run(
+                    file_bytes=file_bytes,
+                    filename=file_name,
+                    upload_id=str(uploaded_file_id),
+                    company_id=str(company_id),
+                    db=db,
+                    parsed_data=parsed_data_for_intel,
+                    platform_hint=platform_hint,
+                    report_type_hint=report_type_hint,
+                )
+                logger.info(
+                    "Intelligence pipeline complete for file %s: platform=%s quality=%.0f "
+                    "insights=%d recoverable=%s",
+                    uploaded_file_id,
+                    intel_result.summary.get("platform", "?"),
+                    intel_result.summary.get("quality_score", 0),
+                    intel_result.summary.get("insights_count", 0),
+                    intel_result.summary.get("total_recoverable", "0"),
+                )
+            except Exception as intel_exc:
+                logger.warning(
+                    "Intelligence pipeline error for file %s (non-fatal): %s",
+                    uploaded_file_id, intel_exc,
+                )
+
+            # Build detection_metadata: combine existing pipeline metadata + intelligence result
+            base_metadata = pipeline_result.detection_metadata or {}
+            if intel_result:
+                try:
+                    intel_dict = intel_result.model_dump(mode="json")
+                    base_metadata["intelligence"] = intel_dict
+                    base_metadata["intelligence_summary"] = intel_result.summary
+                except Exception:
+                    pass
+
             # ── Persist detection result ──────────────────────────────────────
             detection = ReportDetectionResult(
                 id=uuid.uuid4(),
@@ -184,7 +236,7 @@ async def _run_ingestion(
                 detected_report_type=pipeline_result.report_type,
                 schema_version=pipeline_result.schema_version,
                 confidence_score=Decimal(str(pipeline_result.confidence_score)),
-                detection_metadata=pipeline_result.detection_metadata,
+                detection_metadata=base_metadata,
                 parser_name=pipeline_result.parser_name,
                 needs_manual_review=pipeline_result.needs_manual_review,
             )
@@ -1041,6 +1093,95 @@ async def export_ledger_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Intelligence result ───────────────────────────────────────────────────────
+
+@router.get("/files/{file_id}/intelligence", summary="Full 14-agent intelligence pipeline result")
+async def get_intelligence(
+    file_id: UUID,
+    db:  AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Returns the stored 14-agent intelligence pipeline result for a file.
+
+    The result is stored in ReportDetectionResult.detection_metadata['intelligence']
+    after the upload pipeline runs.
+
+    If the intelligence pipeline has not yet run (e.g. older files or still processing),
+    returns a 202 with a 'pending' status.
+    """
+    company_id = _company_id(user)
+    record = await db.get(UploadedFile, file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found.")
+    _assert_owner(record, company_id)
+
+    if record.upload_status in ("uploaded", "detecting", "processing"):
+        return {
+            "file_id": str(file_id),
+            "status": "pending",
+            "message": f"File is still being processed (status: {record.upload_status}). Retry shortly.",
+        }
+
+    detection = (await db.execute(
+        select(ReportDetectionResult)
+        .where(ReportDetectionResult.uploaded_file_id == file_id)
+    )).scalar_one_or_none()
+
+    if not detection:
+        raise HTTPException(
+            status_code=404,
+            detail="Detection result not found. File may have failed processing.",
+        )
+
+    meta = detection.detection_metadata or {}
+    intelligence = meta.get("intelligence")
+
+    if not intelligence:
+        # Intelligence pipeline not yet run — trigger it now synchronously
+        if record.storage_path and os.path.exists(record.storage_path):
+            try:
+                with open(record.storage_path, "rb") as fh:
+                    file_bytes = fh.read()
+
+                intel_pipeline = IntelligencePipeline()
+                intel_result = await intel_pipeline.run(
+                    file_bytes=file_bytes,
+                    filename=record.original_file_name,
+                    upload_id=str(file_id),
+                    company_id=str(company_id),
+                    db=db,
+                    platform_hint=detection.detected_platform,
+                    report_type_hint=detection.detected_report_type,
+                )
+                intelligence = intel_result.model_dump(mode="json")
+
+                # Persist for future calls
+                updated_meta = dict(meta)
+                updated_meta["intelligence"] = intelligence
+                updated_meta["intelligence_summary"] = intel_result.summary
+                detection.detection_metadata = updated_meta
+                await db.commit()
+
+            except Exception as exc:
+                logger.warning("On-demand intelligence pipeline failed for %s: %s", file_id, exc)
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Intelligence pipeline not available: {exc}",
+                )
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail="Intelligence data not available for this file (original file not found in storage).",
+            )
+
+    return {
+        "file_id": str(file_id),
+        "status": "ready",
+        "intelligence": intelligence,
+    }
 
 
 # ── Delete file ───────────────────────────────────────────────────────────────
