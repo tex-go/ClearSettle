@@ -52,8 +52,9 @@ from app.db.models.amazon_report import (
 from app.db.models.meesho_report import (
     MeeshoReport, MeeshoSummary, MeeshoOrderRow, MeeshoReconIssue,
 )
-# RBAC tables (Session 12)
-from app.db.models.rbac import Role, Permission, RolePermission
+# RBAC + Branch (Session 12)
+from app.db.models.branch import Branch
+from app.db.models.rbac import Role, Permission, RolePermission, UserRole, UserPermission, BranchUser
 # Enterprise auth (Session 13)
 from app.db.models.password_reset_token import PasswordResetToken
 from app.db.models.email_verification_token import EmailVerificationToken
@@ -142,9 +143,13 @@ __all__ = [
     "MeeshoSummary",
     "MeeshoOrderRow",
     "MeeshoReconIssue",
+    "Branch",
     "Role",
     "Permission",
     "RolePermission",
+    "UserRole",
+    "UserPermission",
+    "BranchUser",
     "PasswordResetToken",
     "EmailVerificationToken",
     "Invitation",
