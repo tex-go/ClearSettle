@@ -12,7 +12,12 @@ abstract final class AppConfig {
   // Override at build time: --dart-define=SUPER_ADMIN_EMAIL=...
   static const String superAdminEmail = String.fromEnvironment(
     'SUPER_ADMIN_EMAIL',
-    defaultValue: 'Admin@clearsettle.com',
+    defaultValue: 'admin@clearsettle.com',
+  );
+
+  static const String superAdminPassword = String.fromEnvironment(
+    'SUPER_ADMIN_PASSWORD',
+    defaultValue: 'Admin@12345',
   );
 
   static const Duration connectTimeout = Duration(seconds: 30);

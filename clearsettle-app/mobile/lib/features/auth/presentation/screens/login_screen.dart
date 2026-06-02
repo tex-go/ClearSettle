@@ -111,6 +111,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void initState() {
     super.initState();
     _emailCtrl.text = AppConfig.superAdminEmail;
+    _passCtrl.text  = AppConfig.superAdminPassword;
     _orbAnim = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
