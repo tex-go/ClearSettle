@@ -98,14 +98,15 @@ jobs:
       - name: Deploy tagged release to Production VM
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:     ${{ secrets.PROD_VM_HOST }}
-          username: ${{ secrets.PROD_VM_USER }}
-          key:      ${{ secrets.PROD_VM_SSH_KEY }}
+          host:     ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key:      ${{ secrets.VM_SSH_KEY }}
           script: |
             cd ~/ClearSettle
-            git fetch --tags origin
-            git checkout ${{ github.ref_name }}
+            git fetch origin
+            git checkout main
+            git pull origin main
             cd clearsettle-app
             docker compose down
-            VERSION=${{ github.ref_name }} docker compose up --build -d
+            docker compose up --build -d
             echo "Deployed ClearSettle ${{ github.ref_name }} at $(date -u)"
