@@ -54,7 +54,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "in.clearsettle.mobile"
+        applicationId = "com.clearsettle.mobile"
         minSdk        = flutter.minSdkVersion
         targetSdk     = flutter.targetSdkVersion
         versionCode   = flutter.versionCode
