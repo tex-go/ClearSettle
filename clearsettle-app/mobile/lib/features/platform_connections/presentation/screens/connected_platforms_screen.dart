@@ -76,11 +76,8 @@ class _BodyState extends ConsumerState<_Body> {
               logoColor: AppColors.flipkart,
               logoIcon: Icons.shopping_bag_outlined,
               connection: flipkart,
-              onConnect: () => _runOAuth(
-                context: context,
-                platformName: 'Flipkart',
-                action: notifier.connectFlipkart,
-              ),
+              onConnect: () =>
+                  _connectFlipkart(context, notifier),
               onDisconnect: () =>
                   _confirmDisconnect(context, 'Flipkart', notifier, 'flipkart'),
             ),
@@ -146,6 +143,57 @@ class _BodyState extends ConsumerState<_Body> {
           ),
       ],
     );
+  }
+
+  /// Shows an explanation dialog before enabling Flipkart manual-upload mode.
+  /// Flipkart has no public OAuth API — connecting simply activates the
+  /// upload feature so the user can import settlement Excel files.
+  Future<void> _connectFlipkart(
+    BuildContext context,
+    PlatformConnectionNotifier notifier,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(
+          Icons.upload_file_outlined,
+          color: AppColors.flipkart,
+          size: 36,
+        ),
+        title: const Text(
+          'Connect Flipkart',
+          textAlign: TextAlign.center,
+        ),
+        content: const Text(
+          'Flipkart uses manual report uploads — no account login required.\n\n'
+          'After connecting, go to the Reports tab and upload your '
+          'Flipkart settlement Excel file to see your financial data.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.flipkart,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.link_outlined, size: 16),
+            label: const Text('Enable Upload'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await _runOAuth(
+        context: context,
+        platformName: 'Flipkart',
+        action: notifier.connectFlipkart,
+      );
+    }
   }
 
   /// Unified OAuth launcher for all platforms.

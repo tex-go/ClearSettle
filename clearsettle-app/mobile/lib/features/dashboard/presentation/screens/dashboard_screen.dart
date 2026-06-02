@@ -34,7 +34,6 @@ class DashboardScreen extends ConsumerWidget {
     final settlements    = ref.watch(settlementsProvider);
     final disputes       = ref.watch(disputesProvider);
     final alerts         = ref.watch(alertsProvider);
-    final connections    = ref.watch(platformConnectionProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -80,7 +79,6 @@ class DashboardScreen extends ConsumerWidget {
                         settlements: settlements,
                         disputes: disputes,
                         alerts: alerts,
-                        connections: connections,
                       ),
               ),
             ],
@@ -193,24 +191,25 @@ class _DashboardAppBar extends StatelessWidget {
 
 // ── Main content ──────────────────────────────────────────────────────────────
 
-class _DashboardContent extends StatelessWidget {
+class _DashboardContent extends ConsumerWidget {
   const _DashboardContent({
     required this.summary,
     required this.settlements,
     required this.disputes,
     required this.alerts,
-    required this.connections,
   });
 
   final DashboardSummary summary;
   final SettlementsState settlements;
   final DisputesState disputes;
   final AlertsState alerts;
-  final AsyncValue<List<PlatformConnection>> connections;
 
   @override
-  Widget build(BuildContext context) {
-    final connectedList = connections.valueOrNull ?? [];
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch directly so this widget rebuilds the instant connections change
+    // (avoids "None" when dashboard summary loads from cache before Hive is read)
+    final connectedList =
+        ref.watch(platformConnectionProvider).valueOrNull ?? [];
     final recoverableAmount =
         (disputes.totalClaimAmount - disputes.totalRecoveredAmount)
             .clamp(0.0, double.infinity);
@@ -229,6 +228,12 @@ class _DashboardContent extends StatelessWidget {
           _BusinessProfileCard(
               summary: summary, connections: connectedList),
           const SizedBox(height: 12),
+
+          // Guidance banner — shown when no financial data exists yet
+          if (summary.grossRevenue == 0 && summary.totalOrders == 0) ...[
+            _NoDataBanner(hasConnections: connectedList.isNotEmpty),
+            const SizedBox(height: 12),
+          ],
 
           // Alert banners (real data — shown only when actionable)
           _AlertBanners(
@@ -287,6 +292,45 @@ class _DashboardContent extends StatelessWidget {
           const _QuickActionsGrid(),
           const SizedBox(height: 24),
         ]),
+      ),
+    );
+  }
+}
+
+// ── No-data guidance banner ──────────────────────────────────────────────────
+
+class _NoDataBanner extends StatelessWidget {
+  const _NoDataBanner({required this.hasConnections});
+  final bool hasConnections;
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = hasConnections
+        ? 'Flipkart is connected. Go to Reports and upload your settlement Excel file to see financial data.'
+        : 'Connect a marketplace and upload a settlement report to see your financial summary here.';
+    return GestureDetector(
+      onTap: () => context.go(RouteConstants.reports),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.upload_file_outlined,
+                color: AppColors.primary, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(msg,
+                  style: AppTextStyles.bodySmall
+                      .copyWith(color: AppColors.textSecondary)),
+            ),
+            const Icon(Icons.arrow_forward_ios,
+                color: AppColors.primary, size: 14),
+          ],
+        ),
       ),
     );
   }
