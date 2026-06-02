@@ -142,40 +142,84 @@ class FlipkartParser implements AbstractMarketplaceParser {
     final rows = sheet.rows;
     if (rows.isEmpty) return [];
 
-    // Try first non-empty row as header (some Flipkart files have a metadata row)
-    for (final row in rows.take(4)) {
+    // Keep ALL cells (no .where filter) so column indices stay aligned with
+    // data rows. Some Flipkart files have a 1-row metadata header.
+    for (final row in rows.take(5)) {
       final headers = row
           .map((cell) => _cellString(cell).toLowerCase().trim())
-          .where((h) => h.isNotEmpty)
           .toList();
-      if (headers.length >= 3) return headers;
+      if (headers.where((h) => h.isNotEmpty).length >= 3) return headers;
     }
     return [];
   }
 
+  /// Finds the best header row for the Orders sheet by scoring alias matches.
+  ///
+  /// Flipkart quarterly payment reports use a multi-row header layout:
+  ///   Row 1 — group labels: "Payment Details", "Transaction Summary", …
+  ///   Row 2 — actual column names: "Order ID", "Sale Amount (Rs.)", …
+  ///
+  /// The simple "first row with ≥3 cells" picks the group-label row, causing
+  /// ALL column lookups to fail. Scoring finds the row whose cell values best
+  /// match known Flipkart column aliases.
+  int _findOrdersHeaderRow(Sheet sheet) {
+    final probeAliases = [
+      ...FlipkartColumnAliases.orderId,
+      ...FlipkartColumnAliases.grossAmount,
+      ...FlipkartColumnAliases.netSettlement,
+      ...FlipkartColumnAliases.settlementId,
+      ...FlipkartColumnAliases.orderDate,
+    ];
+
+    int bestScore = 0;
+    int bestIdx  = 0;
+
+    for (int i = 0; i < sheet.rows.length && i < 5; i++) {
+      final cells = sheet.rows[i]
+          .map((c) => _cellString(c).toLowerCase().trim())
+          .toList();
+      if (cells.where((h) => h.isNotEmpty).length < 3) continue;
+
+      int score = 0;
+      for (final h in cells) {
+        if (h.isEmpty) continue;
+        for (final alias in probeAliases) {
+          if (h == alias ||
+              h.contains(alias) ||
+              (alias.contains(h) && h.length >= 3)) {
+            score++;
+            break;
+          }
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx   = i;
+      }
+    }
+
+    return bestIdx;
+  }
+
   List<ParsedOrder> _parseOrdersSheet({
     required Sheet sheet,
-    required List<String> headers,
+    required List<String> headers, // kept for API compat; may be group-header row
     required String sheetName,
     required List<ParseError> errors,
     required List<ParseWarning> warnings,
   }) {
-    final colMap = _buildColumnMap(headers);
-    final orders = <ParsedOrder>[];
-    int headerRowIdx = 0;
+    // Use scoring to locate the real column-header row (row 2 for payment
+    // reports, row 1 for standard P&L reports). Keep ALL cells so indices
+    // align with data-row positions (empty spacer columns must not be skipped).
+    final headerRowIdx = _findOrdersHeaderRow(sheet);
+    final orderHeaders = headerRowIdx < sheet.rows.length
+        ? sheet.rows[headerRowIdx]
+            .map((c) => _cellString(c).toLowerCase().trim())
+            .toList()
+        : headers;
 
-    // Find the actual header row index (same logic as _extractHeaders)
-    for (int i = 0; i < sheet.rows.length && i < 4; i++) {
-      final row = sheet.rows[i];
-      final hs = row
-          .map((c) => _cellString(c).toLowerCase().trim())
-          .where((h) => h.isNotEmpty)
-          .toList();
-      if (hs.length >= 3) {
-        headerRowIdx = i;
-        break;
-      }
-    }
+    final colMap = _buildColumnMap(orderHeaders);
+    final orders = <ParsedOrder>[];
 
     final rows = sheet.rows;
 
@@ -187,7 +231,7 @@ class FlipkartParser implements AbstractMarketplaceParser {
 
     if (missingCols.length == 3) {
       // All three are missing — file structure is unrecognisable
-      final foundHeaders = headers.take(12).join(', ');
+      final foundHeaders = orderHeaders.where((h) => h.isNotEmpty).take(12).join(', ');
       errors.add(ParseError(
         code: 'MISSING_REQUIRED_COLUMNS',
         message: 'Sheet "$sheetName" is missing required columns '
