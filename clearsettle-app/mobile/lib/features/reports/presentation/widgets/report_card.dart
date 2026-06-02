@@ -28,7 +28,7 @@ class ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: report.isParsed ? onTap : null,
+      onTap: (report.isParsed || report.isFailed) ? onTap : null,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(

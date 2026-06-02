@@ -180,16 +180,29 @@ class FlipkartParser implements AbstractMarketplaceParser {
     final rows = sheet.rows;
 
     // Validate required columns are present
-    if (colMap[_k_orderId] == null &&
-        colMap[_k_grossAmount] == null &&
-        colMap[_k_netSettlement] == null) {
+    final missingCols = <String>[];
+    if (colMap[_k_orderId] == null) missingCols.add('Order ID');
+    if (colMap[_k_grossAmount] == null) missingCols.add('Gross Amount');
+    if (colMap[_k_netSettlement] == null) missingCols.add('Net Settlement');
+
+    if (missingCols.length == 3) {
+      // All three are missing — file structure is unrecognisable
+      final foundHeaders = headers.take(12).join(', ');
       errors.add(ParseError(
         code: 'MISSING_REQUIRED_COLUMNS',
-        message:
-            'Sheet "$sheetName" is missing Order ID, Gross Amount, and Net Settlement columns.',
+        message: 'Sheet "$sheetName" is missing required columns '
+            '(${missingCols.join(", ")}). '
+            'Headers found: $foundHeaders',
         severity: ParseSeverity.high,
       ));
       return [];
+    } else if (missingCols.isNotEmpty) {
+      // Partial — warn but continue; missing columns will be null/zero
+      warnings.add(ParseWarning(
+        code: 'OPTIONAL_COLUMNS_MISSING',
+        message: 'Sheet "$sheetName": columns not found — '
+            '${missingCols.join(", ")}. Values will default to 0.',
+      ));
     }
 
     for (int i = headerRowIdx + 1; i < rows.length; i++) {
