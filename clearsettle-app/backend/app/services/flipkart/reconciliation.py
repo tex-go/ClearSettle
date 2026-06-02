@@ -6,11 +6,15 @@ For each order row, computes:
   Variance = Expected - Actual Settlement Amount
 
 Detects:
-  missing_settlement  — delivered but no settlement
-  partial_settlement  — settled < 90% of expected (critical)
-  mismatch            — variance > 5% of expected (warning)
-  delayed_payout      — settlement > 15 days after order
-  excess_deduction    — total fees > 40% of gross
+  missing_settlement      — delivered but no settlement
+  partial_settlement      — settled < 90% of expected (critical)
+  mismatch                — variance > 5% of expected (warning)
+  delayed_payout          — settlement > 15 days after order
+  excess_deduction        — total fees > 40% of gross
+  wallet_redeem           — 'Wallet Redeem' deduction (not a standard fee)
+  fixed_fee_anomaly       — fixed fee per order > Rs.30 (vs normal Rs.3-10)
+  reverse_shipping_audit  — reverse shipping on misshipment/platform-error returns
+  commission_mismatch     — actual commission != rate × sale_amount
 """
 from __future__ import annotations
 
@@ -18,10 +22,15 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-DELAY_THRESHOLD_DAYS   = 15
-PARTIAL_THRESHOLD      = Decimal("0.90")   # settled < 90% of expected → critical
-MISMATCH_THRESHOLD_PCT = Decimal("0.05")   # variance > 5% → warning
-EXCESS_FEE_RATIO       = Decimal("0.40")   # fees > 40% of gross → warning
+DELAY_THRESHOLD_DAYS     = 15
+PARTIAL_THRESHOLD        = Decimal("0.90")   # settled < 90% of expected → critical
+MISMATCH_THRESHOLD_PCT   = Decimal("0.05")   # variance > 5% → warning
+EXCESS_FEE_RATIO         = Decimal("0.40")   # fees > 40% of gross → warning
+FIXED_FEE_ANOMALY_THRESH = Decimal("30")     # > Rs.30/order fixed fee triggers review
+REVERSE_SHIP_HIGH_THRESH = Decimal("200")    # > Rs.200/return triggers audit
+
+# Fee names that are NOT standard Flipkart seller deductions
+SUSPECT_FEE_NAMES: frozenset = frozenset(["wallet redeem"])
 
 
 def _d(v: Any) -> Decimal:
@@ -167,6 +176,108 @@ def run_reconciliation(order_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]
                     f"({float(pct)*100:.1f}%)."
                 ),
             })
+
+    return issues
+
+
+def run_payment_report_reconciliation(
+    order_rows: List[Dict[str, Any]],
+    gst_rows: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Extended reconciliation for quarterly Payment Report data.
+    Uses richer per-order fields from payment_parser.
+
+    Detects payment-report-specific issues on top of base reconciliation:
+      - wallet_redeem:         suspect fee in GST_Details
+      - fixed_fee_anomaly:     per-order fixed fee abnormally high
+      - high_reverse_shipping: reverse shipping > Rs.200/return
+      - commission_mismatch:   actual comm != rate × sale_amount
+    """
+    issues: List[Dict[str, Any]] = []
+    gst_rows = gst_rows or []
+
+    # ── Wallet Redeem (aggregate across all GST rows) ───────────────────────
+    wallet_rows = [r for r in gst_rows if (r.get("fee_name") or "").lower().strip() in SUSPECT_FEE_NAMES]
+    if wallet_rows:
+        total_wallet = sum(abs(float(r.get("fee_amount", 0))) for r in wallet_rows)
+        total_gst    = sum(abs(float(r.get("gst_amount", 0))) for r in wallet_rows)
+        affected_ids = [r.get("order_item_id") for r in wallet_rows if r.get("order_item_id")]
+        issues.append({
+            "issue_type":      "wallet_redeem",
+            "severity":        "critical",
+            "order_id":        affected_ids[0] if affected_ids else "MULTIPLE",
+            "sku_code":        None,
+            "expected_amount": 0.0,
+            "actual_amount":   -total_wallet,
+            "variance":        total_wallet + total_gst,
+            "description":     (
+                f"'Wallet Redeem' deduction ₹{total_wallet:,.2f} (+ ₹{total_gst:,.2f} GST) "
+                f"across {len(wallet_rows)} transactions. Not a standard Flipkart seller fee. "
+                "Raise seller support dispute immediately."
+            ),
+        })
+
+    # ── Per-order checks ────────────────────────────────────────────────────
+    for row in order_rows:
+        order_id = str(row.get("order_item_id") or row.get("order_id") or "").strip() or "unknown"
+        sku      = row.get("seller_sku") or row.get("sku_code")
+        fixed    = _d(row.get("fixed_fee", 0))
+        rship    = _d(row.get("reverse_shipping_fee", 0))
+        comm     = _d(row.get("commission", 0))
+        comm_rate = _d(row.get("commission_rate_pct", 0))
+        sale     = _d(row.get("sale_amount", 0))
+
+        # ── Fixed fee anomaly ──────────────────────────────────────────────
+        if abs(fixed) > FIXED_FEE_ANOMALY_THRESH:
+            issues.append({
+                "issue_type":      "fixed_fee_anomaly",
+                "severity":        "warning",
+                "order_id":        order_id,
+                "sku_code":        sku,
+                "expected_amount": float(FIXED_FEE_ANOMALY_THRESH),
+                "actual_amount":   float(abs(fixed)),
+                "variance":        float(abs(fixed) - FIXED_FEE_ANOMALY_THRESH),
+                "description":     (
+                    f"Order {order_id}: fixed fee ₹{float(abs(fixed)):,.2f} > threshold ₹{float(FIXED_FEE_ANOMALY_THRESH):,.0f}. "
+                    "Verify against Flipkart published Fixed Fee slab for this category."
+                ),
+            })
+
+        # ── High reverse shipping ──────────────────────────────────────────
+        if abs(rship) > REVERSE_SHIP_HIGH_THRESH:
+            issues.append({
+                "issue_type":      "high_reverse_shipping",
+                "severity":        "warning",
+                "order_id":        order_id,
+                "sku_code":        sku,
+                "expected_amount": float(REVERSE_SHIP_HIGH_THRESH),
+                "actual_amount":   float(abs(rship)),
+                "variance":        float(abs(rship) - REVERSE_SHIP_HIGH_THRESH),
+                "description":     (
+                    f"Order {order_id}: reverse shipping ₹{float(abs(rship)):,.2f} > threshold. "
+                    "Validate return reason: misshipment/platform-error returns are not seller liability."
+                ),
+            })
+
+        # ── Commission rate mismatch ───────────────────────────────────────
+        if sale > 0 and comm_rate > 0 and abs(comm) > 0:
+            expected_comm = -(sale * comm_rate / Decimal("100"))
+            comm_var = abs(comm - expected_comm)
+            if comm_var > Decimal("1"):  # Rs.1 tolerance
+                issues.append({
+                    "issue_type":      "commission_mismatch",
+                    "severity":        "warning",
+                    "order_id":        order_id,
+                    "sku_code":        sku,
+                    "expected_amount": float(expected_comm),
+                    "actual_amount":   float(comm),
+                    "variance":        float(comm_var),
+                    "description":     (
+                        f"Order {order_id}: commission ₹{float(comm):,.2f} vs expected "
+                        f"₹{float(expected_comm):,.2f} at {float(comm_rate):.2f}% rate."
+                    ),
+                })
 
     return issues
 

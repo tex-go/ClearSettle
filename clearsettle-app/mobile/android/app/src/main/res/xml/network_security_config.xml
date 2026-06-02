@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network Security Config — ClearSettle
+  Allows cleartext HTTP to clearsettle.in during the HTTP-only phase.
+  Remove this file (and the manifest reference) once SSL is configured
+  on the server and the API URL is changed to https://clearsettle.in.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">clearsettle.in</domain>
+    </domain-config>
+</network-security-config>

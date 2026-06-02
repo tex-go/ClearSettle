@@ -1,4 +1,9 @@
-"""Disputes — real DB (discrepancy_events) with empty fallback when DB absent."""
+"""Disputes — DiscrepancyEvent CRUD + list.
+
+Phase 1: replaced get_db_optional with get_db (the two were identical);
+removed all unreachable 'if db is None' branches.  New POST /disputes/ sets
+source=manual and workflow_state=detected.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -10,8 +15,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user, get_db_optional
-from app.db.models.discrepancy_event import DiscrepancyEvent
+from app.core.deps import get_current_user, get_db
+from app.db.models.discrepancy_event import DiscrepancyEvent, SOURCE_MANUAL, STATE_DETECTED
 
 router = APIRouter()
 
@@ -67,10 +72,10 @@ _EMPTY_SUMMARY = {"total_amount": 0.0, "open_count": 0, "won_count": 0, "won_amo
 @router.get("/")
 async def get_disputes(
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     cid = _cid(user)
-    if db is None or cid is None:
+    if cid is None:
         return {"items": [], "summary": _EMPTY_SUMMARY}
 
     rows = (await db.execute(
@@ -105,11 +110,11 @@ class NewDispute(BaseModel):
 async def create_dispute(
     body: NewDispute,
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     cid = _cid(user)
-    if db is None or cid is None:
-        raise HTTPException(status_code=503, detail="Database unavailable — cannot create dispute")
+    if cid is None:
+        raise HTTPException(status_code=422, detail="No company associated with this account")
 
     event = DiscrepancyEvent(
         company_id=cid,
@@ -118,6 +123,8 @@ async def create_dispute(
         description=body.description,
         variance_amount=body.amount,
         severity="warning",
+        source=SOURCE_MANUAL,
+        workflow_state=STATE_DETECTED,
         is_resolved=False,
     )
     db.add(event)
@@ -130,11 +137,11 @@ async def create_dispute(
 async def get_dispute(
     did: str,
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     cid = _cid(user)
-    if db is None or cid is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+    if cid is None:
+        raise HTTPException(status_code=422, detail="No company associated with this account")
 
     try:
         uid = UUID(did)
@@ -161,11 +168,11 @@ async def update_dispute(
     did: str,
     body: DisputeUpdate,
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     cid = _cid(user)
-    if db is None or cid is None:
-        return {"message": "Dispute " + did + " updated (no DB)", "note": body.note}
+    if cid is None:
+        raise HTTPException(status_code=422, detail="No company associated with this account")
 
     try:
         uid = UUID(did)

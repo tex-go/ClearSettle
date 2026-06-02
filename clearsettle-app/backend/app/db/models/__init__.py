@@ -59,6 +59,11 @@ from app.db.models.password_reset_token import PasswordResetToken
 from app.db.models.email_verification_token import EmailVerificationToken
 from app.db.models.invitation import Invitation
 from app.db.models.audit_log_entry import AuditLogEntry
+# Intelligent Ingestion Engine (Session 14)
+from app.db.models.ingestion import (
+    UploadedFile, ReportDetectionResult, ReportSchemaVersion,
+    ReportProcessingLog, IngestionLedger,
+)
 # Cash Flow Forecast + Meeting System
 from app.db.models.cash_flow_snapshot import CashFlowSnapshot
 from app.db.models.meeting import Meeting
@@ -66,6 +71,17 @@ from app.db.models.meeting_participant import MeetingParticipant
 from app.db.models.meeting_note import MeetingNote
 from app.db.models.meeting_reminder import MeetingReminder
 from app.db.models.meeting_status_history import MeetingStatusHistory
+# Marketplace Integration Framework (Migration 032)
+from app.db.models.marketplace_connection import (
+    Marketplace,
+    MarketplaceConnection,
+    MarketplaceCredentials,
+    MarketplaceAccount,
+    MarketplaceSyncJob,
+    MarketplaceSyncLog,
+    OAuthState,
+    MarketplaceAuditLog,
+)
 
 __all__ = [
     "User",
@@ -133,4 +149,9 @@ __all__ = [
     "EmailVerificationToken",
     "Invitation",
     "AuditLogEntry",
+    "UploadedFile",
+    "ReportDetectionResult",
+    "ReportSchemaVersion",
+    "ReportProcessingLog",
+    "IngestionLedger",
 ]

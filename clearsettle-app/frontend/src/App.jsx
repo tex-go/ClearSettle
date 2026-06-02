@@ -17,9 +17,11 @@ import GST from './pages/GST'
 import Inventory from './pages/Inventory'
 import Analytics from './pages/Analytics'
 import Platforms from './pages/Platforms'
+import MarketplaceHub from './pages/MarketplaceHub'
 import Reports from './pages/Reports'
 import DisputeEngine from './pages/DisputeEngine'
 import Recovery from './pages/Recovery'
+import RecoveryCenter from './pages/RecoveryCenter'
 import Competitors from './pages/Competitors'
 import Rules from './pages/Rules'
 import ReconEngine from './pages/ReconEngine'
@@ -28,6 +30,7 @@ import CashFlowForecast from './pages/CashFlowForecast'
 import MeetingCalendar from './pages/MeetingCalendar'
 import Register from './pages/Register'
 import AdminPanel from './pages/AdminPanel'
+import Ingestion from './pages/Ingestion'
 
 function ProtectedRoute({ children, adminOnly }) {
   var isAuth = useAuthStore(function(s) { return s.isAuth })
@@ -116,23 +119,28 @@ function App() {
         <Route path="/"           element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
         <Route path="/settlements" element={<ProtectedRoute><AppLayout><Settlements /></AppLayout></ProtectedRoute>} />
         <Route path="/bank"        element={<ProtectedRoute><AppLayout><BankRecon /></AppLayout></ProtectedRoute>} />
-        <Route path="/disputes"    element={<ProtectedRoute><AppLayout><Disputes /></AppLayout></ProtectedRoute>} />
+        {/* Canonical pages */}
+        <Route path="/disputes"         element={<Navigate to="/recovery-center" replace />} />
+        <Route path="/recovery"         element={<Navigate to="/recovery-center" replace />} />
+        <Route path="/dispute-engine"   element={<Navigate to="/recovery-center" replace />} />
+        <Route path="/recovery-center"  element={<ProtectedRoute><AppLayout><RecoveryCenter /></AppLayout></ProtectedRoute>} />
         <Route path="/returns"     element={<ProtectedRoute><AppLayout><Returns /></AppLayout></ProtectedRoute>} />
         <Route path="/commission"  element={<ProtectedRoute><AppLayout><Commission /></AppLayout></ProtectedRoute>} />
         <Route path="/gst"         element={<ProtectedRoute><AppLayout><GST /></AppLayout></ProtectedRoute>} />
         <Route path="/inventory"   element={<ProtectedRoute><AppLayout><Inventory /></AppLayout></ProtectedRoute>} />
-        <Route path="/cashflow"    element={<Navigate to="/forecast" replace />} />
+        <Route path="/cashflow"    element={<Navigate to="/analytics" replace />} />
+        <Route path="/forecast"    element={<Navigate to="/analytics" replace />} />
         <Route path="/analytics"   element={<ProtectedRoute><AppLayout><Analytics /></AppLayout></ProtectedRoute>} />
-        <Route path="/platforms"   element={<ProtectedRoute><AppLayout><Platforms /></AppLayout></ProtectedRoute>} />
+        <Route path="/platforms"     element={<ProtectedRoute><AppLayout><Platforms /></AppLayout></ProtectedRoute>} />
+        <Route path="/integrations"  element={<ProtectedRoute><AppLayout><MarketplaceHub /></AppLayout></ProtectedRoute>} />
         <Route path="/reports"     element={<ProtectedRoute><AppLayout><Reports /></AppLayout></ProtectedRoute>} />
-        <Route path="/dispute-engine" element={<ProtectedRoute><AppLayout><DisputeEngine /></AppLayout></ProtectedRoute>} />
-        <Route path="/recovery"    element={<ProtectedRoute><AppLayout><Recovery /></AppLayout></ProtectedRoute>} />
         <Route path="/competitors" element={<ProtectedRoute><AppLayout><Competitors /></AppLayout></ProtectedRoute>} />
         <Route path="/rules"       element={<ProtectedRoute><AppLayout><Rules /></AppLayout></ProtectedRoute>} />
         <Route path="/recon-engine" element={<ProtectedRoute><AppLayout><ReconEngine /></AppLayout></ProtectedRoute>} />
         <Route path="/seller-discovery" element={<ProtectedRoute><AppLayout><SellerDiscovery /></AppLayout></ProtectedRoute>} />
         <Route path="/forecast"    element={<ProtectedRoute><AppLayout><CashFlowForecast /></AppLayout></ProtectedRoute>} />
         <Route path="/meetings"    element={<ProtectedRoute><AppLayout><MeetingCalendar /></AppLayout></ProtectedRoute>} />
+        <Route path="/ingestion"   element={<ProtectedRoute><AppLayout><Ingestion /></AppLayout></ProtectedRoute>} />
         <Route path="*"            element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

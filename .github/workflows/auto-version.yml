@@ -1,0 +1,174 @@
+name: Auto Version + Release
+
+# Fires on every push to main (the single working branch).
+# Reads conventional commits since last tag → major / minor / patch bump.
+# Then:
+#   1. Bumps VERSION, package.json, pubspec.yaml
+#   2. Commits back to main + pushes annotated vX.Y.Z tag → triggers release.yml
+#   3. On major or minor bump: creates a release/vX.Y.x branch for hotfixes
+#      (patch bumps do NOT create a branch — kept lightweight)
+#
+# Skip guard: if HEAD commit starts with "chore: release v" it's the bot's own
+# version-bump commit — skip to prevent an infinite trigger loop.
+#
+# Requires RELEASE_TOKEN secret (PAT, repo scope) so the pushed tag can
+# trigger the downstream release.yml workflow.
+
+on:
+  push:
+    branches: [main]
+    # Don't fire on version-only file changes (the bot's own commits)
+    paths-ignore:
+      - "VERSION"
+      - "clearsettle-app/frontend/package.json"
+      - "clearsettle-app/mobile/pubspec.yaml"
+
+permissions:
+  contents: write
+
+jobs:
+  auto-version:
+    name: Detect bump · bump files · tag · branch
+    runs-on: ubuntu-latest
+
+    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # ── 1. Detect bump type from conventional commits since last tag ────────
+      - name: Detect bump type
+        id: bump
+        shell: bash
+        run: |
+          LAST_TAG=$(git tag --sort=-version:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          echo "Last tag     : ${LAST_TAG:-none}"
+          echo "Commit range : $RANGE"
+
+          COMMITS=$(git log "$RANGE" --pretty=format:"%s%n%b")
+
+          if echo "$COMMITS" | grep -qE 'BREAKING CHANGE|^feat(\(.+\))?!:|^fix(\(.+\))?!:|^refactor(\(.+\))?!:'; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
+            BUMP="minor"
+          else
+            BUMP="patch"
+          fi
+
+          echo "Bump type    : $BUMP"
+          echo "type=$BUMP"         >> "$GITHUB_OUTPUT"
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+
+      # ── 2. Calculate new version ────────────────────────────────────────────
+      - name: Calculate new version
+        id: version
+        shell: bash
+        run: |
+          CURRENT=$(cat VERSION | tr -d '[:space:]')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "${{ steps.bump.outputs.type }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW="$MAJOR.$MINOR.$PATCH"
+          TAG="v$NEW"
+
+          # Release branch name — used only for major/minor
+          # Format: release/v2.x  or  release/v1.3.x
+          case "${{ steps.bump.outputs.type }}" in
+            major) BRANCH="release/v${MAJOR}.x" ;;
+            minor) BRANCH="release/v${MAJOR}.${MINOR}.x" ;;
+            patch) BRANCH="" ;;
+          esac
+
+          echo "Old version  : $CURRENT"
+          echo "New version  : $NEW  (${{ steps.bump.outputs.type }} bump)"
+          echo "Tag          : $TAG"
+          echo "Branch       : ${BRANCH:-none (patch bump)}"
+
+          echo "version=$NEW"     >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH"   >> "$GITHUB_OUTPUT"
+
+      # ── 3. Update all version files ─────────────────────────────────────────
+      - name: Bump VERSION
+        run: echo "${{ steps.version.outputs.version }}" > VERSION
+
+      - name: Bump frontend package.json
+        run: |
+          NEW="${{ steps.version.outputs.version }}"
+          jq --arg v "$NEW" '.version = $v' \
+            clearsettle-app/frontend/package.json > /tmp/pkg.json
+          mv /tmp/pkg.json clearsettle-app/frontend/package.json
+
+      - name: Bump Flutter pubspec.yaml
+        run: |
+          NEW="${{ steps.version.outputs.version }}"
+          PUBSPEC="clearsettle-app/mobile/pubspec.yaml"
+          BUILD=$(grep "^version:" "$PUBSPEC" | sed 's/.*+//')
+          NEW_BUILD=$((BUILD + 1))
+          sed -i "s/^version:.*/version: ${NEW}+${NEW_BUILD}/" "$PUBSPEC"
+
+      # ── 4. Commit, tag, push to main ────────────────────────────────────────
+      - name: Commit version bump
+        run: |
+          git config user.name  "clearsettle-bot[actions]"
+          git config user.email "actions@users.noreply.github.com"
+          git add VERSION \
+              clearsettle-app/frontend/package.json \
+              clearsettle-app/mobile/pubspec.yaml
+          git commit -m "chore: release ${{ steps.version.outputs.tag }}"
+
+      - name: Push tag to main
+        run: |
+          git tag -a "${{ steps.version.outputs.tag }}" \
+            -m "Release ${{ steps.version.outputs.tag }} — ${{ steps.bump.outputs.type }} bump"
+          git push origin main
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      # ── 5. Create release branch on major / minor bumps ─────────────────────
+      - name: Create release branch
+        if: steps.version.outputs.branch != ''
+        run: |
+          BRANCH="${{ steps.version.outputs.branch }}"
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH"
+          echo "Created branch: $BRANCH"
+
+      # ── 6. Job summary ───────────────────────────────────────────────────────
+      - name: Job summary
+        if: always()
+        run: |
+          BUMP="${{ steps.bump.outputs.type }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          BRANCH="${{ steps.version.outputs.branch }}"
+
+          echo "## Release Bot" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Bump type | **$BUMP** |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Previous tag | \`${{ steps.bump.outputs.last_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| New tag | \`$TAG\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$BRANCH" ]; then
+            echo "| Release branch | \`$BRANCH\` ✅ created |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Release branch | — (patch bump, no branch) |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "| Triggered by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "→ **release.yml** is now creating the GitHub Release and deploying to production." >> "$GITHUB_STEP_SUMMARY"

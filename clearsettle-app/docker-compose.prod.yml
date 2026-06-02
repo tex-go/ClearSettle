@@ -20,6 +20,7 @@ networks:
 
 # ── Volumes ───────────────────────────────────────────────────────────────────
 volumes:
+  pg_data:
   redis_data:
   certbot_certs:
   certbot_www:
@@ -27,6 +28,27 @@ volumes:
 
 # ── Services ──────────────────────────────────────────────────────────────────
 services:
+
+  # ── PostgreSQL 15 ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: clearsettle-postgres-prod
+    <<: *always-restart
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-clearsettle}
+      POSTGRES_USER:     ${POSTGRES_USER:-clearsettle_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - db_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clearsettle_user} -d ${POSTGRES_DB:-clearsettle}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging: *default-logging
 
   # ── Redis (sessions + rate limiting + task queue) ──────────────────────────
   redis:
@@ -53,30 +75,35 @@ services:
 
   # ── FastAPI Backend ────────────────────────────────────────────────────────
   backend:
-    image: ${REGISTRY}/clearsettle-backend:${IMAGE_TAG}
+    build: ./backend
     container_name: clearsettle-backend-prod
     <<: *always-restart
     environment:
       ENV:                production
-      DATABASE_URL:       ${DATABASE_URL}
+      DATABASE_URL:       postgresql+asyncpg://${POSTGRES_USER:-clearsettle_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-clearsettle}
       SECRET_KEY:         ${SECRET_KEY}
       ENCRYPTION_KEY:     ${ENCRYPTION_KEY}
       REDIS_URL:          redis://:${REDIS_PASSWORD}@redis:6379/0
-      SP_API_CLIENT_ID:   ${SP_API_CLIENT_ID}
-      SP_API_CLIENT_SECRET: ${SP_API_CLIENT_SECRET}
+      SP_API_CLIENT_ID:   ${SP_API_CLIENT_ID:-}
+      SP_API_CLIENT_SECRET: ${SP_API_CLIENT_SECRET:-}
       SP_API_REFRESH_TOKEN: ${SP_API_REFRESH_TOKEN:-}
-      SP_API_ENDPOINT:    ${SP_API_ENDPOINT}
-      SP_API_REDIRECT_URI: ${SP_API_REDIRECT_URI}
+      SP_API_ENDPOINT:    ${SP_API_ENDPOINT:-https://sellingpartnerapi-eu.amazon.com}
+      SP_API_REDIRECT_URI: ${SP_API_REDIRECT_URI:-https://clearsettle.in/marketplace/oauth/callback}
       ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY:-}
-      FRONTEND_URL:       ${FRONTEND_URL}
-      ALLOWED_ORIGINS:    ${ALLOWED_ORIGINS}
+      FRONTEND_URL:       ${FRONTEND_URL:-https://clearsettle.in}
+      ALLOWED_ORIGINS:    ${ALLOWED_ORIGINS:-https://clearsettle.in}
+      SUPER_ADMIN_EMAIL:  ${SUPER_ADMIN_EMAIL:-Admin@clearsettle.com}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
       GCS_UPLOADS_BUCKET: ${GCS_UPLOADS_BUCKET:-}
       PORT:               8000
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
       - backend_net
+      - db_net
     expose:
       - "8000"
     volumes:
@@ -98,22 +125,26 @@ services:
 
   # ── React Frontend (nginx:alpine) ──────────────────────────────────────────
   frontend:
-    image: ${REGISTRY}/clearsettle-frontend:${IMAGE_TAG}
+    build: ./frontend
     container_name: clearsettle-frontend-prod
     <<: *always-restart
     environment:
       PORT:    3000
       API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_started
     networks:
       - frontend_net
       - backend_net
     expose:
       - "3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/"]
       interval: 20s
       timeout: 5s
       retries: 5
+      start_period: 15s
     logging: *default-logging
 
   # ── NGINX Reverse Proxy + SSL Termination ──────────────────────────────────
@@ -126,8 +157,8 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - certbot_certs:/etc/letsencrypt:ro
-      - certbot_www:/var/www/certbot:ro
+      - /opt/clearsettle/certbot/certs:/etc/letsencrypt:ro
+      - /opt/clearsettle/certbot/www:/var/www/certbot:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       backend:
@@ -144,12 +175,18 @@ services:
       retries: 3
     logging: *default-logging
 
-  # ── Certbot (Let's Encrypt renewal) ───────────────────────────────────────
+  # ── Certbot (Let's Encrypt auto-renewal every 12h) ───────────────────────
   certbot:
     image: certbot/certbot:latest
     container_name: clearsettle-certbot
+    <<: *always-restart
     volumes:
-      - certbot_certs:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+      - /opt/clearsettle/certbot/certs:/etc/letsencrypt
+      - /opt/clearsettle/certbot/www:/var/www/certbot
+    entrypoint: >
+      /bin/sh -c 'trap exit TERM;
+      while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet;
+        sleep 12h & wait $${!};
+      done;'
     logging: *default-logging

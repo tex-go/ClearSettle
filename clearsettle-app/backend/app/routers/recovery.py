@@ -1,4 +1,8 @@
-"""Recovery Tracker — real DB (discrepancy_events) with empty fallback when DB absent."""
+"""Recovery Tracker — real DB (discrepancy_events).
+
+Phase 1: replaced get_db_optional with get_db; removed all dead 'if db is None'
+branches.  ROUTE_BY_TYPE extended with leakage_audit discrepancy types.
+"""
 from __future__ import annotations
 
 from datetime import datetime, date, timedelta
@@ -10,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user, get_db_optional
+from app.core.deps import get_current_user, get_db
 from app.db.models.discrepancy_event import DiscrepancyEvent
 
 router = APIRouter()
@@ -23,6 +27,8 @@ _ROUTE_BY_TYPE = {
     "DUPLICATE_DEDUCTION":     "Platform",
     "PENALTY_MISMATCH":        "Platform",
     "UNEXPECTED_FEE":          "Legal",
+    "COMMISSION_OVERCHARGE":   "Platform",
+    "RETURN_OVERCHARGE":       "Platform",
 }
 _TYPE_LABEL = {
     "MISSING_PAYOUT":          "Missing Payout",
@@ -35,12 +41,8 @@ _TYPE_LABEL = {
 }
 
 
-def _is_db_user(user) -> bool:
-    return hasattr(user, "companies")
-
-
 def _cid(user) -> Optional[UUID]:
-    if not _is_db_user(user) or not user.companies:
+    if not hasattr(user, "companies") or not user.companies:
         return None
     return user.companies[0].id
 
@@ -75,10 +77,10 @@ _EMPTY_SUMMARY = {"total_amount": 0.0, "won_amount": 0.0, "open_amount": 0.0, "g
 @router.get("/")
 async def get_recovery(
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     cid = _cid(user)
-    if db is None or cid is None:
+    if cid is None:
         return {"items": [], "summary": _EMPTY_SUMMARY}
 
     rows = (await db.execute(
@@ -112,11 +114,11 @@ async def update_recovery(
     rid: str,
     body: RecoveryUpdate,
     user=Depends(get_current_user),
-    db: Optional[AsyncSession] = Depends(get_db_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     cid = _cid(user)
-    if db is None or cid is None:
-        return {"message": "Recovery " + rid + " updated (no DB)", "note": body.note}
+    if cid is None:
+        raise HTTPException(status_code=422, detail="No company associated with this account")
 
     try:
         uid = UUID(rid)

@@ -99,7 +99,19 @@ function Commission() {
                     {c.flag && (
                       <button
                         className="btn btn-d btn-sm"
-                        onClick={function() { addToast('Dispute raised for ' + c.sku, 'warn', 'Overcharge: ' + INR(c.over)) }}
+                        onClick={function() {
+                          var params = new URLSearchParams({
+                            platform: c.plat.toLowerCase(),
+                            sku: c.sku,
+                            overcharge: c.over,
+                            description: c.plat + ' charged ' + c.chg + '% vs published ' + c.pub + '% on SKU ' + c.sku + '. Overcharge: ' + INR(c.over),
+                          })
+                          api.post('/commission/dispute-sku?' + params.toString()).then(function(res) {
+                            addToast('Dispute filed for ' + c.sku, 'success', 'Recovery Center case: ' + (res.data && res.data.id ? res.data.id.slice(0, 8).toUpperCase() : ''))
+                          }).catch(function() {
+                            addToast('Failed to file dispute for ' + c.sku, 'error')
+                          })
+                        }}
                       >
                         Dispute
                       </button>
