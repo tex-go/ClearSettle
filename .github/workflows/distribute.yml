@@ -6,6 +6,10 @@ on:
     paths:
       - 'clearsettle-app/mobile/**'
       - '.github/workflows/distribute.yml'
+      # Ignore auto-version bot commits (they only bump pubspec.yaml / VERSION)
+    paths-ignore:
+      - 'clearsettle-app/mobile/pubspec.yaml'
+      - 'VERSION'
 
   workflow_dispatch:   # allow manual trigger from GitHub UI
 
@@ -17,6 +21,8 @@ jobs:
   distribute:
     name: Build signed APK → Firebase App Distribution
     runs-on: ubuntu-latest
+    # Skip version-bump commits from auto-version bot
+    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
 
     steps:
       # ── Checkout ───────────────────────────────────────────────────────────
