@@ -65,6 +65,28 @@ def valid_register_payload(**overrides) -> dict:
     return base
 
 
+def valid_register_payload_for_role(
+    role: str,
+    *,
+    email: str | None = None,
+    role_override: str | None = None,
+    **overrides,
+) -> dict:
+    """Build a valid registration payload for a specific RBAC role."""
+    base = {
+        "email":            email or unique_email(),
+        "phone":            "+91-9876543210",
+        "password":         VALID_PASSWORD,
+        "confirm_password": VALID_PASSWORD,
+        "name":             f"Test {role.replace('_', ' ').title()}",
+        "company_name":     f"Test Corp ({role})",
+        "state":            "Tamil Nadu",
+        "role":             role_override if role_override is not None else role,
+    }
+    base.update(overrides)
+    return base
+
+
 # ── App fixture — patches lifespan side-effects ───────────────────────────────
 
 @pytest.fixture(scope="session")

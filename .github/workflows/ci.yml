@@ -1,4 +1,4 @@
-name: CI — Test & Lint
+name: CI — Test & Coverage
 
 on:
   pull_request:
@@ -26,8 +26,8 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql+asyncpg://clearsettle:testpass@localhost:5432/clearsettle_test
-      SECRET_KEY:   ci-test-secret-key-not-for-production-use-only
+      DATABASE_URL:   postgresql+asyncpg://clearsettle:testpass@localhost:5432/clearsettle_test
+      SECRET_KEY:     ci-test-secret-key-not-for-production-use-only
       ENCRYPTION_KEY: ""
 
     steps:
@@ -50,19 +50,57 @@ jobs:
         working-directory: clearsettle-app/backend
         run: alembic upgrade head
 
-      - name: Run tests with coverage
+      - name: Run tests
+        id: pytest
         working-directory: clearsettle-app/backend
         run: |
           python -m pytest tests/ -v --tb=short \
-            --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml \
-            --cov-config=.coveragerc
+            --cov=app --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=json:coverage.json \
+            --cov-config=.coveragerc \
+            --junitxml=test-results.xml
+        # continue-on-error so coverage summary still posts even if a test fails
+        continue-on-error: true
 
-      - name: Upload backend coverage
+      - name: Coverage summary → GitHub Step Summary
+        working-directory: clearsettle-app/backend
+        if: always()
+        run: |
+          pip install coverage[toml] --quiet
+          echo "## Backend Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          python -m coverage report --rcfile=.coveragerc 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "Coverage data not available" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Test result badge line
+        working-directory: clearsettle-app/backend
+        if: always()
+        run: |
+          TOTAL=$(python -m coverage report --rcfile=.coveragerc 2>/dev/null | tail -1 | awk '{print $NF}' || echo "N/A")
+          TESTS_PASSED=$(grep -oP 'passed="\K[0-9]+' test-results.xml 2>/dev/null || echo "?")
+          TESTS_FAILED=$(grep -oP 'failures="\K[0-9]+' test-results.xml 2>/dev/null || echo "?")
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests passed | $TESTS_PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests failed | $TESTS_FAILED |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail job if tests failed
+        if: steps.pytest.outcome == 'failure'
+        run: exit 1
+
+      - name: Upload coverage XML
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-coverage
-          path: clearsettle-app/backend/coverage.xml
+          path: |
+            clearsettle-app/backend/coverage.xml
+            clearsettle-app/backend/coverage.json
+            clearsettle-app/backend/test-results.xml
 
   frontend-test:
     name: Frontend Tests
@@ -82,8 +120,34 @@ jobs:
         run: npm ci
 
       - name: Run tests with coverage
+        id: vitest
         working-directory: clearsettle-app/frontend
         run: npm run test:coverage
+        continue-on-error: true
+
+      - name: Coverage summary → GitHub Step Summary
+        working-directory: clearsettle-app/frontend
+        if: always()
+        run: |
+          echo "## Frontend Test Coverage" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e "
+              const s = require('./coverage/coverage-summary.json').total;
+              const fmt = (x) => x.pct + '% (' + x.covered + '/' + x.total + ')';
+              console.log('| Module | Coverage |');
+              console.log('|--------|----------|');
+              console.log('| Statements | ' + fmt(s.statements) + ' |');
+              console.log('| Branches   | ' + fmt(s.branches)   + ' |');
+              console.log('| Functions  | ' + fmt(s.functions)  + ' |');
+              console.log('| Lines      | ' + fmt(s.lines)      + ' |');
+            " >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Coverage data not available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail job if tests failed
+        if: steps.vitest.outcome == 'failure'
+        run: exit 1
 
       - name: Upload frontend coverage
         uses: actions/upload-artifact@v4
