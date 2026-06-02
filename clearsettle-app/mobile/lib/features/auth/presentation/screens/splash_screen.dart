@@ -37,7 +37,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
 
     _ctrl.forward();
-    _scheduleNav();
+
+    // Primary: wait for auth to finish loading, then navigate immediately.
+    // Fallback: always navigate after 2s even if auth hangs.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _waitForAuthThenNav());
+    Future.delayed(const Duration(milliseconds: 2000), _doNav);
   }
 
   @override
@@ -46,9 +50,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.dispose();
   }
 
-  Future<void> _scheduleNav() async {
-    await Future.delayed(const Duration(milliseconds: 1800));
-    _doNav();
+  Future<void> _waitForAuthThenNav() async {
+    // Poll until authProvider is no longer loading, then navigate immediately.
+    while (mounted && !_navigated) {
+      final auth = ref.read(authProvider);
+      if (!auth.isLoading) {
+        await Future.delayed(const Duration(milliseconds: 600));
+        _doNav();
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
   }
 
   void _doNav() {
@@ -61,11 +73,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(authProvider, (_, next) {
-      if (next.isLoading) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _doNav());
-    });
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
