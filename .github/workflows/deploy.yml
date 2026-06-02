@@ -1,12 +1,12 @@
 name: Deploy ClearSettle
 
-# Staging:  CI passes on dev  → auto-deploy to staging VM
+# Staging:  CI passes on main → auto-deploy to staging VM
 # Production: push a vX.Y.Z tag → release.yml handles it (not this file)
 
 on:
   workflow_run:
-    workflows: ["CI — Test & Lint"]
-    branches: [dev]
+    workflows: ["CI — Test & Coverage"]
+    branches: [main]
     types: [completed]
 
 concurrency:
@@ -28,8 +28,8 @@ jobs:
           key:      ${{ secrets.VM_SSH_KEY }}
           script: |
             cd ~/ClearSettle
-            git checkout dev
-            git pull origin dev
+            git checkout main
+            git pull origin main
             cd clearsettle-app
             docker compose down
             docker compose up --build -d
