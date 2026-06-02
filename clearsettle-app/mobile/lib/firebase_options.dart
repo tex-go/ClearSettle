@@ -1,4 +1,5 @@
 // Generated from google-services.json for project clearsettle-mobile.
+// App ID: 1:684235532058:android:80f406a4891f42791deea3 (com.clearsettle.mobile)
 // Re-run `flutterfire configure` after updating google-services.json.
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
