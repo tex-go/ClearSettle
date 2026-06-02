@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -7,6 +9,24 @@ plugins {
     id("com.google.gms.google-services")
     id("com.google.firebase.appdistribution")
 }
+
+// ── Signing config ────────────────────────────────────────────────────────────
+// Loaded from android/key.properties (gitignored) for local builds.
+// CI overrides via environment variables (STORE_PASSWORD, KEY_PASSWORD, etc.)
+val keystoreProps = Properties()
+val keystorePropsFile = rootProject.file("key.properties")
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(keystorePropsFile.inputStream())
+}
+
+fun keystoreProp(name: String): String? =
+    (keystoreProps[name] as String?)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(name.uppercase().replace(".", "_"))
+
+val firebaseSvcAccount: String =
+    keystoreProp("firebaseServiceAccountFile")
+        ?: System.getenv("FIREBASE_SERVICE_ACCOUNT_FILE")
+        ?: ""
 
 android {
     namespace = "in.clearsettle.mobile"
@@ -19,39 +39,48 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"
+    }
+
+    // ── Release keystore ───────────────────────────────────────────────────────
+    signingConfigs {
+        create("release") {
+            keyAlias      = keystoreProp("keyAlias")      ?: error("keyAlias not set")
+            keyPassword   = keystoreProp("keyPassword")   ?: error("keyPassword not set")
+            storePassword = keystoreProp("storePassword") ?: error("storePassword not set")
+            val sfProp    = keystoreProp("storeFile")     ?: error("storeFile not set")
+            storeFile     = keystorePropsFile.parentFile.resolve(sfProp)
+        }
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "in.clearsettle.mobile"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        minSdk        = flutter.minSdkVersion
+        targetSdk     = flutter.targetSdkVersion
+        versionCode   = flutter.versionCode
+        versionName   = flutter.versionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
 
-            firebaseAppDistribution {
-                // Testers are notified automatically when a new build is uploaded.
-                // Comma-separated tester emails or group aliases defined in Firebase console.
-                testers = "sudo.ranjith@gmail.com"
-                releaseNotes = "Internal test build"
-                // Optional: set serviceCredentialsFile for CI
-                // serviceCredentialsFile = "firebase-service-account.json"
+            if (firebaseSvcAccount.isNotBlank()) {
+                firebaseAppDistribution {
+                    serviceCredentialsFile = firebaseSvcAccount
+                    testers      = "sudo.ranjith@gmail.com"
+                    releaseNotes = "Internal test build"
+                }
             }
         }
         debug {
-            firebaseAppDistribution {
-                testers = "sudo.ranjith@gmail.com"
-                releaseNotes = "Debug build"
+            // Debug builds also uploadable for quick tester feedback
+            if (firebaseSvcAccount.isNotBlank()) {
+                firebaseAppDistribution {
+                    serviceCredentialsFile = firebaseSvcAccount
+                    testers      = "sudo.ranjith@gmail.com"
+                    releaseNotes = "Debug build"
+                }
             }
         }
     }
