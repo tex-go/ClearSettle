@@ -10,6 +10,7 @@ import '../../../../services/export/export_service.dart';
 import '../../../../shared/widgets/app_error_widget.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../providers/report_detail_provider.dart';
+import '../providers/reports_provider.dart';
 import '../widgets/summary_financials_widget.dart';
 
 class ReportDetailScreen extends ConsumerWidget {
@@ -47,43 +48,74 @@ class ReportDetailScreen extends ConsumerWidget {
           onRetry: () =>
               ref.read(reportDetailProvider(reportId).notifier).refresh(),
         ),
-        data: (detail) => CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: _HeaderCard(
-                fileName: detail.report.fileName,
-                marketplace: detail.report.marketplace,
-                uploadedAt: detail.report.uploadedAt,
-                parsedAt: detail.report.parsedAt,
-                fileSize: detail.report.fileSizeLabel,
-                parserVersion: detail.parseResult.parserVersion,
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: _StatsRow(
-                  orders: detail.report.totalOrders,
-                  discrepancies: detail.report.discrepancyCount,
-                  warnings: detail.parseResult.warnings.length,
+        data: (detail) {
+          if (detail.report.isFailed) {
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _HeaderCard(
+                    fileName: detail.report.fileName,
+                    marketplace: detail.report.marketplace,
+                    uploadedAt: detail.report.uploadedAt,
+                    parsedAt: detail.report.parsedAt,
+                    fileSize: detail.report.fileSizeLabel,
+                    parserVersion: detail.parseResult.parserVersion,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: _FailedReportCard(
+                      errorMessage: detail.report.errorMessage,
+                      onRetry: () => ref
+                          .read(reportsProvider.notifier)
+                          .retryParse(reportId),
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              ],
+            );
+          }
+
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _HeaderCard(
+                  fileName: detail.report.fileName,
+                  marketplace: detail.report.marketplace,
+                  uploadedAt: detail.report.uploadedAt,
+                  parsedAt: detail.report.parsedAt,
+                  fileSize: detail.report.fileSizeLabel,
+                  parserVersion: detail.parseResult.parserVersion,
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: SummaryFinancialsWidget(summary: detail.summary),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: _StatsRow(
+                    orders: detail.report.totalOrders,
+                    discrepancies: detail.report.discrepancyCount,
+                    warnings: detail.parseResult.warnings.length,
+                  ),
+                ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _ActionButtons(reportId: reportId),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: SummaryFinancialsWidget(summary: detail.summary),
+                ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
-        ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: _ActionButtons(reportId: reportId),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
+          );
+        },
       ),
     );
   }
@@ -400,12 +432,101 @@ class _ActionButtons extends StatelessWidget {
           height: 48,
           child: OutlinedButton.icon(
             onPressed: () => context
-                .push(RouteConstants.settlementDetailPath(reportId)),
+                .push(RouteConstants.reportSettlementPath(reportId)),
             icon: const Icon(Icons.receipt_long_outlined, size: 18),
             label: const Text('View Settlements'),
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Failed report detail ────────────────────────────────────────────────────
+
+class _FailedReportCard extends StatelessWidget {
+  const _FailedReportCard({
+    required this.errorMessage,
+    required this.onRetry,
+  });
+
+  final String? errorMessage;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Parse Failed',
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.error, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            errorMessage ??
+                'The report could not be parsed. '
+                'Please check the file format and try again.',
+            style: AppTextStyles.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Text(
+            'Common causes',
+            style: AppTextStyles.bodySmall
+                .copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          for (final tip in const [
+            'Corrupted or password-protected Excel file',
+            'Missing required columns (Order ID, Gross Amount, Net Settlement)',
+            'Sheet names do not match the expected Flipkart format',
+            'File contains only a summary sheet — no order rows',
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('• ', style: AppTextStyles.labelSmall),
+                  Expanded(
+                    child: Text(tip, style: AppTextStyles.labelSmall),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: onRetry,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: BorderSide(
+                    color: AppColors.error.withValues(alpha: 0.5)),
+              ),
+              icon: const Icon(Icons.refresh_outlined, size: 16),
+              label: const Text('Retry Parse'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

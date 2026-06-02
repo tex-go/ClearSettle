@@ -3,6 +3,9 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Firebase — must come after com.android.application
+    id("com.google.gms.google-services")
+    id("com.google.firebase.appdistribution")
 }
 
 android {
@@ -35,6 +38,21 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            firebaseAppDistribution {
+                // Testers are notified automatically when a new build is uploaded.
+                // Comma-separated tester emails or group aliases defined in Firebase console.
+                testers = "sudo.ranjith@gmail.com"
+                releaseNotes = "Internal test build"
+                // Optional: set serviceCredentialsFile for CI
+                // serviceCredentialsFile = "firebase-service-account.json"
+            }
+        }
+        debug {
+            firebaseAppDistribution {
+                testers = "sudo.ranjith@gmail.com"
+                releaseNotes = "Debug build"
+            }
         }
     }
 }

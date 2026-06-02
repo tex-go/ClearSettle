@@ -6,6 +6,7 @@ abstract final class FlipkartColumnAliases {
   static const List<String> orderId = [
     'order id', 'order_id', 'order no', 'order no.', 'order number',
     'orderid', 'sub order no', 'sub order id', 'order ref', 'order reference',
+    'order item id', 'order item no', 'order item number', 'order item ref',
   ];
 
   static const List<String> settlementId = [
@@ -125,6 +126,7 @@ abstract final class FlipkartColumnAliases {
   // ── Net settlement ─────────────────────────────────────────────────────────
 
   static const List<String> netSettlement = [
+    'net settlement', 'net_settlement', 'net settlement value',
     'net earnings', 'net payout', 'net payment', 'total payout', 'net proceeds',
     'total earnings', 'seller earnings', 'payout amount', 'net amount', 'net',
     'earnings', 'bank settlement value', 'bank settlement (rs.)',
