@@ -73,7 +73,7 @@ jobs:
           firebase appdistribution:distribute \
             clearsettle-app/mobile/build/app/outputs/flutter-apk/app-release.apk \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
-            --testers "sudo.ranjith@gmail.com" \
+            --groups "clear_settle_testers" \
             --release-notes "${{ github.event.head_commit.message }}" \
             --project clearsettle-mobile
           rm -f /tmp/svc.json
