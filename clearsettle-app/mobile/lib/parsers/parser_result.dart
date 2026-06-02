@@ -300,6 +300,7 @@ class ParseResult {
     required this.warnings,
     this.summary,
     this.sheetsFound = const [],
+    this.intelligence,
   });
 
   final String marketplace;
@@ -312,6 +313,8 @@ class ParseResult {
   final List<ParseError> errors;
   final List<ParseWarning> warnings;
   final List<String> sheetsFound;
+  /// 14-agent intelligence pipeline result (populated when available from API).
+  final dynamic intelligence; // ReportIntelligence | null
 
   bool get hasErrors => errors.any(
         (e) =>
