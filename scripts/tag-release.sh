@@ -15,6 +15,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$ROOT/VERSION"
 PACKAGE_JSON="$ROOT/clearsettle-app/frontend/package.json"
+PUBSPEC="$ROOT/clearsettle-app/mobile/pubspec.yaml"
 
 # ── Guard checks ─────────────────────────────────────────────────────────────
 
@@ -69,13 +70,18 @@ if command -v jq &>/dev/null; then
   jq --arg v "$NEW_VERSION" '.version = $v' "$PACKAGE_JSON" > "$tmp"
   mv "$tmp" "$PACKAGE_JSON"
 else
-  # fallback: sed — fragile but works for standard package.json
   sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$PACKAGE_JSON"
 fi
 
+# Bump Flutter pubspec.yaml — preserves build number and increments it
+CURRENT_BUILD=$(grep "^version:" "$PUBSPEC" | sed 's/.*+//')
+NEW_BUILD=$((CURRENT_BUILD + 1))
+sed -i "s/^version:.*/version: ${NEW_VERSION}+${NEW_BUILD}/" "$PUBSPEC"
+echo "pubspec.yaml    : ${NEW_VERSION}+${NEW_BUILD}"
+
 # ── Commit + tag ──────────────────────────────────────────────────────────────
 
-git -C "$ROOT" add "$VERSION_FILE" "$PACKAGE_JSON"
+git -C "$ROOT" add "$VERSION_FILE" "$PACKAGE_JSON" "$PUBSPEC"
 git -C "$ROOT" commit -m "chore: release $TAG"
 git -C "$ROOT" tag -a "$TAG" -m "Release $TAG"
 
