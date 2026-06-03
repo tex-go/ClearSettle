@@ -61,6 +61,11 @@ _FILENAME_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
         ("seller_report",     3),
         ("pl_report",         8),
         ("overall_summary",   5),
+        # Quarterly payment settlement reports from Flipkart Seller Hub
+        ("payment_report",    8),  # "tip_top_payment_report_april2026"
+        ("payment report",    8),
+        ("settlement_report", 6),
+        ("seller_payment",    7),
     ],
     "amazon": [
         ("amazon",            8),
@@ -103,9 +108,17 @@ _SHEET_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
         ("overall summary",      6),   # P&L summary tab
         ("payment details",      7),
         ("gst details",          7),
+        ("gst_details",          7),   # underscore variant in payment reports
         ("commission invoice",   7),
         ("report help",          4),   # P&L has a "Report Help" tab
         ("returns",              2),
+        ("neft_summary",         8),   # quarterly payment report
+        ("neft summary",         8),
+        ("ads",                  3),
+        ("tcs_recovery",         7),   # TCS recovery sheet
+        ("tds_recovery",         7),
+        ("non_order_spf",        6),
+        ("summary of report",    7),   # quarterly payment report summary sheet
     ],
     "amazon": [
         ("settlement",           6),
@@ -146,6 +159,22 @@ _COLUMN_SIGNALS: Dict[str, List[Tuple[str, int]]] = {
         ("net earnings",                 5),
         ("estimated net sales",          6),
         ("earnings on platform",         9),   # unique to Flipkart P&L
+        # Quarterly payment settlement report columns (seller hub download)
+        ("bank settlement value",        9),   # unique to Flipkart payment report
+        ("neft id",                      8),   # NEFT transfer ID
+        ("sale amount (rs.)",            8),
+        ("tcs (rs.)",                    7),   # tax collected at source
+        ("tds (rs.)",                    7),   # tax deducted at source
+        ("gst on mp fees (rs.)",         8),
+        ("commission (rs.)",             6),
+        ("fixed fee  (rs.)",             7),
+        ("reverse shipping fee (rs.)",   8),
+        ("item return status",           6),
+        ("seller sku",                   5),
+        ("product sub category",         5),
+        ("my share (rs.)",               7),   # seller's offer share column
+        ("no cost emi fee",              6),
+        ("shopsy",                       5),
     ],
     "amazon": [
         ("amazon-order-id",              10),
