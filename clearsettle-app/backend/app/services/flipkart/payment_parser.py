@@ -172,18 +172,40 @@ def _build_col_map(df: DataFrame) -> Dict[str, Optional[str]]:
 def _flatten_multiheader(raw: DataFrame) -> DataFrame:
     """
     Flatten the 2-row merged-cell header used in Flipkart Payment Reports.
-    Rows 0-1 are headers; rows 2+ are data (sometimes row 2 is sub-header).
+
+    The report has this layout:
+      Row 0:  Section headers  (Payment Details | Transaction Summary | …)
+      Row 1:  Column names     (NEFT ID | Order Item ID | Sale Amount | …)
+      Row 2:  Optional sub-header (Total Rs. | …) — skipped if it contains "total"
+      Row 3+: Data rows
+
+    For GST_Details the layout is similar but section headers are in row 0
+    ("Transaction Summary | Fee Amount & GST on Fees | …") and column names
+    are in row 1 ("Service Type | Neft Id | Order Item ID | Fee Name | …").
     """
-    if len(raw) < 3:
+    if len(raw) < 2:
         return raw
 
-    # Detect which row contains "Payment Details" (section header row)
-    r_sec, r_col = 0, 1
-    for i in range(min(5, len(raw))):
+    # Detect the section-header row: look for known section header keywords.
+    # "Payment Details" signals Orders sheet; "Transaction Summary" signals
+    # GST_Details and other sheets. Either way it lives in row 0.
+    SECTION_MARKERS = (
+        "payment details", "transaction summary", "order details",
+        "marketplace fees", "taxes", "shipping details",
+    )
+    COLUMN_MARKERS = ("neft id", "order item id", "fee name", "service type")
+
+    r_sec, r_col = 0, 1   # default: row 0 is section header, row 1 is col names
+    for i in range(min(4, len(raw))):
         row_str = " ".join(_s(v).lower() for v in raw.iloc[i])
-        if "payment details" in row_str or "neft id" in row_str.lower():
+        if any(m in row_str for m in SECTION_MARKERS):
             r_sec = i
             r_col = i + 1
+            break
+        if any(m in row_str for m in COLUMN_MARKERS):
+            # Column-name row found without a preceding section header
+            r_sec = max(0, i - 1)
+            r_col = i
             break
 
     sec_headers = list(raw.iloc[r_sec])

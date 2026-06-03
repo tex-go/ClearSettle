@@ -98,7 +98,7 @@ class ReportsNotifier extends Notifier<ReportsState> {
 
   Future<bool> pickAndUpload({
     String marketplace = 'flipkart',
-    String reportType = 'payment_ledger',
+    String reportType = 'payment_report',  // was 'payment_ledger' — wrong type caused GenericCSVParser fallback
   }) async {
     state = state.copyWith(isUploading: true, clearError: true);
 
