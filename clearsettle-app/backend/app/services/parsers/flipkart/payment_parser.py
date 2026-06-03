@@ -48,6 +48,10 @@ class FlipkartPaymentParser(BaseParser):
             oi          = self._safe_str(row.get("order_item_id") or row.get("order_id"))
             has_return  = bool(self._safe_str(row.get("return_type")))
             sale_amt    = self._safe_decimal(row.get("sale_amount"))
+            my_share    = self._safe_decimal(row.get("my_share"))
+            # Fallback: some Flipkart report variants use "my share" as the revenue column
+            if (sale_amt is None or sale_amt == 0) and my_share is not None and my_share != 0:
+                sale_amt = my_share
             bank_settle = self._safe_decimal(row.get("bank_settlement"))
             tcs_val     = self._safe_decimal(row.get("tcs"))
             tds_val     = self._safe_decimal(row.get("tds"))

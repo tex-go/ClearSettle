@@ -95,6 +95,7 @@ services:
       SUPER_ADMIN_EMAIL:  ${SUPER_ADMIN_EMAIL:-Admin@clearsettle.com}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
       GCS_UPLOADS_BUCKET: ${GCS_UPLOADS_BUCKET:-}
+      UPLOAD_DIR:         /app/uploads/ingestion
       PORT:               8000
     depends_on:
       postgres:

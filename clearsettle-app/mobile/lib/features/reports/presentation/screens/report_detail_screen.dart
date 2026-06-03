@@ -9,7 +9,9 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../../parsers/parser_result.dart';
 import '../../../../services/export/export_service.dart';
 import '../../../../shared/widgets/app_error_widget.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
@@ -102,8 +104,10 @@ class ReportDetailScreen extends ConsumerWidget {
           }
 
           // ── Parsed report (backend or local) ──────────────────────────────
+          final summary   = detail.summary;
           final hasSummary = detail.parseResult.summary != null ||
               detail.report.grossRevenue > 0;
+          final hasRealData = summary.grossSales > 0 || summary.totalOrders > 0;
 
           return CustomScrollView(
             slivers: [
@@ -127,15 +131,52 @@ class ReportDetailScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+
+              // ── Executive KPI Grid ──────────────────────────────────────────
+              if (hasRealData)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: _KpiGrid(summary: summary),
+                  ),
+                ),
+
+              // ── Settlement Reconciliation ───────────────────────────────────
+              if (hasRealData && summary.amountSettled > 0)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _SettlementReconCard(summary: summary),
+                  ),
+                ),
+
+              // ── Tax Recovery Banner ─────────────────────────────────────────
+              if (hasRealData && _totalRecoverable(summary) > 0)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _TaxRecoveryBanner(summary: summary),
+                  ),
+                ),
+
+              // ── Return Intelligence ─────────────────────────────────────────
+              if (hasRealData && summary.returnsValue > 0)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _ReturnIntelligenceCard(summary: summary),
+                  ),
+                ),
+
+              // ── Detailed Breakdown ──────────────────────────────────────────
               if (hasSummary)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: SummaryFinancialsWidget(
-                      summary: detail.summary,
-                    ),
+                    child: SummaryFinancialsWidget(summary: summary),
                   ),
                 ),
+
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -1192,5 +1233,411 @@ class _FailedReportCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ── Helper ─────────────────────────────────────────────────────────────────
+
+double _totalRecoverable(ParsedSummary s) =>
+    s.totalTcs + s.totalTds + s.totalGstOnFees;
+
+// ── KPI Grid ───────────────────────────────────────────────────────────────
+
+class _KpiGrid extends StatelessWidget {
+  const _KpiGrid({required this.summary});
+  final ParsedSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final returnRate = summary.grossSales > 0
+        ? (summary.returnsValue / summary.grossSales * 100).clamp(0.0, 100.0)
+        : 0.0;
+    final totalFees = summary.totalFees;
+    final feeRatePct = summary.grossSales > 0
+        ? (totalFees / summary.grossSales * 100).clamp(0.0, 100.0)
+        : 0.0;
+    final recoveryRate = summary.grossSales > 0
+        ? (summary.netEarnings / summary.grossSales * 100).clamp(0.0, 100.0)
+        : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          icon: Icons.bar_chart_rounded,
+          label: 'Executive Summary',
+          tag: '${summary.totalOrders} orders',
+        ),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 1.7,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _KpiCard(
+              label: 'Gross Sales (GMV)',
+              value: CurrencyFormatter.formatCompact(summary.grossSales),
+              note: '100% of revenue',
+              color: AppColors.info,
+              icon: Icons.currency_rupee_rounded,
+            ),
+            _KpiCard(
+              label: 'Total Orders',
+              value: summary.totalOrders.toString(),
+              note: '${summary.totalReturned} returns',
+              color: AppColors.accent,
+              icon: Icons.shopping_bag_outlined,
+            ),
+            _KpiCard(
+              label: 'Return Rate',
+              value: '${returnRate.toStringAsFixed(1)}%',
+              note: CurrencyFormatter.formatCompact(summary.returnsValue),
+              color: returnRate > 20 ? AppColors.danger : AppColors.warning,
+              icon: Icons.undo_rounded,
+            ),
+            _KpiCard(
+              label: 'Marketplace Fees',
+              value: CurrencyFormatter.formatCompact(totalFees),
+              note: '${feeRatePct.toStringAsFixed(1)}% of GMV',
+              color: AppColors.warning,
+              icon: Icons.account_balance_wallet_outlined,
+            ),
+            _KpiCard(
+              label: 'Net Settlement',
+              value: CurrencyFormatter.formatCompact(summary.netEarnings),
+              note: '${recoveryRate.toStringAsFixed(1)}% recovery',
+              color: AppColors.success,
+              icon: Icons.account_balance_outlined,
+            ),
+            _KpiCard(
+              label: 'Tax Credits',
+              value: CurrencyFormatter.formatCompact(_totalRecoverable(summary)),
+              note: 'File ITC/TDS claim',
+              color: const Color(0xFF8B5CF6),
+              icon: Icons.receipt_outlined,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({
+    required this.label,
+    required this.value,
+    required this.note,
+    required this.color,
+    required this.icon,
+  });
+  final String label, value, note;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.r3),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 5),
+            Expanded(child: Text(
+              label.toUpperCase(),
+              style: AppTextStyles.overline.copyWith(
+                  color: AppColors.textMuted, letterSpacing: 0.5, fontSize: 9),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            )),
+          ]),
+          const Spacer(),
+          Text(value,
+              style: AppTextStyles.metricMedium.copyWith(color: color, fontSize: 18)),
+          const SizedBox(height: 2),
+          Text(note,
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted, fontSize: 10),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Settlement Reconciliation ──────────────────────────────────────────────
+
+class _SettlementReconCard extends StatelessWidget {
+  const _SettlementReconCard({required this.summary});
+  final ParsedSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final expected = summary.grossSales
+        - summary.returnsValue
+        - summary.cancellationsValue
+        - summary.totalFees;
+    final actual   = summary.amountSettled;
+    final variance = actual - expected;
+    final isFav    = variance >= 0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.r3),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeader(
+              icon: Icons.compare_arrows_rounded, label: 'Settlement Reconciliation'),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _ReconStat(label: 'Expected',
+                value: CurrencyFormatter.format(expected), color: AppColors.info)),
+            Expanded(child: _ReconStat(label: 'Received',
+                value: CurrencyFormatter.format(actual), color: AppColors.success)),
+            Expanded(child: _ReconStat(
+                label: isFav ? 'Favourable' : 'Shortfall',
+                value: '${isFav ? '+' : '-'}${CurrencyFormatter.formatCompact(variance.abs())}',
+                color: isFav ? AppColors.success : AppColors.danger)),
+          ]),
+          if (variance != 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: isFav ? AppColors.success100 : AppColors.danger100,
+                  borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                Icon(isFav ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                    size: 14, color: isFav ? AppColors.success : AppColors.danger),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  isFav
+                      ? 'Settlement exceeds expected — likely includes adjustments.'
+                      : 'Settlement shortfall detected. Raise a dispute with the marketplace.',
+                  style: AppTextStyles.labelSmall.copyWith(
+                      color: isFav ? AppColors.success : AppColors.danger),
+                )),
+              ]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReconStat extends StatelessWidget {
+  const _ReconStat({required this.label, required this.value, required this.color});
+  final String label, value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Text(label.toUpperCase(),
+          style: AppTextStyles.overline.copyWith(color: AppColors.textMuted, fontSize: 9)),
+      const SizedBox(height: 4),
+      Text(value,
+          style: AppTextStyles.titleSmall.copyWith(color: color, fontWeight: FontWeight.w700)),
+    ]);
+  }
+}
+
+// ── Tax Recovery Banner ────────────────────────────────────────────────────
+
+class _TaxRecoveryBanner extends StatelessWidget {
+  const _TaxRecoveryBanner({required this.summary});
+  final ParsedSummary summary;
+
+  String _breakdown(ParsedSummary s) {
+    final parts = <String>[];
+    if (s.totalTcs > 0) parts.add('TCS ${CurrencyFormatter.formatCompact(s.totalTcs)}');
+    if (s.totalTds > 0) parts.add('TDS ${CurrencyFormatter.formatCompact(s.totalTds)}');
+    if (s.totalGstOnFees > 0) {
+      parts.add('GST ITC ${CurrencyFormatter.formatCompact(s.totalGstOnFees)}');
+    }
+    return parts.isEmpty
+        ? 'All fully claimable.'
+        : '${parts.join(' · ')} — all fully claimable.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = _totalRecoverable(summary);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0x0F8B5CF6),
+        borderRadius: BorderRadius.circular(AppRadius.r3),
+        border: const Border(left: BorderSide(color: Color(0xFF8B5CF6), width: 3)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.savings_outlined, size: 20, color: Color(0xFF8B5CF6)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tax Credits — ${CurrencyFormatter.format(total)} Recoverable',
+              style: AppTextStyles.titleSmall.copyWith(
+                  color: const Color(0xFF8B5CF6), fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(_breakdown(summary),
+                style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 4),
+            const Text('Claim during next ITR / GSTR filing.',
+                style: TextStyle(
+                    fontSize: 10, color: Color(0xFF8B5CF6), fontWeight: FontWeight.w500)),
+          ],
+        )),
+      ]),
+    );
+  }
+}
+
+// ── Return Intelligence ────────────────────────────────────────────────────
+
+class _ReturnIntelligenceCard extends StatelessWidget {
+  const _ReturnIntelligenceCard({required this.summary});
+  final ParsedSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final returnRate = summary.grossSales > 0
+        ? (summary.returnsValue / summary.grossSales * 100).clamp(0.0, 100.0)
+        : 0.0;
+    final isHigh = returnRate > 20;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.r3),
+        border: Border.all(
+            color: isHigh ? AppColors.danger.withValues(alpha: 0.3) : AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.undo_rounded, label: 'Return Intelligence',
+            tag: isHigh ? 'HIGH PRIORITY' : null,
+            tagColor: isHigh ? AppColors.danger : null,
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _ReturnStat(
+                label: 'Return Value',
+                value: CurrencyFormatter.formatCompact(summary.returnsValue),
+                sub: '${returnRate.toStringAsFixed(1)}% of GMV',
+                color: isHigh ? AppColors.danger : AppColors.warning)),
+            Expanded(child: _ReturnStat(
+                label: 'Reverse Ship',
+                value: CurrencyFormatter.formatCompact(summary.totalReverseShipping),
+                sub: 'logistics cost',
+                color: AppColors.warning)),
+            Expanded(child: _ReturnStat(
+                label: 'Returns',
+                value: summary.totalReturned > 0
+                    ? summary.totalReturned.toString()
+                    : '—',
+                sub: 'of ${summary.totalOrders}',
+                color: AppColors.textSecondary)),
+          ]),
+          if (isHigh) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: AppColors.danger100, borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.danger),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Return rate above 20%. Check sizing, descriptions, and packaging quality.',
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.danger),
+                )),
+              ]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReturnStat extends StatelessWidget {
+  const _ReturnStat({
+    required this.label, required this.value,
+    required this.sub, required this.color,
+  });
+  final String label, value, sub;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Text(label.toUpperCase(),
+          style: AppTextStyles.overline.copyWith(color: AppColors.textMuted, fontSize: 9),
+          textAlign: TextAlign.center),
+      const SizedBox(height: 4),
+      Text(value,
+          style: AppTextStyles.titleSmall.copyWith(color: color, fontWeight: FontWeight.w700),
+          textAlign: TextAlign.center),
+      Text(sub,
+          style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted, fontSize: 10),
+          textAlign: TextAlign.center),
+    ]);
+  }
+}
+
+// ── Section header helper ──────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.icon, required this.label, this.tag, this.tagColor,
+  });
+  final IconData icon;
+  final String label;
+  final String? tag;
+  final Color? tagColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Icon(icon, size: 14, color: AppColors.accent),
+      const SizedBox(width: 7),
+      Text(label, style: AppTextStyles.titleSmall.copyWith(fontWeight: FontWeight.w700)),
+      if (tag != null) ...[
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: (tagColor ?? AppColors.warning).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: (tagColor ?? AppColors.warning).withValues(alpha: 0.3)),
+          ),
+          child: Text(tag!,
+              style: TextStyle(
+                  fontSize: 9, fontWeight: FontWeight.w700,
+                  color: tagColor ?? AppColors.warning, letterSpacing: 0.3)),
+        ),
+      ],
+    ]);
   }
 }

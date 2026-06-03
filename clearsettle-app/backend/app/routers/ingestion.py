@@ -451,11 +451,13 @@ async def upload_file(
         )).scalar_one_or_none()
 
         return {
-            "id":           str(existing.id),
-            "duplicate":    True,
-            "upload_status": existing.upload_status,
-            "message":      "Duplicate file already uploaded. Returning existing record.",
-            "detection":    _detection_to_dict(detection) if detection else None,
+            "id":                 str(existing.id),
+            "original_file_name": existing.original_file_name,
+            "file_size_bytes":    existing.file_size_bytes,
+            "duplicate":          True,
+            "upload_status":      existing.upload_status,
+            "message":            "Duplicate file already uploaded. Returning existing record.",
+            "detection":          _detection_to_dict(detection) if detection else None,
         }
 
     # ── Store file ────────────────────────────────────────────────────────────
@@ -944,19 +946,24 @@ async def get_file_summary(
         platforms.add(r.platform)
         if r.order_id:
             order_ids.add(r.order_id)
-        if tx in ("sale", "order"):
+        if tx in ("sale", "order", "sold", "my_share"):
             gross_revenue += amt
-        elif tx == "return":
+        elif tx in ("return", "returned", "refund"):
             returns_total += amt
-        elif tx == "fee":
+        elif tx in ("fee", "commission", "fixed_fee", "shipping_fee",
+                    "reverse_shipping", "collection_fee"):
             fees_total += amt
-        elif tx in ("tax", "tds", "tcs", "gst"):
+        elif tx in ("tax", "tds", "tcs", "gst", "tax_tds", "tax_tcs"):
             tax_total += amt
-        elif tx in ("payout", "settlement", "transfer"):
+        elif tx in ("payout", "settlement", "transfer", "bank_settlement",
+                    "net_settlement", "neft"):
             payout_total += amt
 
     net_sales = gross_revenue + returns_total  # returns are typically negative
     net_settlement = net_sales + fees_total + tax_total
+    # When payout is explicitly tracked, prefer it as net settlement
+    if payout_total != 0:
+        net_settlement = payout_total
 
     detection = (await db.execute(
         select(ReportDetectionResult)
