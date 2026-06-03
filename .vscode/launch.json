@@ -1,0 +1,63 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+
+    // ── Physical Android phone (Wi-Fi, same network as laptop) ─────────────────
+    // Your laptop's Wi-Fi IP: 10.83.8.137
+    // Backend must be running: docker-compose up   (binds 0.0.0.0:8000)
+    {
+      "name": "📱 ClearSettle — Android Phone (10.83.8.137)",
+      "type": "dart",
+      "request": "launch",
+      "program": "clearsettle-app/mobile/lib/main.dart",
+      "cwd": "${workspaceFolder}/clearsettle-app/mobile",
+      "flutterMode": "debug",
+      "args": [
+        "--dart-define=API_BASE_URL=http://10.83.8.137:8000",
+        "--dart-define=SUPER_ADMIN_EMAIL=admin@clearsettle.com"
+      ]
+    },
+
+    // ── Android Emulator (AVD on same machine) ─────────────────────────────────
+    // 10.0.2.2 is the emulator's route to the host machine
+    {
+      "name": "🖥️  ClearSettle — Android Emulator",
+      "type": "dart",
+      "request": "launch",
+      "program": "clearsettle-app/mobile/lib/main.dart",
+      "cwd": "${workspaceFolder}/clearsettle-app/mobile",
+      "flutterMode": "debug",
+      "args": [
+        "--dart-define=API_BASE_URL=http://10.0.2.2:8000",
+        "--dart-define=SUPER_ADMIN_EMAIL=admin@clearsettle.com"
+      ]
+    },
+
+    // ── Production (clearsettle.in) ────────────────────────────────────────────
+    {
+      "name": "🌐 ClearSettle — Production",
+      "type": "dart",
+      "request": "launch",
+      "program": "clearsettle-app/mobile/lib/main.dart",
+      "cwd": "${workspaceFolder}/clearsettle-app/mobile",
+      "flutterMode": "release",
+      "args": [
+        "--dart-define=API_BASE_URL=https://clearsettle.in/api"
+      ]
+    },
+
+    // ── Profile mode (performance tracing) ────────────────────────────────────
+    {
+      "name": "⚡ ClearSettle — Profile Mode",
+      "type": "dart",
+      "request": "launch",
+      "program": "clearsettle-app/mobile/lib/main.dart",
+      "cwd": "${workspaceFolder}/clearsettle-app/mobile",
+      "flutterMode": "profile",
+      "args": [
+        "--dart-define=API_BASE_URL=http://10.83.8.137:8000"
+      ]
+    }
+
+  ]
+}
