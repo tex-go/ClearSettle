@@ -3,9 +3,12 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/utils/cs_logger.dart';
+
 import '../../../../reconciliation/reconciliation_engine.dart';
 import '../../../../services/file_storage/file_storage_service.dart';
 import '../../data/datasources/report_local_datasource.dart';
+import '../../data/datasources/report_remote_datasource.dart';
 import '../../data/repositories/report_repository_impl.dart';
 import '../../domain/entities/report_entities.dart';
 import '../../domain/repositories/report_repository.dart';
@@ -30,6 +33,7 @@ final _reportLocalDataSourceProvider = Provider<ReportLocalDataSource>((ref) {
 final reportRepositoryProvider = Provider<ReportRepository>((ref) {
   return ReportRepositoryImpl(
     localDataSource: ref.read(_reportLocalDataSourceProvider),
+    remoteDataSource: ref.read(reportRemoteDataSourceProvider),
   );
 });
 
@@ -112,6 +116,7 @@ class ReportsNotifier extends Notifier<ReportsState> {
       final file = result.files.first;
       final bytes = file.bytes;
       if (bytes == null) {
+        CsLogger.error('Upload', 'Could not read file bytes', error: 'bytes == null');
         state = state.copyWith(
           isUploading: false,
           errorMessage: 'Could not read file bytes.',
@@ -119,6 +124,11 @@ class ReportsNotifier extends Notifier<ReportsState> {
         return false;
       }
 
+      CsLogger.info('Upload', 'Upload started', data: {
+        'file': file.name,
+        'bytes': bytes.length,
+        'marketplace': marketplace,
+      });
       state = state.copyWith(uploadingFileName: file.name);
 
       final reportId = await _upload(
@@ -128,6 +138,8 @@ class ReportsNotifier extends Notifier<ReportsState> {
         bytes: Uint8List.fromList(bytes),
       );
 
+      CsLogger.info('Upload', 'Upload completed', data: {'report_id': reportId});
+
       // Refresh list
       state = state.copyWith(
         reports: _getReports(),
@@ -136,10 +148,11 @@ class ReportsNotifier extends Notifier<ReportsState> {
         clearUploadingName: true,
       );
 
-      // Parse immediately
+      // Parse / poll immediately
       await _parseReport(reportId);
       return true;
-    } catch (e) {
+    } catch (e, st) {
+      CsLogger.error('Upload', 'Upload failed', error: e, stack: st);
       state = state.copyWith(
         isUploading: false,
         errorMessage: 'Upload failed: $e',
@@ -151,14 +164,21 @@ class ReportsNotifier extends Notifier<ReportsState> {
 
   Future<ReportDetail?> _parseReport(String reportId) async {
     state = state.copyWith(parsingReportId: reportId);
+    CsLogger.info('Parse', 'Reconciliation started', data: {'report_id': reportId});
     try {
       final detail = await _parse(reportId);
+      CsLogger.info('Parse', 'Reconciliation completed', data: {
+        'report_id': reportId,
+        'orders': detail.parseResult.orders.length,
+        'discrepancies': detail.reconciliationResult.discrepancyCount,
+      });
       state = state.copyWith(
         reports: _getReports(),
         clearParsingId: true,
       );
       return detail;
-    } catch (e) {
+    } catch (e, st) {
+      CsLogger.error('Parse', 'Reconciliation failed', error: e, stack: st);
       state = state.copyWith(
         reports: _getReports(),
         clearParsingId: true,

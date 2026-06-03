@@ -1,67 +1,80 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens sourced directly from ClearSettle web app (index.css).
-/// CSS variable → Dart constant mapping documented per property.
+/// Design tokens — ClearSettle brand palette.
+///
+/// Web-app specification (latest):
+///   Primary (CTA/teal):  #00C2D1
+///   Dark Navy (bg):      #061B3A
+///   Accent navy:         #0D2A52
+///   Success:             #00C27A
+///   Warning:             #F59E0B
+///   Error:               #EF4444
 abstract final class AppColors {
-  // ── Brand (web: --nv, --nv2, --tl, --tl2) ────────────────────────────────
-  static const Color primary      = Color(0xFF0D1F35); // --nv  #0D1F35
-  static const Color primaryDark  = Color(0xFF0A1628); // darker shade (login bg)
-  static const Color primaryLight = Color(0xFF162B48); // --nv2 #162B48
-  static const Color teal         = Color(0xFF0ABFCA); // --tl  #0ABFCA (CTA / accent)
-  static const Color tealDark     = Color(0xFF088F99); // --tl2 #088F99
+  // ── Brand ─────────────────────────────────────────────────────────────────
+  /// Primary CTA — teal/cyan — buttons, active nav, highlights.
+  static const Color primary      = Color(0xFF00C2D1);
+  static const Color primaryDark  = Color(0xFF009BAA); // darker teal for pressed
+  static const Color primaryLight = Color(0xFF33CDD9); // lighter teal for hover
 
-  // ── Status (web: --gn, --am, --rd, --bl) ─────────────────────────────────
-  static const Color success  = Color(0xFF0DB07A); // --gn #0DB07A
-  static const Color warning  = Color(0xFFE9930D); // --am #E9930D
-  static const Color error    = Color(0xFFE8344A); // --rd #E8344A
-  static const Color info     = Color(0xFF2563EB); // --bl #2563EB
-  static const Color purple   = Color(0xFF7B52E8); // --pu #7B52E8
+  /// Dark navy — page backgrounds in dark mode, sidebar.
+  static const Color darkNavy     = Color(0xFF061B3A);
+  static const Color darkNavy2    = Color(0xFF0A2347); // slightly lighter
+  static const Color accentNavy   = Color(0xFF0D2A52); // card surfaces dark mode
+
+  // ── Semantic ──────────────────────────────────────────────────────────────
+  static const Color success = Color(0xFF00C27A);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color error   = Color(0xFFEF4444);
+  static const Color info    = Color(0xFF3B82F6);
+  static const Color purple  = Color(0xFF7B52E8);
 
   // ── Financial helpers ─────────────────────────────────────────────────────
-  static const Color positive = Color(0xFF0DB07A); // same as success
-  static const Color negative = Color(0xFFE8344A); // same as error
-  static const Color neutral  = Color(0xFF8FA5BD); // --tx3
+  static const Color positive = success;
+  static const Color negative = error;
+  static const Color neutral  = Color(0xFF8FA5BD);
 
-  // ── Light-mode surfaces (web: --sf, --sf2, --sf3) ────────────────────────
-  static const Color backgroundLight  = Color(0xFFF1F5F9); // --sf2
-  static const Color surface          = Color(0xFFFFFFFF); // --sf  white
-  static const Color surfaceVariant   = Color(0xFFF1F5F9); // --sf2 (inputs, table headers)
-  static const Color surfaceVariant2  = Color(0xFFE8F0F8); // --sf3
+  // ── Light-mode surfaces ───────────────────────────────────────────────────
+  static const Color backgroundLight  = Color(0xFFF1F5F9);
+  static const Color surface          = Color(0xFFFFFFFF);
+  static const Color surfaceVariant   = Color(0xFFF1F5F9);
+  static const Color surfaceVariant2  = Color(0xFFE8F0F8);
 
-  // ── Dark-mode surfaces (web sidebar palette) ──────────────────────────────
-  static const Color backgroundDark   = Color(0xFF061020); // login bg darkest
-  static const Color surfaceDark      = Color(0xFF162B48); // --nv2 (cards in dark)
-  static const Color surfaceVariantDark = Color(0xFF1E3A5F); // slightly lighter
+  // ── Dark-mode surfaces ────────────────────────────────────────────────────
+  static const Color backgroundDark      = darkNavy;      // #061B3A
+  static const Color surfaceDark         = accentNavy;    // #0D2A52
+  static const Color surfaceVariantDark  = Color(0xFF133264); // slightly lighter
 
   // ── Borders / Dividers ────────────────────────────────────────────────────
-  static const Color divider     = Color(0xFFE2EBF3); // --br #E2EBF3
-  static const Color dividerDark = Color(0x14FFFFFF); // rgba(255,255,255,0.08)
+  static const Color divider     = Color(0xFFE2EBF3);
+  static const Color dividerDark = Color(0x14FFFFFF);
 
-  // ── Light-mode text (web: --tx, --tx2, --tx3) ────────────────────────────
-  static const Color textPrimary   = Color(0xFF0D1F35); // --tx  #0D1F35
-  static const Color textSecondary = Color(0xFF4B6080); // --tx2 #4B6080
-  static const Color textMuted     = Color(0xFF8FA5BD); // --tx3 #8FA5BD
-  static const Color textDisabled  = Color(0xFFB8CADA); // lighter tx3
-  static const Color textInverse   = Color(0xFFFFFFFF); // white on dark
+  // ── Light-mode text ───────────────────────────────────────────────────────
+  static const Color textPrimary   = Color(0xFF061B3A); // darkNavy
+  static const Color textSecondary = Color(0xFF4B6080);
+  static const Color textMuted     = Color(0xFF8FA5BD);
+  static const Color textDisabled  = Color(0xFFB8CADA);
+  static const Color textInverse   = Color(0xFFFFFFFF);
 
-  // ── Dark-mode text (web sidebar text) ────────────────────────────────────
-  static const Color textPrimaryDark   = Color(0xFFE2EBF3); // sidebar title
-  static const Color textSecondaryDark = Color(0xFF8FA5BD); // sidebar nav text
-  static const Color textMutedDark     = Color(0xFF4B6080); // sidebar group label
+  // ── Dark-mode text ────────────────────────────────────────────────────────
+  static const Color textPrimaryDark   = Color(0xFFE2EBF3);
+  static const Color textSecondaryDark = Color(0xFF8FA5BD);
+  static const Color textMutedDark     = Color(0xFF4B6080);
 
-  // ── Marketplace brand colors (web chart palette) ──────────────────────────
+  // ── Backward-compat aliases ───────────────────────────────────────────────
+  /// Use [primary] for teal CTA colour throughout the app.
+  static const Color teal     = primary;
+  static const Color tealDark = primaryDark;
+  static const Color accent   = primary;
+  static const Color accentDark = primaryDark;
+
+  // ── Marketplace brand colours ──────────────────────────────────────────────
   static const Color flipkart  = Color(0xFF2874F0);
   static const Color amazon    = Color(0xFFFF9900);
   static const Color meesho    = Color(0xFF9B1FE8);
   static const Color myntra    = Color(0xFFFF3E6C);
   static const Color shopify   = Color(0xFF96BF48);
-  static const Color nykaa     = Color(0xFFFC2779); // Nykaa pink
-  static const Color ajio      = Color(0xFFE03018); // AJIO orange-red
-  static const Color snapdeal  = Color(0xFFE40046); // Snapdeal red
-  static const Color jiomart   = Color(0xFF0071F6); // JioMart blue
-
-  // ── Accent (primary interactive) ─────────────────────────────────────────
-  /// Use teal as the accent — matches all web CTA buttons and focus states
-  static const Color accent     = teal;
-  static const Color accentDark = tealDark;
+  static const Color nykaa     = Color(0xFFFC2779);
+  static const Color ajio      = Color(0xFFE03018);
+  static const Color snapdeal  = Color(0xFFE40046);
+  static const Color jiomart   = Color(0xFF0071F6);
 }

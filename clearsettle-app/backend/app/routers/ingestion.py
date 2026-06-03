@@ -166,16 +166,40 @@ async def _run_ingestion(
             return
 
         try:
+            logger.info(
+                "[INFO] Upload received file=%s bytes=%d company=%s",
+                file_name, len(file_bytes), company_id,
+            )
             record.upload_status = "detecting"
             await db.commit()
+            logger.info("[INFO] File saved file_id=%s", uploaded_file_id)
 
             # ── Run pipeline ──────────────────────────────────────────────────
+            logger.info("[INFO] Pipeline started file_id=%s", uploaded_file_id)
             from app.services.pipeline.router import run_ingestion_pipeline
             pipeline_result, parse_result = run_ingestion_pipeline(
                 file_bytes, file_name, uploaded_file_id,
                 platform_hint=platform_hint,
                 report_type_hint=report_type_hint,
             )
+
+            logger.info(
+                "[INFO] Platform detected platform=%s confidence=%.2f needs_review=%s",
+                pipeline_result.platform, pipeline_result.confidence_score,
+                pipeline_result.needs_manual_review,
+            )
+            logger.info(
+                "[INFO] Parser selected parser=%s schema=%s report_type=%s",
+                pipeline_result.parser_name, pipeline_result.schema_version,
+                pipeline_result.report_type,
+            )
+            if parse_result:
+                logger.info(
+                    "[INFO] Records parsed count=%d recon_issues=%d",
+                    parse_result.record_count, len(parse_result.recon_issues),
+                )
+            else:
+                logger.warning("[WARNING] Parser returned no records file_id=%s", uploaded_file_id)
 
             # ── Run 14-agent Intelligence Pipeline ───────────────────────────────
             parsed_data_for_intel: dict = {}
@@ -255,6 +279,10 @@ async def _run_ingestion(
 
             # ── Persist ledger records ────────────────────────────────────────
             if parse_result and not parse_result.is_empty:
+                logger.info(
+                    "[INFO] Ledger creation started file_id=%s records=%d",
+                    uploaded_file_id, parse_result.record_count,
+                )
                 record.upload_status = "processing"
                 await db.commit()
 
@@ -294,14 +322,31 @@ async def _run_ingestion(
                 record.error_message = "; ".join(pipeline_result.errors[:3])
 
             await db.commit()
+
+            if pipeline_result.ledger_count > 0:
+                logger.info(
+                    "[INFO] Ledger records created count=%d file_id=%s",
+                    pipeline_result.ledger_count, uploaded_file_id,
+                )
             logger.info(
-                "Ingestion complete for file %s: platform=%s type=%s ledger=%d status=%s",
-                uploaded_file_id, pipeline_result.platform, pipeline_result.report_type,
-                pipeline_result.ledger_count, final_status,
+                "[INFO] Reconciliation completed recon_issues=%d file_id=%s",
+                pipeline_result.recon_issue_count, uploaded_file_id,
+            )
+            if pipeline_result.errors:
+                for err in pipeline_result.errors[:5]:
+                    logger.error("[ERROR] Pipeline error file_id=%s error=%s", uploaded_file_id, err)
+            logger.info(
+                "[INFO] Dashboard metrics generated platform=%s type=%s "
+                "ledger=%d status=%s file_id=%s",
+                pipeline_result.platform, pipeline_result.report_type,
+                pipeline_result.ledger_count, final_status, uploaded_file_id,
             )
 
         except Exception as exc:
-            logger.exception("Ingestion pipeline failed for file %s", uploaded_file_id)
+            logger.error(
+                "[ERROR] Ingestion pipeline failed file=%s file_id=%s error=%s",
+                file_name, uploaded_file_id, exc,
+            )
             try:
                 record.upload_status = "failed"
                 record.error_message = str(exc)[:500]

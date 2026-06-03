@@ -4,10 +4,8 @@ import 'package:flutter/services.dart';
 import 'app_colors.dart';
 import 'app_text_styles.dart';
 
-/// Theme system that exactly mirrors the ClearSettle web application.
-///
-/// Light theme: white surfaces, #F1F5F9 backgrounds, #0D1F35 primary navy.
-/// Dark theme: #0D1F35 background (web sidebar palette), #162B48 surfaces.
+/// Light theme:  white surfaces, #F1F5F9 background, #00C2D1 CTA.
+/// Dark theme:   #061B3A background, #0D2A52 card surfaces, #00C2D1 CTA.
 abstract final class AppTheme {
   static ThemeData get light => _build(Brightness.light);
   static ThemeData get dark  => _build(Brightness.dark);
@@ -16,11 +14,11 @@ abstract final class AppTheme {
     final isDark = brightness == Brightness.dark;
 
     final colorScheme = isDark ? _darkScheme : _lightScheme;
-    final bgColor     = isDark ? AppColors.backgroundDark  : AppColors.backgroundLight;
-    final surfColor   = isDark ? AppColors.surfaceDark      : AppColors.surface;
-    final divColor    = isDark ? AppColors.dividerDark      : AppColors.divider;
-    final txtPrimary  = isDark ? AppColors.textPrimaryDark  : AppColors.textPrimary;
-    final txtSecond   = isDark ? AppColors.textSecondaryDark: AppColors.textSecondary;
+    final bgColor    = isDark ? AppColors.backgroundDark  : AppColors.backgroundLight;
+    final surfColor  = isDark ? AppColors.surfaceDark     : AppColors.surface;
+    final divColor   = isDark ? AppColors.dividerDark     : AppColors.divider;
+    final txtPrimary = isDark ? AppColors.textPrimaryDark : AppColors.textPrimary;
+    final txtSecond  = isDark ? AppColors.textSecondaryDark: AppColors.textSecondary;
 
     return ThemeData(
       useMaterial3: true,
@@ -30,7 +28,7 @@ abstract final class AppTheme {
 
       // ── AppBar ──────────────────────────────────────────────────────────
       appBarTheme: AppBarTheme(
-        backgroundColor: isDark ? AppColors.primaryLight : AppColors.primary,
+        backgroundColor: isDark ? AppColors.accentNavy : AppColors.darkNavy,
         foregroundColor: AppColors.textInverse,
         elevation: 0,
         centerTitle: false,
@@ -38,10 +36,8 @@ abstract final class AppTheme {
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark,
-          systemNavigationBarColor:
-              isDark ? AppColors.backgroundDark : AppColors.surface,
-          systemNavigationBarIconBrightness:
-              isDark ? Brightness.light : Brightness.dark,
+          systemNavigationBarColor: isDark ? AppColors.backgroundDark : AppColors.surface,
+          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         ),
         titleTextStyle: const TextStyle(
           color: AppColors.textInverse,
@@ -54,16 +50,12 @@ abstract final class AppTheme {
       // ── Bottom navigation ────────────────────────────────────────────────
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: surfColor,
-        selectedItemColor: AppColors.teal,
-        unselectedItemColor: isDark
-            ? AppColors.textSecondaryDark
-            : AppColors.textSecondary,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: const TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: const TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w500),
+        selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
         showSelectedLabels: true,
         showUnselectedLabels: true,
       ),
@@ -82,9 +74,7 @@ abstract final class AppTheme {
       // ── Inputs ───────────────────────────────────────────────────────────
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark
-            ? AppColors.surfaceVariantDark
-            : AppColors.surfaceVariant,
+        fillColor: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
         contentPadding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.s4, vertical: AppSpacing.s3),
         border: OutlineInputBorder(
@@ -97,8 +87,7 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppRadius.input,
-          borderSide:
-              const BorderSide(color: AppColors.teal, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.input,
@@ -106,41 +95,33 @@ abstract final class AppTheme {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: AppRadius.input,
-          borderSide:
-              const BorderSide(color: AppColors.error, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
         hintStyle: TextStyle(
-            color: isDark
-                ? AppColors.textSecondaryDark
-                : AppColors.textMuted,
+            color: isDark ? AppColors.textSecondaryDark : AppColors.textMuted,
             fontSize: 14,
             fontWeight: FontWeight.w500),
         labelStyle: TextStyle(
-            color: isDark
-                ? AppColors.textSecondaryDark
-                : AppColors.textSecondary,
+            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w600),
-        errorStyle: const TextStyle(
-            color: AppColors.error, fontSize: 11),
+        errorStyle: const TextStyle(color: AppColors.error, fontSize: 11),
       ),
 
-      // ── Elevated buttons (teal CTA, matches .btn-p) ───────────────────────
+      // ── Elevated buttons (primary CTA = #00C2D1 teal) ────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ButtonStyle(
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
-              return AppColors.teal.withValues(alpha: 0.4);
+              return AppColors.primary.withValues(alpha: 0.4);
             }
-            return AppColors.teal;
+            return AppColors.primary;
           }),
-          foregroundColor:
-              WidgetStateProperty.all(AppColors.textInverse),
+          foregroundColor: WidgetStateProperty.all(AppColors.textInverse),
           elevation: WidgetStateProperty.all(0),
           shadowColor: WidgetStateProperty.all(
-              AppColors.teal.withValues(alpha: 0.25)),
-          minimumSize: WidgetStateProperty.all(
-              const Size(double.infinity, 48)),
+              AppColors.primary.withValues(alpha: 0.25)),
+          minimumSize: WidgetStateProperty.all(const Size(double.infinity, 48)),
           shape: WidgetStateProperty.all(
             RoundedRectangleBorder(borderRadius: AppRadius.input),
           ),
@@ -150,81 +131,64 @@ abstract final class AppTheme {
         ),
       ),
 
-      // ── Outlined buttons (.btn-g) ─────────────────────────────────────────
+      // ── Outlined buttons ─────────────────────────────────────────────────
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
           side: BorderSide(color: divColor),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.input),
           minimumSize: const Size(double.infinity, 48),
-          textStyle: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
 
       // ── Text buttons ──────────────────────────────────────────────────────
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.teal,
-          textStyle: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600),
+          foregroundColor: AppColors.primary,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
 
       // ── Divider ───────────────────────────────────────────────────────────
-      dividerTheme: DividerThemeData(
-        color: divColor, thickness: 1, space: 0),
+      dividerTheme: DividerThemeData(color: divColor, thickness: 1, space: 0),
 
       // ── Chip ─────────────────────────────────────────────────────────────
       chipTheme: ChipThemeData(
-        backgroundColor: isDark
-            ? AppColors.surfaceVariantDark
-            : AppColors.surfaceVariant,
-        labelStyle: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: txtSecond),
+        backgroundColor: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
+        labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: txtSecond),
         side: BorderSide(color: divColor),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.r1)),
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.s2, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s2, vertical: 2),
       ),
 
       // ── Switch ────────────────────────────────────────────────────────────
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected)
-                ? AppColors.textInverse
-                : null),
+            states.contains(WidgetState.selected) ? AppColors.textInverse : null),
         trackColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected)
-                ? AppColors.teal
-                : null),
+            states.contains(WidgetState.selected) ? AppColors.primary : null),
       ),
 
       // ── Progress indicator ────────────────────────────────────────────────
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.teal,
-      ),
-
-      // ── RefreshIndicator ─────────────────────────────────────────────────
-      // (handled per-widget via RefreshIndicator.color)
+      progressIndicatorTheme:
+          const ProgressIndicatorThemeData(color: AppColors.primary),
 
       // ── Text theme ───────────────────────────────────────────────────────
       textTheme: TextTheme(
-        displayLarge:  AppTextStyles.displayLarge.copyWith(color: txtPrimary),
-        displayMedium: AppTextStyles.displayMedium.copyWith(color: txtPrimary),
-        headlineLarge: AppTextStyles.headlineLarge.copyWith(color: txtPrimary),
-        headlineMedium:AppTextStyles.headlineMedium.copyWith(color: txtPrimary),
-        titleLarge:    AppTextStyles.titleLarge.copyWith(color: txtPrimary),
-        titleMedium:   AppTextStyles.titleMedium.copyWith(color: txtPrimary),
-        bodyLarge:     AppTextStyles.bodyLarge.copyWith(color: txtPrimary),
-        bodyMedium:    AppTextStyles.bodyMedium.copyWith(color: txtPrimary),
-        bodySmall:     AppTextStyles.bodySmall.copyWith(color: txtSecond),
-        labelLarge:    AppTextStyles.labelLarge.copyWith(color: txtSecond),
-        labelMedium:   AppTextStyles.labelMedium.copyWith(color: txtSecond),
-        labelSmall:    AppTextStyles.labelSmall,
+        displayLarge:   AppTextStyles.displayLarge.copyWith(color: txtPrimary),
+        displayMedium:  AppTextStyles.displayMedium.copyWith(color: txtPrimary),
+        headlineLarge:  AppTextStyles.headlineLarge.copyWith(color: txtPrimary),
+        headlineMedium: AppTextStyles.headlineMedium.copyWith(color: txtPrimary),
+        titleLarge:     AppTextStyles.titleLarge.copyWith(color: txtPrimary),
+        titleMedium:    AppTextStyles.titleMedium.copyWith(color: txtPrimary),
+        bodyLarge:      AppTextStyles.bodyLarge.copyWith(color: txtPrimary),
+        bodyMedium:     AppTextStyles.bodyMedium.copyWith(color: txtPrimary),
+        bodySmall:      AppTextStyles.bodySmall.copyWith(color: txtSecond),
+        labelLarge:     AppTextStyles.labelLarge.copyWith(color: txtSecond),
+        labelMedium:    AppTextStyles.labelMedium.copyWith(color: txtSecond),
+        labelSmall:     AppTextStyles.labelSmall,
       ),
     );
   }
@@ -232,7 +196,7 @@ abstract final class AppTheme {
   static const ColorScheme _lightScheme = ColorScheme.light(
     primary:    AppColors.primary,
     onPrimary:  AppColors.textInverse,
-    secondary:  AppColors.teal,
+    secondary:  AppColors.accentNavy,
     onSecondary:AppColors.textInverse,
     error:      AppColors.error,
     onError:    AppColors.textInverse,
@@ -242,9 +206,9 @@ abstract final class AppTheme {
   );
 
   static const ColorScheme _darkScheme = ColorScheme.dark(
-    primary:    AppColors.teal,
+    primary:    AppColors.primary,
     onPrimary:  AppColors.textInverse,
-    secondary:  AppColors.teal,
+    secondary:  AppColors.primary,
     onSecondary:AppColors.textInverse,
     error:      AppColors.error,
     onError:    AppColors.textInverse,

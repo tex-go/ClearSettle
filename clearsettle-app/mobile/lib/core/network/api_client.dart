@@ -85,6 +85,43 @@ class ApiClient {
     }
   }
 
+  /// Multipart file upload — used by the ingestion pipeline endpoint.
+  Future<Response<T>> uploadFile<T>(
+    String path, {
+    required List<int> fileBytes,
+    required String fileName,
+    Map<String, String>? fields,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          fileBytes,
+          filename: fileName,
+          contentType: DioMediaType(
+            'application',
+            fileName.toLowerCase().endsWith('.xlsx')
+                ? 'vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                : 'octet-stream',
+          ),
+        ),
+        if (fields != null) ...fields,
+      });
+
+      return await _dio.post<T>(
+        path,
+        data: formData,
+        options: Options(
+          // Allow up to 3 minutes for large file uploads
+          sendTimeout: const Duration(minutes: 3),
+          receiveTimeout: const Duration(minutes: 2),
+          headers: {'Content-Type': 'multipart/form-data'},
+        ),
+      );
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   Exception _mapError(DioException e) {
     if (e.error is Exception) return e.error as Exception;
     if (e.type == DioExceptionType.connectionError ||

@@ -1,175 +1,232 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_text_styles.dart';
+import '../widgets/glass_card.dart';
 
-/// Generic "Coming Soon" screen for modules not yet available.
-/// Provides a professional placeholder matching the web app's style.
+/// Generic "Coming Soon" screen used throughout the app for unreleased features.
+///
+/// The router supplies explicit [title], [icon], [description], and [features].
+/// The drawer can also push this with a [feature] key (looked up from [_meta]).
 class ComingSoonScreen extends StatelessWidget {
+  /// Direct construction — used by the router for every coming-soon route.
   const ComingSoonScreen({
     super.key,
     required this.title,
     required this.icon,
     required this.description,
     this.features = const [],
-    this.eta,
-  });
+    this.expectedRelease,
+  }) : _featureKey = null;
 
+  /// Feature-key construction — used when pushing /coming-soon/:feature.
+  const ComingSoonScreen.fromKey({
+    super.key,
+    required String feature,
+  })  : _featureKey = feature,
+        title = '',
+        icon = Icons.construction_outlined,
+        description = '',
+        features = const [],
+        expectedRelease = null;
+
+  final String? _featureKey;
   final String title;
   final IconData icon;
   final String description;
   final List<String> features;
-  final String? eta;
+  final String? expectedRelease;
+
+  static const _meta = <String, _Meta>{
+    'gst-filing': _Meta(
+      title: 'GST Filing',
+      icon: Icons.receipt_outlined,
+      description:
+          'File GSTR-1, GSTR-3B, and reconcile ITC directly from ClearSettle. '
+          'Auto-populate from your reconciled sales data.',
+      expectedRelease: 'Q3 2026',
+      features: ['GSTR-1 auto-population', 'GSTR-3B preparation', 'ITC reconciliation'],
+    ),
+    'inventory': _Meta(
+      title: 'Inventory Sync',
+      icon: Icons.inventory_2_outlined,
+      description:
+          'Real-time inventory tracking across all marketplace warehouses. '
+          'Low-stock alerts, reorder suggestions, and damage report automation.',
+      expectedRelease: 'Q4 2026',
+      features: ['Real-time inventory levels', 'Low stock alerts', 'Cross-platform sync'],
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final _Meta? resolved = _featureKey != null ? _meta[_featureKey] : null;
+    final effectiveTitle   = resolved?.title       ?? title;
+    final effectiveIcon    = resolved?.icon        ?? icon;
+    final effectiveDesc    = resolved?.description ?? description;
+    final effectiveRelease = resolved?.expectedRelease ?? expectedRelease;
+    final effectiveFeatures = resolved?.features   ?? features;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textInverse,
-        elevation: 0,
-        title: Text(title,
-            style: AppTextStyles.titleLarge.copyWith(color: AppColors.textInverse)),
+        title: Text(effectiveTitle),
+        leading: const BackButton(),
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Icon container
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.15),
-                      width: 2,
-                    ),
-                  ),
-                  child: Icon(icon, size: 40, color: AppColors.primary),
-                ),
-                const SizedBox(height: 24),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Spacer(),
 
-                // "Coming Soon" badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.teal.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppColors.teal.withValues(alpha: 0.3),
-                    ),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(effectiveIcon, size: 40, color: AppColors.primary),
+              ),
+              const SizedBox(height: 24),
+
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.4),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                ),
+                child: const Text(
+                  'COMING SOON',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.warning,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Text(
+                effectiveTitle,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: isDark
+                      ? AppColors.textPrimaryDark
+                      : AppColors.textPrimary,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              Text(
+                effectiveDesc,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              if (effectiveFeatures.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: AppColors.teal,
-                          shape: BoxShape.circle,
+                      for (final f in effectiveFeatures)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle_outline,
+                                  size: 14, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  f,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark
+                                        ? AppColors.textPrimaryDark
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 7),
+                    ],
+                  ),
+                ),
+              ],
+
+              if (effectiveRelease != null) ...[
+                const SizedBox(height: 16),
+                GlassCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined,
+                          size: 16, color: AppColors.primary),
+                      const SizedBox(width: 10),
                       Text(
-                        eta != null ? 'Coming $eta' : 'Coming Soon',
-                        style: AppTextStyles.labelMedium.copyWith(
-                          color: AppColors.teal,
-                          fontWeight: FontWeight.w700,
+                        'Expected: $effectiveRelease',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.textPrimaryDark
+                              : AppColors.textPrimary,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Title
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.headlineMedium,
-                ),
-                const SizedBox(height: 12),
-
-                // Description
-                Text(
-                  description,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.bodyMedium
-                      .copyWith(color: AppColors.textSecondary),
-                ),
-
-                // Feature list
-                if (features.isNotEmpty) ...[
-                  const SizedBox(height: 32),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'What\'s included',
-                          style: AppTextStyles.titleMedium.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        ...features.map(
-                          (f) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.check_circle_outline,
-                                  size: 17,
-                                  color: AppColors.teal,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(f,
-                                      style: AppTextStyles.bodySmall),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 32),
-
-                // Back button
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.arrow_back, size: 17),
-                  label: const Text('Go Back'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.divider),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
-                  ),
-                ),
               ],
-            ),
+
+              const Spacer(),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Go Back'),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class _Meta {
+  const _Meta({
+    required this.title,
+    required this.icon,
+    required this.description,
+    required this.expectedRelease,
+    required this.features,
+  });
+
+  final String title;
+  final IconData icon;
+  final String description;
+  final String expectedRelease;
+  final List<String> features;
 }
