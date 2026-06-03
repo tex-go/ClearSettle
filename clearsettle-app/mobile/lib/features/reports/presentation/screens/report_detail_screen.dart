@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -9,6 +13,7 @@ import '../../../../core/utils/date_formatter.dart';
 import '../../../../services/export/export_service.dart';
 import '../../../../shared/widgets/app_error_widget.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
+import '../../data/datasources/report_remote_datasource.dart';
 import '../../domain/entities/report_intelligence.dart';
 import '../providers/report_detail_provider.dart';
 import '../providers/reports_provider.dart';
@@ -128,7 +133,6 @@ class ReportDetailScreen extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                     child: SummaryFinancialsWidget(
                       summary: detail.summary,
-                      orders: detail.orders,
                     ),
                   ),
                 ),
@@ -467,70 +471,188 @@ class _StatChip extends StatelessWidget {
 
 // ── Action buttons ─────────────────────────────────────────────────────────
 
-class _ActionButtons extends StatelessWidget {
+class _ActionButtons extends ConsumerStatefulWidget {
   const _ActionButtons({required this.reportId});
-
   final String reportId;
+
+  @override
+  ConsumerState<_ActionButtons> createState() => _ActionButtonsState();
+}
+
+class _ActionButtonsState extends ConsumerState<_ActionButtons> {
+  bool _generatingReport = false;
+
+  Future<void> _generateReport() async {
+    setState(() => _generatingReport = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final remote = ref.read(reportRemoteDataSourceProvider);
+      final bytes  = await remote.fetchHtmlReportBytes(widget.reportId);
+
+      final dir  = await getTemporaryDirectory();
+      final file = File('${dir.path}/clearsettle_report_${widget.reportId.substring(0, 8)}.html');
+      await file.writeAsBytes(bytes);
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/html')],
+        subject: 'ClearSettle Settlement Analytics Report',
+        text: 'Your settlement analytics report — open in browser for the full interactive view.',
+      );
+
+      // Schedule cleanup after 60 seconds
+      Future.delayed(const Duration(seconds: 60), () {
+        file.deleteSync();
+      });
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Report generation failed: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generatingReport = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Primary CTA
+        // ── Generate Report — the V1 hero CTA ───────────────────────────────
         GestureDetector(
-          onTap: () =>
-              context.push(RouteConstants.reconciliationPath(reportId)),
-          child: Container(
+          onTap: _generatingReport ? null : _generateReport,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             width: double.infinity,
-            height: 50,
+            height: 54,
             decoration: BoxDecoration(
-              color: AppColors.accent,
+              gradient: _generatingReport
+                  ? null
+                  : const LinearGradient(
+                      colors: [Color(0xFF0F172A), Color(0xFF134E4A)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+              color: _generatingReport ? AppColors.surfaceVariant : null,
               borderRadius: BorderRadius.circular(AppRadius.r2),
-              boxShadow: AppShadows.ctaButton,
+              boxShadow: _generatingReport ? null : AppShadows.heroCard,
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.fact_check_outlined,
-                    size: 18, color: Colors.white),
-                SizedBox(width: 8),
-                Text('View Reconciliation',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
+            child: _generatingReport
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Generating Report…',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.auto_awesome_rounded,
+                          size: 18, color: AppColors.accentLight),
+                      SizedBox(width: 10),
+                      Text(
+                        'Generate Analytics Report',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
-        const SizedBox(height: 10),
-        // Secondary CTA
-        GestureDetector(
-          onTap: () => context
-              .push(RouteConstants.reportSettlementPath(reportId)),
-          child: Container(
-            width: double.infinity,
-            height: 50,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.r2),
-              border: Border.all(color: AppColors.divider),
-              boxShadow: AppShadows.card,
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.receipt_long_outlined,
-                    size: 18, color: AppColors.textSecondary),
-                SizedBox(width: 8),
-                Text('View Settlements',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
+
+        const SizedBox(height: 6),
+        Text(
+          'CFO · CA · Investor · Founder insights in one report',
+          style: AppTextStyles.labelSmall.copyWith(
+            color: AppColors.textMuted,
           ),
+          textAlign: TextAlign.center,
+        ),
+
+        const SizedBox(height: 14),
+
+        // ── Secondary CTAs ───────────────────────────────────────────────────
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () =>
+                    context.push(RouteConstants.reconciliationPath(widget.reportId)),
+                child: Container(
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppRadius.r2),
+                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.fact_check_outlined,
+                          size: 16, color: AppColors.accent),
+                      SizedBox(width: 7),
+                      Text('Reconciliation',
+                          style: TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => context
+                    .push(RouteConstants.reportSettlementPath(widget.reportId)),
+                child: Container(
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.r2),
+                    border: Border.all(color: AppColors.divider),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.receipt_long_outlined,
+                          size: 16, color: AppColors.textSecondary),
+                      SizedBox(width: 7),
+                      Text('Settlements',
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

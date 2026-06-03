@@ -1232,6 +1232,93 @@ async def get_intelligence(
     }
 
 
+# ── HTML Report Generator ─────────────────────────────────────────────────────
+
+@router.get("/files/{file_id}/report", summary="Generate premium HTML analytics report")
+async def generate_html_report(
+    file_id: UUID,
+    db:   AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Generates a premium single-page HTML analytics report from the IngestionLedger.
+
+    Output includes:
+    - Executive Summary KPI grid
+    - Revenue Waterfall (interactive chart)
+    - Product Intelligence (SKU profitability table)
+    - Return Intelligence (logistics vs customer returns)
+    - Settlement Reconciliation (expected vs actual)
+    - Fee Analysis (breakdown with progress bars)
+    - Tax Intelligence (TCS/TDS/GST + recovery instructions)
+    - Recovery Engine (priority matrix)
+    - Risk Dashboard (6-dimension radar)
+    - CFO + CA + Investor + Founder Insights
+    - Business Health Score (0–100)
+    """
+    from app.services.analytics_engine import AnalyticsEngine
+    from app.services.report_generator import ReportGenerator
+
+    company_id = _company_id(user)
+    record = await db.get(UploadedFile, file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found.")
+    _assert_owner(record, company_id)
+
+    if record.upload_status not in ("done", "needs_review"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"File is still processing (status: {record.upload_status}). Retry shortly.",
+        )
+
+    rows = (await db.execute(
+        select(IngestionLedger)
+        .where(IngestionLedger.uploaded_file_id == file_id)
+        .order_by(IngestionLedger.source_row_number)
+    )).scalars().all()
+
+    if not rows:
+        raise HTTPException(status_code=422, detail="No ledger records found for this file.")
+
+    detection = (await db.execute(
+        select(ReportDetectionResult)
+        .where(ReportDetectionResult.uploaded_file_id == file_id)
+    )).scalar_one_or_none()
+
+    file_meta = {
+        "id":                 str(record.id),
+        "original_file_name": record.original_file_name,
+        "uploaded_at":        record.uploaded_at.isoformat(),
+    }
+    detection_meta = {}
+    if detection:
+        detection_meta = {
+            "detected_platform":    detection.detected_platform or "unknown",
+            "detected_report_type": detection.detected_report_type or "",
+        }
+
+    try:
+        engine  = AnalyticsEngine(rows, file_meta, detection_meta)
+        report  = engine.run()
+        html    = ReportGenerator(report).generate()
+    except Exception as exc:
+        logger.exception("Report generation failed for %s: %s", file_id, exc)
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {exc}")
+
+    safe_name = (record.original_file_name or "report").replace(" ", "_").split(".")[0]
+    filename  = f"{safe_name}_clearsettle_report.html"
+
+    return StreamingResponse(
+        iter([html.encode("utf-8")]),
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Report-Health-Score": str(report.health_score.total),
+            "X-Report-GMV": str(round(report.gross_revenue, 2)),
+        },
+    )
+
+
 # ── Delete file ───────────────────────────────────────────────────────────────
 
 @router.delete("/files/{file_id}", status_code=204)

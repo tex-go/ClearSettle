@@ -262,6 +262,18 @@ class ReportRemoteDataSource {
     );
   }
 
+  /// Fetches the HTML analytics report as raw bytes.
+  /// Caller saves to a temp file and shares via share_plus.
+  Future<List<int>> fetchHtmlReportBytes(String fileId) async {
+    final bytes = await apiClient.getBytes(
+      ApiEndpoints.ingestionReport(fileId),
+    );
+    if (bytes.isEmpty) {
+      throw Exception('Empty report response from server.');
+    }
+    return bytes;
+  }
+
   DiscrepancySeverity _mapSeverity(String s) {
     switch (s) {
       case 'critical':

@@ -39,6 +39,7 @@ abstract final class ApiEndpoints {
   static String ingestionReconciliation(String id) => '/ingestion/files/$id/reconciliation';
   static String ingestionIntelligence(String id)  => '/ingestion/files/$id/intelligence';
   static String ingestionReprocess(String id)     => '/ingestion/files/$id/reprocess';
+  static String ingestionReport(String id)        => '/ingestion/files/$id/report';
 
   // ── Marketplace ───────────────────────────────────────────────────────────
   static const String marketplaceList        = '/marketplace/';
