@@ -134,27 +134,27 @@ class _LogoCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(32),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
-              width: 110,
-              height: 110,
+              width: 160,
+              height: 160,
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: const Color(0x0DFFFFFF),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(32),
                 border: Border.all(color: const Color(0x1AFFFFFF)),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: Image.asset(
-                  'assets/images/clear_settle_logo.png',
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.account_balance_outlined,
-                    color: AppColors.accent,
-                    size: 52,
-                  ),
+              child: Image.asset(
+                'assets/images/clearsettle_logo.png',
+                width: 120,
+                height: 120,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.account_balance_outlined,
+                  color: AppColors.accent,
+                  size: 64,
                 ),
               ),
             ),
