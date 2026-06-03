@@ -43,7 +43,7 @@ abstract final class AppTheme {
           systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         ),
         titleTextStyle: TextStyle(
-          fontFamily: 'sans-serif',
+          fontFamily: 'Inter',
           color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
           fontSize: 17,
           fontWeight: FontWeight.w600,

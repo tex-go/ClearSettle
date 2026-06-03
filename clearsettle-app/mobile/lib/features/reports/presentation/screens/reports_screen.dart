@@ -79,17 +79,15 @@ class ReportsScreen extends ConsumerWidget {
                   ref.read(reportsProvider.notifier).clearError(),
             ),
 
-          // ── Upload progress ────────────────────────────────────────────
-          if (state.isUploading)
-            _UploadProgress(fileName: state.uploadingFileName),
-
-          // ── Parsing banner ─────────────────────────────────────────────
-          if (state.parsingReportId != null && !state.isUploading)
-            _ParsingBanner(
-              fileName: state.reports
-                  .where((r) => r.id == state.parsingReportId)
-                  .map((r) => r.fileName)
-                  .firstOrNull,
+          // ── 6-Step upload flow panel ───────────────────────────────────
+          if (state.isBusy)
+            _UploadFlowPanel(
+              isUploading: state.isUploading,
+              fileName: state.uploadingFileName ??
+                  state.reports
+                      .where((r) => r.id == state.parsingReportId)
+                      .map((r) => r.fileName)
+                      .firstOrNull,
             ),
 
           // ── List / empty state ─────────────────────────────────────────
@@ -247,84 +245,220 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-// ── Upload progress ──────────────────────────────────────────────────────────
+// ── 6-Step Upload Flow Panel ─────────────────────────────────────────────────
 
-class _UploadProgress extends StatelessWidget {
-  const _UploadProgress({this.fileName});
+class _UploadFlowPanel extends StatefulWidget {
+  const _UploadFlowPanel({required this.isUploading, this.fileName});
+  final bool isUploading;
   final String? fileName;
 
   @override
+  State<_UploadFlowPanel> createState() => _UploadFlowPanelState();
+}
+
+class _UploadFlowPanelState extends State<_UploadFlowPanel> {
+  // How many steps are "done" (showing green tick)
+  int _doneCount = 0;
+  // Index of the step currently spinning (-1 = none)
+  int _activeStep = 0;
+
+  static const _uploadSteps = [
+    'Reading file',
+    'Sending to AI analysis',
+  ];
+
+  static const _parseSteps = [
+    'Platform detected',
+    'Report type confirmed',
+    'Validating transactions',
+    'Generating insights',
+  ];
+
+  // Delays (ms) before each parse step becomes "done"
+  static const _parseDelays = [1000, 2500, 4500, 7000];
+
+  @override
+  void initState() {
+    super.initState();
+    _runUploadSteps();
+  }
+
+  @override
+  void didUpdateWidget(_UploadFlowPanel old) {
+    super.didUpdateWidget(old);
+    // Transitioned from uploading → parsing
+    if (old.isUploading && !widget.isUploading) {
+      _doneCount = _uploadSteps.length;
+      _activeStep = _uploadSteps.length;
+      _runParseSteps();
+    }
+  }
+
+  Future<void> _runUploadSteps() async {
+    for (int i = 0; i < _uploadSteps.length; i++) {
+      if (!mounted) return;
+      await Future.delayed(Duration(milliseconds: 600 + i * 800));
+      if (!mounted) return;
+      setState(() {
+        _doneCount = i + 1;
+        _activeStep = i + 1;
+      });
+    }
+  }
+
+  Future<void> _runParseSteps() async {
+    for (int i = 0; i < _parseSteps.length; i++) {
+      if (!mounted) return;
+      await Future.delayed(Duration(milliseconds: _parseDelays[i]));
+      if (!mounted) return;
+      setState(() {
+        _doneCount = _uploadSteps.length + i + 1;
+        _activeStep = _uploadSteps.length + i + 1;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final allSteps = [..._uploadSteps, ..._parseSteps];
+    final label = widget.fileName != null
+        ? widget.isUploading
+            ? 'Uploading ${widget.fileName}'
+            : 'Analysing ${widget.fileName}'
+        : widget.isUploading
+            ? 'Preparing upload…'
+            : 'Analysing report…';
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      color: AppColors.accent.withValues(alpha: 0.05),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.r3),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.card,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Row(
             children: [
-              const Icon(Icons.cloud_upload_outlined,
-                  size: 13, color: AppColors.accent),
-              const SizedBox(width: 6),
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.accent),
+              ),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  fileName != null
-                      ? 'Uploading $fileName…'
-                      : 'Preparing upload…',
-                  style: AppTextStyles.bodySmall.copyWith(
+                child: Text(label,
+                    style: AppTextStyles.bodySmall.copyWith(
                       color: AppColors.accent,
-                      fontWeight: FontWeight.w500),
-                ),
+                      fontWeight: FontWeight.w600,
+                    )),
+              ),
+              Text(
+                '$_doneCount/${allSteps.length}',
+                style: AppTextStyles.labelSmall
+                    .copyWith(color: AppColors.textMuted),
               ),
             ],
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 10),
+          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: const LinearProgressIndicator(
-              color: AppColors.accent,
-              backgroundColor: AppColors.surfaceVariant,
-              minHeight: 3,
+            child: LinearProgressIndicator(
+              value: allSteps.isEmpty
+                  ? 0
+                  : _doneCount / allSteps.length,
+              minHeight: 4,
+              backgroundColor: AppColors.borderLight,
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(AppColors.accent),
             ),
           ),
+          const SizedBox(height: 12),
+          // Step rows
+          ...List.generate(allSteps.length, (i) {
+            final isDone   = i < _doneCount;
+            final isActive = i == _activeStep && !isDone;
+            final isParseSep = i == _uploadSteps.length;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isParseSep && i > 0) ...[
+                  const Divider(height: 12),
+                ],
+                _StepRow(
+                  label: allSteps[i],
+                  isDone: isDone,
+                  isActive: isActive,
+                ),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 }
 
-// ── Parsing banner (backend processing) ─────────────────────────────────────
+class _StepRow extends StatelessWidget {
+  const _StepRow({
+    required this.label,
+    required this.isDone,
+    required this.isActive,
+  });
 
-class _ParsingBanner extends StatelessWidget {
-  const _ParsingBanner({this.fileName});
-  final String? fileName;
+  final String label;
+  final bool isDone;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      color: AppColors.info.withValues(alpha: 0.06),
+    final color = isDone
+        ? AppColors.success
+        : isActive
+            ? AppColors.accent
+            : AppColors.textDisabled;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: AppColors.info),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: isDone
+                ? const Icon(Icons.check_circle_rounded,
+                    key: ValueKey('done'),
+                    size: 15,
+                    color: AppColors.success)
+                : isActive
+                    ? const SizedBox(
+                        key: ValueKey('spin'),
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 1.5, color: AppColors.accent),
+                      )
+                    : const Icon(Icons.radio_button_unchecked,
+                        key: ValueKey('idle'),
+                        size: 15,
+                        color: AppColors.textDisabled),
           ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              fileName != null
-                  ? 'Analysing $fileName…'
-                  : 'Analysing report…',
-              style: AppTextStyles.bodySmall
-                  .copyWith(color: AppColors.info, fontWeight: FontWeight.w500),
+          Text(
+            label,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: color,
+              fontWeight: isDone || isActive
+                  ? FontWeight.w500
+                  : FontWeight.w400,
             ),
           ),
-          Text('This takes 10–30 seconds',
-              style: AppTextStyles.labelSmall
-                  .copyWith(color: AppColors.info.withValues(alpha: 0.7))),
         ],
       ),
     );

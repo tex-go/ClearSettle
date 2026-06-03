@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../routing/app_shell.dart';
 import '../../domain/entities/settlement_entity.dart';
 import '../providers/settlements_provider.dart';
 
@@ -49,18 +50,38 @@ class SettlementsScreen extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         color: AppColors.primary,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text('Settlement Monitor',
-                style: AppTextStyles.headlineLarge
-                    .copyWith(color: AppColors.textInverse)),
-            const SizedBox(height: 2),
-            Text(
-              '${state.mismatchCount} mismatch  ·  '
-              '${state.settlements.length} settlements',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.textInverse.withValues(alpha: 0.7),
+            GestureDetector(
+              onTap: AppShell.openDrawer,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.menu_rounded,
+                    size: 18, color: AppColors.textInverse),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Settlement Monitor',
+                      style: AppTextStyles.headlineLarge
+                          .copyWith(color: AppColors.textInverse)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${state.mismatchCount} mismatch  ·  '
+                    '${state.settlements.length} settlements',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textInverse.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

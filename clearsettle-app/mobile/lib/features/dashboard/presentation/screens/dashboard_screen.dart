@@ -51,7 +51,11 @@ class DashboardScreen extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             // ── Top bar ─────────────────────────────────────────────────
-            _TopBar(authState: authState, alerts: alerts),
+            _TopBar(
+              authState: authState,
+              alerts: alerts,
+              lastSync: dashboardAsync.valueOrNull?.lastSync,
+            ),
 
             // ── Content ─────────────────────────────────────────────────
             dashboardAsync.when(
@@ -92,10 +96,23 @@ class DashboardScreen extends ConsumerWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.authState, required this.alerts});
+  const _TopBar({
+    required this.authState,
+    required this.alerts,
+    this.lastSync,
+  });
 
   final AuthState? authState;
   final AlertsState alerts;
+  final DateTime? lastSync;
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +144,7 @@ class _TopBar extends StatelessWidget {
 
             const SizedBox(width: 14),
 
-            // Greeting + name
+            // Greeting + name + last-synced trust label
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,6 +159,23 @@ class _TopBar extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (lastSync != null) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.circle,
+                            size: 6, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Live · updated ${_timeAgo(lastSync!)}',
+                          style: AppTextStyles.overline.copyWith(
+                            color: AppColors.textMuted,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -281,6 +315,23 @@ class _DashboardBody extends ConsumerWidget {
             summary: summary,
             recoverableAmount: recoverableAmount,
           ),
+
+          // ── Settlement Health Score ───────────────────────────────────
+          const SizedBox(height: 12),
+          _HealthScoreCard(
+            summary: summary,
+            settlements: settlements,
+            recoverableAmount: recoverableAmount,
+          ),
+
+          // ── Recoverable Amount Banner (shown prominently when > 0) ────
+          if (recoverableAmount > 0) ...[
+            const SizedBox(height: 12),
+            _RecoverableAmountBanner(
+              amount: recoverableAmount,
+              onTap: () => context.go(RouteConstants.disputes),
+            ),
+          ],
 
           // ── Guidance banner (no data yet) ────────────────────────────
           if (summary.grossRevenue == 0 && summary.totalOrders == 0) ...[
@@ -1303,6 +1354,235 @@ class _GuidanceBanner extends StatelessWidget {
             ),
             const Icon(Icons.arrow_forward_ios_rounded,
                 color: AppColors.accent, size: 13),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settlement Health Score — single 0–100 signal for account health
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HealthScoreCard extends StatelessWidget {
+  const _HealthScoreCard({
+    required this.summary,
+    required this.settlements,
+    required this.recoverableAmount,
+  });
+
+  final DashboardSummary summary;
+  final SettlementsState settlements;
+  final double recoverableAmount;
+
+  int _computeScore() {
+    int score = 100;
+    // Recon discrepancies: -5 each, max -20
+    if (summary.reconUnresolved > 0) {
+      score -= (summary.reconUnresolved * 5).clamp(0, 20);
+    }
+    // Settlement mismatches: -4 each, max -20
+    if (settlements.mismatchCount > 0) {
+      score -= (settlements.mismatchCount * 4).clamp(0, 20);
+    }
+    // Recoverable > 5% of net settlement: -20
+    if (recoverableAmount > 0 && summary.netSettlement > 0) {
+      final pct = recoverableAmount / summary.netSettlement;
+      if (pct > 0.05) { score -= 20; }
+      else if (pct > 0.02) { score -= 10; }
+    }
+    // Pending payout > 15% of gross: -10
+    if (summary.payoutsPending > 0 && summary.grossRevenue > 0) {
+      if (summary.payoutsPending / summary.grossRevenue > 0.15) score -= 10;
+    }
+    return score.clamp(0, 100);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final score = _computeScore();
+    final issueCount = summary.reconUnresolved + settlements.mismatchCount +
+        (recoverableAmount > 0 ? 1 : 0);
+
+    final Color scoreColor;
+    final String scoreLabel;
+    if (score >= 80) {
+      scoreColor = AppColors.success;
+      scoreLabel = 'Healthy';
+    } else if (score >= 60) {
+      scoreColor = AppColors.warning;
+      scoreLabel = 'Moderate';
+    } else {
+      scoreColor = AppColors.danger;
+      scoreLabel = 'Needs Attention';
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'SETTLEMENT HEALTH',
+                style: AppTextStyles.overline.copyWith(letterSpacing: 0.8),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: scoreColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: scoreColor.withValues(alpha: 0.25)),
+                ),
+                child: Text(
+                  scoreLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: scoreColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$score',
+                style: AppTextStyles.metricHero.copyWith(color: scoreColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4, left: 4),
+                child: Text(
+                  '/ 100',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (issueCount > 0)
+                GestureDetector(
+                  onTap: () => context.go(RouteConstants.alerts),
+                  child: Text(
+                    '$issueCount issue${issueCount > 1 ? 's' : ''} detected  →',
+                    style: AppTextStyles.labelMedium.copyWith(
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  'All clear',
+                  style: AppTextStyles.labelMedium.copyWith(
+                    color: AppColors.success,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: score / 100,
+              minHeight: 6,
+              backgroundColor: AppColors.borderLight,
+              valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recoverable Amount Banner — highest-value section, promoted to top
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RecoverableAmountBanner extends StatelessWidget {
+  const _RecoverableAmountBanner({
+    required this.amount,
+    required this.onTap,
+  });
+
+  final double amount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.danger100,
+          borderRadius: BorderRadius.circular(AppRadius.r3),
+          border: Border(
+            left: const BorderSide(color: AppColors.danger, width: 4),
+            top: BorderSide(color: AppColors.danger.withValues(alpha: 0.15)),
+            right: BorderSide(color: AppColors.danger.withValues(alpha: 0.15)),
+            bottom: BorderSide(color: AppColors.danger.withValues(alpha: 0.15)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(
+                Icons.savings_outlined,
+                color: AppColors.danger,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${CurrencyFormatter.formatCompact(amount)} recoverable',
+                    style: AppTextStyles.titleSmall.copyWith(
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Extra charges + missing payouts detected',
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.danger.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Recover →',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
           ],
         ),
       ),

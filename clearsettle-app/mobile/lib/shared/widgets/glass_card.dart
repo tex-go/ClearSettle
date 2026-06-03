@@ -130,8 +130,11 @@ class MetricCard extends StatelessWidget {
               ],
               Expanded(
                 child: Text(
-                  label,
-                  style: AppTextStyles.labelMedium.copyWith(color: labelColor),
+                  label.toUpperCase(),
+                  style: AppTextStyles.overline.copyWith(
+                    color: labelColor,
+                    letterSpacing: 0.8,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
