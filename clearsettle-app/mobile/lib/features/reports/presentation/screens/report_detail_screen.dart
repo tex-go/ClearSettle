@@ -44,12 +44,24 @@ class ReportDetailScreen extends ConsumerWidget {
       ),
       body: detailAsync.when(
         loading: () => const LoadingIndicator(message: 'Loading report…'),
+
         error: (e, _) => AppErrorWidget(
-          message: e.toString(),
+          message: _friendlyError(e),
           onRetry: () =>
               ref.read(reportDetailProvider(reportId).notifier).refresh(),
         ),
+
         data: (detail) {
+          // ── Still processing ──────────────────────────────────────────────
+          if (detail.parseResult.parserVersion == 'pending') {
+            return _ProcessingView(
+              fileName: detail.report.fileName,
+              onRefresh: () =>
+                  ref.read(reportDetailProvider(reportId).notifier).refresh(),
+            );
+          }
+
+          // ── Failed report ─────────────────────────────────────────────────
           if (detail.report.isFailed) {
             return CustomScrollView(
               slivers: [
@@ -79,6 +91,10 @@ class ReportDetailScreen extends ConsumerWidget {
             );
           }
 
+          // ── Parsed report (backend or local) ──────────────────────────────
+          final hasSummary = detail.parseResult.summary != null ||
+              detail.report.grossRevenue > 0;
+
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
@@ -101,19 +117,19 @@ class ReportDetailScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: SummaryFinancialsWidget(summary: detail.summary),
+              if (hasSummary)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: SummaryFinancialsWidget(summary: detail.summary),
+                  ),
                 ),
-              ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: _ActionButtons(reportId: reportId),
                 ),
               ),
-              // ── Intelligence Card (shown when available) ──────────────────
               if (detail.parseResult.intelligence != null)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -808,6 +824,93 @@ class _InsightTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+String _friendlyError(Object e) {
+  final msg = e.toString();
+  if (msg.contains('Parsed data not found') || msg.contains('Re-parse required')) {
+    return 'Report details could not be loaded. Tap retry to re-fetch from the server.';
+  }
+  if (msg.contains('network') || msg.contains('SocketException') ||
+      msg.contains('connection')) {
+    return 'Cannot reach the server. Check your connection and try again.';
+  }
+  if (msg.contains('not found') || msg.contains('404')) {
+    return 'This report was not found on the server. It may have been deleted.';
+  }
+  if (msg.contains('still being processed') || msg.contains('pending')) {
+    return 'Your report is still being analyzed. Please wait a moment and retry.';
+  }
+  return 'Unable to load report details. Tap retry to try again.';
+}
+
+// ── Processing state ──────────────────────────────────────────────────────────
+
+class _ProcessingView extends StatelessWidget {
+  const _ProcessingView({
+    required this.fileName,
+    required this.onRefresh,
+  });
+
+  final String fileName;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 48,
+              height: 48,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Analyzing Report',
+              style: AppTextStyles.headlineMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your report is still being analyzed by the intelligence pipeline.\nThis usually takes 5–30 seconds.',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              fileName,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textMuted,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh_outlined, size: 18),
+              label: const Text('Refresh'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(180, 46),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
