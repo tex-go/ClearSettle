@@ -15,12 +15,17 @@ from app.core.config import get_settings
 # Guards against IndexError when running inside Docker where the path is
 # shallower (e.g. /app/app/main.py has only 3 parent levels, indices 0-2).
 def _read_version() -> str:
+    # 1. Explicit env var override (used in CI/CD and production deployments)
+    env_ver = os.environ.get("APP_VERSION", "").strip()
+    if env_ver:
+        return env_ver
+    # 2. VERSION file — walk up from main.py (finds clearsettle-app/backend/VERSION in Docker)
     p = Path(__file__).resolve()
     for i in range(min(5, len(p.parents))):
         candidate = p.parents[i] / "VERSION"
         if candidate.exists():
             return candidate.read_text().strip()
-    return os.environ.get("APP_VERSION", "0.0.0")
+    return "0.0.0"
 from app.routers import (
     auth, dashboard, settlements, bank, disputes,
     returns, commission, gst, inventory,
