@@ -152,6 +152,7 @@ def root():
     settings = get_settings()
     return {
         "service":  "ClearSettle API",
+        "message":  "Welcome to the ClearSettle API! Visit /docs for API documentation.",
         "status":   "online",
         "version":  _APP_VERSION,
         "database": "connected" if settings.database_url else "mock-data mode",
