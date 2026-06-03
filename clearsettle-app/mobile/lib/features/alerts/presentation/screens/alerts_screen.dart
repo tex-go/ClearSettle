@@ -16,6 +16,13 @@ class AlertsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu_rounded, size: 20),
+            tooltip: 'Menu',
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -158,14 +165,22 @@ class _AlertTile extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: unread
-                ? color.withValues(alpha: 0.06)
-                : bg,
+            color: unread ? color.withValues(alpha: 0.06) : bg,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: unread
-                  ? color.withValues(alpha: 0.25)
-                  : AppColors.divider,
+            border: Border(
+              left: BorderSide(color: color, width: unread ? 3 : 1),
+              top: BorderSide(
+                  color: unread
+                      ? color.withValues(alpha: 0.25)
+                      : AppColors.divider),
+              right: BorderSide(
+                  color: unread
+                      ? color.withValues(alpha: 0.25)
+                      : AppColors.divider),
+              bottom: BorderSide(
+                  color: unread
+                      ? color.withValues(alpha: 0.25)
+                      : AppColors.divider),
             ),
           ),
           child: Padding(
@@ -190,6 +205,9 @@ class _AlertTile extends StatelessWidget {
                     children: [
                       Row(
                         children: [
+                          // Priority badge P1/P2/P3
+                          _PriorityBadge(severity: alert.severity),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               alert.title,
@@ -212,8 +230,8 @@ class _AlertTile extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         alert.message,
-                        style: AppTextStyles.bodySmall
-                            .copyWith(height: 1.45),
+                        style:
+                            AppTextStyles.bodySmall.copyWith(height: 1.45),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -241,7 +259,7 @@ class _AlertTile extends StatelessWidget {
 
   Color _severityColor(AlertSeverity s) {
     return switch (s) {
-      AlertSeverity.critical => AppColors.error,
+      AlertSeverity.critical => AppColors.danger,
       AlertSeverity.warning  => AppColors.warning,
       AlertSeverity.info     => AppColors.info,
     };
@@ -288,6 +306,39 @@ class _MarketplaceChip extends StatelessWidget {
   }
 }
 
+// ── Priority badge P1/P2/P3 ───────────────────────────────────────────────────
+
+class _PriorityBadge extends StatelessWidget {
+  const _PriorityBadge({required this.severity});
+  final AlertSeverity severity;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (severity) {
+      AlertSeverity.critical => ('P1', AppColors.danger),
+      AlertSeverity.warning  => ('P2', AppColors.warning),
+      AlertSeverity.info     => ('P3', AppColors.info),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 class _EmptyAlerts extends StatelessWidget {
@@ -295,22 +346,48 @@ class _EmptyAlerts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.notifications_none_outlined,
-              size: 64, color: AppColors.textDisabled),
-          SizedBox(height: 16),
-          Text('All caught up!',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary)),
-          SizedBox(height: 6),
-          Text('No alerts at the moment.',
-              style: TextStyle(color: AppColors.textSecondary)),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.success100,
+                shape: BoxShape.circle,
+              ),
+              child: SizedBox(
+                width: 72,
+                height: 72,
+                child: Center(
+                  child: Icon(Icons.check_circle_outline_rounded,
+                      size: 36, color: AppColors.success),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'All clear',
+              style: AppTextStyles.headlineMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No issues detected in your last report.\nSettlement health looks good.',
+              style: AppTextStyles.bodyMedium
+                  .copyWith(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "We'll alert you the moment anything looks off.",
+              style: AppTextStyles.labelMedium
+                  .copyWith(color: AppColors.textMuted),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

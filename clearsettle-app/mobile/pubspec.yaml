@@ -48,6 +48,12 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_messaging: ^15.1.4
 
+  # Typography
+  google_fonts: ^6.2.1
+
+  # Skeleton loading
+  shimmer: ^3.0.0
+
   # Utilities
   equatable: ^2.0.5
   uuid: ^4.4.0

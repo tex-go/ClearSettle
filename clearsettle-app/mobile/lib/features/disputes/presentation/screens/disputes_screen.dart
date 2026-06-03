@@ -6,6 +6,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../routing/app_shell.dart';
 import '../../domain/entities/dispute_entity.dart';
 import '../providers/disputes_provider.dart';
 
@@ -51,19 +52,39 @@ class DisputesScreen extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         color: AppColors.primary,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              'Dispute Tracking',
-              style: AppTextStyles.headlineLarge.copyWith(
-                  color: AppColors.textInverse),
+            GestureDetector(
+              onTap: AppShell.openDrawer,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.menu_rounded,
+                    size: 18, color: AppColors.textInverse),
+              ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              '${state.openCount} open  ·  ${state.disputes.length} total',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.textInverse.withValues(alpha: 0.7),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Money Recovery',
+                    style: AppTextStyles.headlineLarge.copyWith(
+                        color: AppColors.textInverse),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${state.openCount} open  ·  ${state.disputes.length} cases',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textInverse.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -73,44 +94,99 @@ class DisputesScreen extends ConsumerWidget {
   }
 
   Widget _summaryBanner(BuildContext context, DisputesState state) {
+    final recoverable =
+        (state.totalClaimAmount - state.totalRecoveredAmount)
+            .clamp(0.0, double.infinity);
     return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _StatCell(
-                label: 'Total Claimed',
-                value: CurrencyFormatter.formatCompact(state.totalClaimAmount),
-                color: AppColors.warning,
+      child: Column(
+        children: [
+          // Recoverable highlight
+          if (recoverable > 0)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.recoverable.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border(
+                  left: const BorderSide(
+                      color: AppColors.recoverable, width: 4),
+                  top: BorderSide(
+                      color: AppColors.recoverable.withValues(alpha: 0.2)),
+                  right: BorderSide(
+                      color: AppColors.recoverable.withValues(alpha: 0.2)),
+                  bottom: BorderSide(
+                      color: AppColors.recoverable.withValues(alpha: 0.2)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.savings_outlined,
+                      color: AppColors.recoverable, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TOTAL RECOVERABLE',
+                          style: AppTextStyles.overline
+                              .copyWith(color: AppColors.recoverable),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          CurrencyFormatter.format(recoverable),
+                          style: AppTextStyles.metricMedium
+                              .copyWith(color: AppColors.recoverable),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            Container(width: 1, height: 36, color: AppColors.divider),
-            Expanded(
-              child: _StatCell(
-                label: 'Recovered',
-                value: CurrencyFormatter.formatCompact(
-                    state.totalRecoveredAmount),
-                color: AppColors.positive,
-              ),
+          // Stats row
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.divider),
             ),
-            Container(width: 1, height: 36, color: AppColors.divider),
-            Expanded(
-              child: _StatCell(
-                label: 'Pending',
-                value: CurrencyFormatter.formatCompact(
-                    state.totalClaimAmount - state.totalRecoveredAmount),
-                color: AppColors.info,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _StatCell(
+                    label: 'Claimed',
+                    value: CurrencyFormatter.formatCompact(
+                        state.totalClaimAmount),
+                    color: AppColors.warning,
+                  ),
+                ),
+                Container(
+                    width: 1, height: 36, color: AppColors.divider),
+                Expanded(
+                  child: _StatCell(
+                    label: 'Recovered',
+                    value: CurrencyFormatter.formatCompact(
+                        state.totalRecoveredAmount),
+                    color: AppColors.positive,
+                  ),
+                ),
+                Container(
+                    width: 1, height: 36, color: AppColors.divider),
+                Expanded(
+                  child: _StatCell(
+                    label: 'Cases',
+                    value: '${state.disputes.length}',
+                    color: AppColors.info,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -264,17 +340,51 @@ class _DisputeTile extends StatelessWidget {
             ),
             if (dispute.recoveredAmount > 0) ...[
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.check_circle_outline,
-                      color: AppColors.positive, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${CurrencyFormatter.format(dispute.recoveredAmount)} recovered',
-                    style: AppTextStyles.labelSmall
-                        .copyWith(color: AppColors.positive),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.check_circle_outline,
+                        color: AppColors.success, size: 13),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${CurrencyFormatter.format(dispute.recoveredAmount)} recovered',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.success,
+                              fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (dispute.claimAmount > 0) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.recoverable.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.savings_outlined,
+                        color: AppColors.recoverable, size: 13),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${CurrencyFormatter.format(dispute.claimAmount)} recoverable',
+                      style: AppTextStyles.labelSmall.copyWith(
+                          color: AppColors.recoverable,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
               ),
             ],
             const SizedBox(height: 8),
@@ -362,21 +472,46 @@ class _EmptyDisputes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.gavel_outlined, size: 56, color: AppColors.textDisabled),
-          SizedBox(height: 16),
-          Text('No disputes found',
-              style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary)),
-          SizedBox(height: 6),
-          Text('No disputes match the selected filter.',
-              style: TextStyle(color: AppColors.textSecondary)),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 72,
+              height: 72,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.success100,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(Icons.savings_outlined,
+                      size: 34, color: AppColors.success),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('No disputes needed',
+                style: AppTextStyles.headlineMedium,
+                textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(
+              'Your settlements look clean.',
+              style: AppTextStyles.bodyMedium
+                  .copyWith(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "We'll alert you the moment we detect\nan overcharge or missing payout.",
+              style: AppTextStyles.labelMedium
+                  .copyWith(color: AppColors.textMuted),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

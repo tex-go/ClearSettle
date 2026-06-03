@@ -34,8 +34,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       duration: const Duration(milliseconds: 900),
     );
     _fade  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _scale = Tween<double>(begin: 0.82, end: 1.0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
+    _scale = Tween<double>(begin: 0.88, end: 1.0)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
 
     _ctrl.forward();
 
@@ -148,7 +148,7 @@ class _LogoCard extends StatelessWidget {
                 border: Border.all(color: const Color(0x1AFFFFFF)),
               ),
               child: Image.asset(
-                'assets/images/clearsettle_logo.png',
+                'assets/images/clear_settle_logo.png',
                 width: 120,
                 height: 120,
                 fit: BoxFit.contain,
@@ -164,22 +164,29 @@ class _LogoCard extends StatelessWidget {
         const SizedBox(height: 24),
         ShaderMask(
           shaderCallback: (b) => const LinearGradient(
-            colors: [Color(0xFF0ABFCA), Color(0xFF7FE4EC)],
+            colors: [Color(0xFF0DB7A3), Color(0xFF4DD9CB)],
           ).createShader(b),
           child: const Text(
             'ClearSettle',
             style: TextStyle(
+              fontFamily: 'Inter',
               fontSize: 30,
               fontWeight: FontWeight.w800,
               color: Colors.white,
-              letterSpacing: -0.5,
+              letterSpacing: -0.8,
             ),
           ),
         ),
         const SizedBox(height: 6),
         const Text(
           'eCommerce Settlement Intelligence',
-          style: TextStyle(fontSize: 13, color: Color(0xFF4B6080)),
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF4A6180),
+            letterSpacing: 0.1,
+          ),
         ),
         const SizedBox(height: 40),
         const SizedBox(
@@ -207,12 +214,21 @@ class _BottomMeta extends StatelessWidget {
       children: [
         Text(
           'Powered by ClearSettle Platform',
-          style: TextStyle(fontSize: 11, color: Color(0xFF2D4060)),
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 11,
+            color: Color(0xFF2D4A6A),
+            letterSpacing: 0.1,
+          ),
         ),
         SizedBox(height: 4),
         Text(
           'v${AppConfig.appVersion}',
-          style: TextStyle(fontSize: 10, color: Color(0xFF1E3050)),
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 10,
+            color: Color(0xFF1E3A58),
+          ),
         ),
       ],
     );
