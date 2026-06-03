@@ -29,7 +29,7 @@ class NotificationService {
   /// Registers this device with the backend for future push delivery.
   Future<void> registerDevice() async {
     try {
-      // TODO: Replace with real FCM token from firebase_messaging:
+      // NOTE: Replace with real FCM token once Firebase is configured:
       //   final fcmToken = await FirebaseMessaging.instance.getToken();
       //   if (fcmToken == null) return;
       const fcmToken = 'polling_mode'; // placeholder until Firebase is configured
