@@ -67,12 +67,12 @@ abstract final class PdfGenerator {
             children: [
               pw.Text(
                 reportName,
-                style: pw.TextStyle(
+                style: const pw.TextStyle(
                     fontSize: 9, color: PdfColors.blueGrey700),
               ),
               pw.Text(
                 'Generated: ${_fmtDate(date)}',
-                style: pw.TextStyle(
+                style: const pw.TextStyle(
                     fontSize: 8, color: PdfColors.blueGrey400),
               ),
             ],
