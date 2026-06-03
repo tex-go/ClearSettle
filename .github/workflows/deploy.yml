@@ -1,9 +1,9 @@
 name: Deploy ClearSettle
 
-# Auto-deploys on every push to main — no CI gate.
-# The job SSHes into the GCP production VM, pulls latest code,
-# rebuilds the backend image (picks up VERSION + any code changes),
-# and restarts all containers via the prod compose file.
+# Auto-deploys on every push to main.
+# Only rebuilds backend + frontend — infrastructure containers
+# (postgres, redis, nginx, certbot) are left running unchanged.
+# Typical deploy time: 60-90 seconds.
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: false   # never cancel an in-progress deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -19,37 +19,53 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: SSH → Pull → Rebuild → Restart
+      - name: SSH → Pull → Build backend/frontend only → Restart
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:        ${{ secrets.VM_HOST }}
-          username:    ${{ secrets.VM_USER }}
-          key:         ${{ secrets.VM_SSH_KEY }}
+          host:            ${{ secrets.VM_HOST }}
+          username:        ${{ secrets.VM_USER }}
+          key:             ${{ secrets.VM_SSH_KEY }}
           command_timeout: 10m
           script: |
             set -e
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
 
-            echo "=== Pulling latest code ==="
+            COMPOSE="docker compose -f ~/ClearSettle/clearsettle-app/docker-compose.prod.yml \
+                     --env-file ~/ClearSettle/clearsettle-app/.env.prod"
+
+            echo "=== [1/5] Pulling latest code ==="
             cd ~/ClearSettle
+            git fetch origin
             git checkout main
             git pull origin main
 
-            echo "=== Rebuilding containers ==="
-            cd clearsettle-app
-            docker compose -f docker-compose.prod.yml --env-file .env.prod \
-              up --build -d --remove-orphans
+            echo "=== [2/5] Building backend + frontend images ==="
+            $COMPOSE build --parallel backend frontend
 
-            echo "=== Waiting for backend to be healthy ==="
+            echo "=== [3/5] Restarting app containers (infra stays running) ==="
+            $COMPOSE up -d --no-deps backend frontend
+
+            echo "=== [4/5] Health check ==="
             for i in $(seq 1 24); do
               if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
                 echo "Backend healthy after ${i}x5s"
                 break
               fi
+              if [ "$i" -eq 24 ]; then
+                echo "ERROR: backend not healthy after 120s"
+                $COMPOSE logs --tail 40 backend
+                exit 1
+              fi
               echo "  attempt $i/24 — waiting..."
               sleep 5
             done
 
-            echo "=== Deployment result ==="
-            curl -s http://localhost:8000/ || echo "WARNING: root endpoint not reachable"
-            docker compose -f docker-compose.prod.yml ps
+            echo "=== [5/5] Migrations + summary ==="
+            $COMPOSE exec -T backend alembic upgrade head
+
+            echo ""
+            curl -s http://localhost:8000/
+            echo ""
+            $COMPOSE ps
             echo "=== Deploy complete at $(date -u) ==="
