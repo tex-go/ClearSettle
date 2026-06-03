@@ -1,3 +1,5 @@
+library;
+
 /// Domain entity mapping the 14-agent intelligence pipeline API response.
 ///
 /// Returned by GET /ingestion/files/{id}/intelligence

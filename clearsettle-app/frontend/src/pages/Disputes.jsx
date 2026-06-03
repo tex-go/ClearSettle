@@ -19,8 +19,9 @@ function Disputes() {
     return <div className="loading-wrap page-anim"><div className="spinner" /></div>
   }
 
-  var s = data.summary
-  var winRate = s.won_count > 0 ? Math.round((s.won_count / data.items.length) * 100) : 0
+  var s = data.summary || {}
+  var itemCount = data.items?.length || 0
+  var winRate = s.won_count > 0 && itemCount > 0 ? Math.round((s.won_count / itemCount) * 100) : 0
 
   function handleSubmit() {
     api.post('/disputes/', { ...form, amount: Number(form.amount) })

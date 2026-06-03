@@ -9,9 +9,12 @@ class AuthLocalDataSource {
 
   final SecureStorageService secureStorage;
 
-  Future<void> saveSession(AuthAuthenticated state) async {
+  Future<void> saveSession(AuthAuthenticated state, {String? refreshToken}) async {
     await secureStorage.saveAccessToken(state.accessToken);
     await secureStorage.saveUserId(state.userId);
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await secureStorage.saveRefreshToken(refreshToken);
+    }
 
     final user = UserHiveObject(
       id: state.userId,

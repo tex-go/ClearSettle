@@ -37,9 +37,9 @@ class MarketplaceBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: _platformColor.withOpacity(0.08),
+        color: _platformColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _platformColor.withOpacity(0.25)),
+        border: Border.all(color: _platformColor.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

@@ -51,7 +51,9 @@ from app.services.intelligence.pipeline import IntelligencePipeline
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-UPLOAD_DIR = "/tmp/ingestion_uploads"
+# Mount a persistent volume at UPLOAD_DIR in production (e.g. /data/uploads or S3-fuse).
+# Defaults to /tmp only for local dev — /tmp is ephemeral in containers.
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/ingestion_uploads")
 MAX_FILE_MB = 100
 
 
@@ -350,6 +352,7 @@ async def _run_ingestion(
             try:
                 record.upload_status = "failed"
                 record.error_message = str(exc)[:500]
+                record.processed_at  = datetime.utcnow()  # always set on all paths
                 await db.commit()
             except Exception:
                 pass
