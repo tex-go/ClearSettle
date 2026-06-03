@@ -6,9 +6,6 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../domain/entities/report_entities.dart';
 
-// Flipkart brand blue reused from AppColors
-const _kFlipkartColor = AppColors.flipkart;
-
 class ReportCard extends StatelessWidget {
   const ReportCard({
     super.key,
@@ -27,45 +24,83 @@ class ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canOpen = report.isParsed || report.isFailed;
+
     return GestureDetector(
-      onTap: (report.isParsed || report.isFailed) ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.all(14),
+      onTap: canOpen ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _borderColor),
+          borderRadius: BorderRadius.circular(AppRadius.r4),
+          border: Border.all(color: _borderColor, width: 1),
+          boxShadow: AppShadows.card,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                _buildIcon(),
-                const SizedBox(width: 12),
-                Expanded(child: _buildHeader()),
-                _buildStatusBadge(),
-              ],
-            ),
-            if (report.isParsed) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-              _buildFinancials(),
-            ],
-            if (report.isFailed) ...[
-              const SizedBox(height: 8),
-              _buildErrorRow(),
-            ],
-            if (isParsing) ...[
-              const SizedBox(height: 10),
-              const LinearProgressIndicator(
-                backgroundColor: AppColors.surfaceVariant,
-                color: AppColors.primary,
+            // ── Header ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Row(
+                children: [
+                  _LeadingIcon(report: report),
+                  const SizedBox(width: 12),
+                  Expanded(child: _HeaderText(report: report)),
+                  const SizedBox(width: 8),
+                  _StatusPill(report: report),
+                  if (onDelete != null) ...[
+                    const SizedBox(width: 4),
+                    _DeleteButton(onDelete: onDelete!),
+                  ],
+                ],
               ),
-              const SizedBox(height: 4),
-              const Text('Parsing report…', style: AppTextStyles.labelSmall),
+            ),
+
+            // ── Parsing progress bar ─────────────────────────────────
+            if (isParsing) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.hourglass_top_rounded,
+                        size: 12, color: AppColors.accent),
+                    const SizedBox(width: 6),
+                    const Text('Analyzing report…',
+                        style: AppTextStyles.labelSmall),
+                  ],
+                ),
+              ),
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(AppRadius.r4)),
+                child: const LinearProgressIndicator(
+                  color: AppColors.accent,
+                  backgroundColor: AppColors.surfaceVariant,
+                  minHeight: 3,
+                ),
+              ),
             ],
+
+            // ── Financial stats ──────────────────────────────────────
+            if (report.isParsed && !isParsing) ...[
+              Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: 14),
+                color: AppColors.divider,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                child: _FinancialRow(report: report),
+              ),
+            ],
+
+            // ── Error row ────────────────────────────────────────────
+            if (report.isFailed)
+              _ErrorRow(
+                message: report.errorMessage,
+                onRetry: onRetry,
+              ),
           ],
         ),
       ),
@@ -73,220 +108,269 @@ class ReportCard extends StatelessWidget {
   }
 
   Color get _borderColor {
-    if (report.isFailed) return AppColors.error.withValues(alpha: 0.3);
+    if (report.isFailed) return AppColors.error.withValues(alpha: 0.25);
     if (report.isParsed && report.discrepancyCount > 0) {
-      return AppColors.warning.withValues(alpha: 0.4);
+      return AppColors.warning.withValues(alpha: 0.35);
     }
     return AppColors.divider;
   }
+}
 
-  Widget _buildIcon() {
+// ── Leading icon ────────────────────────────────────────────────────────────
+
+class _LeadingIcon extends StatelessWidget {
+  const _LeadingIcon({required this.report});
+  final ReportListItem report;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: _iconBg,
-        borderRadius: BorderRadius.circular(8),
+        color: _bg,
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Icon(_iconData, color: _iconColor, size: 20),
+      child: Icon(_icon, color: _color, size: 19),
     );
   }
 
-  Color get _iconBg {
-    if (report.isApiSync) return _kFlipkartColor.withValues(alpha: 0.10);
+  Color get _bg {
     if (report.isFailed) return AppColors.error.withValues(alpha: 0.08);
-    if (report.isParsed) return AppColors.success.withValues(alpha: 0.1);
-    return AppColors.primary.withValues(alpha: 0.08);
+    if (report.isParsed) return AppColors.success.withValues(alpha: 0.08);
+    if (report.isApiSync) return AppColors.flipkart.withValues(alpha: 0.08);
+    return AppColors.accent.withValues(alpha: 0.08);
   }
 
-  Color get _iconColor {
-    if (report.isApiSync) return _kFlipkartColor;
+  Color get _color {
     if (report.isFailed) return AppColors.error;
     if (report.isParsed) return AppColors.success;
-    return AppColors.primary;
+    if (report.isApiSync) return AppColors.flipkart;
+    return AppColors.accent;
   }
 
-  IconData get _iconData {
+  IconData get _icon {
+    if (report.isFailed) return Icons.error_outline_rounded;
+    if (report.isParsed) return Icons.check_circle_outline_rounded;
     if (report.isApiSync) return Icons.cloud_done_outlined;
-    if (report.isFailed) return Icons.error_outline;
-    if (report.isParsed) return Icons.check_circle_outline;
     return Icons.pending_outlined;
   }
+}
 
-  Widget _buildHeader() {
+// ── Header text ─────────────────────────────────────────────────────────────
+
+class _HeaderText extends StatelessWidget {
+  const _HeaderText({required this.report});
+  final ReportListItem report;
+
+  @override
+  Widget build(BuildContext context) {
     final subtitle = report.isApiSync
-        ? 'API Sync • ${report.totalOrders} orders • '
-            '${DateFormatter.formatDate(report.uploadedAt)}'
-        : '${report.marketplace.toUpperCase()} • ${report.fileSizeLabel} • '
-            '${DateFormatter.formatDate(report.uploadedAt)}';
+        ? 'API Sync • ${report.totalOrders} orders • ${DateFormatter.formatDate(report.uploadedAt)}'
+        : '${report.marketplace.toUpperCase()} • ${report.fileSizeLabel} • ${DateFormatter.formatDate(report.uploadedAt)}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                report.isApiSync ? 'Flipkart API Sync' : report.fileName,
-                style: AppTextStyles.titleMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (report.isApiSync) ...[
-              const SizedBox(width: 6),
-              _ApiSourceBadge(),
-            ],
-          ],
+        Text(
+          report.isApiSync ? 'Flipkart API Sync' : report.fileName,
+          style: AppTextStyles.titleSmall,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 2),
         Text(subtitle, style: AppTextStyles.labelSmall),
       ],
     );
   }
+}
 
-  Widget _buildStatusBadge() {
+// ── Status pill ─────────────────────────────────────────────────────────────
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.report});
+  final ReportListItem report;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: _statusColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
+        color: _color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _color.withValues(alpha: 0.2)),
       ),
       child: Text(
-        _statusLabel,
-        style: AppTextStyles.labelSmall.copyWith(color: _statusColor),
+        _label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: _color,
+        ),
       ),
     );
   }
 
-  String get _statusLabel {
-    switch (report.status) {
-      case 'parsed':
-        return 'Parsed';
-      case 'parsing':
-        return 'Parsing';
-      case 'failed':
-        return 'Failed';
-      default:
-        return 'Pending';
-    }
-  }
+  String get _label => switch (report.status) {
+        'parsed'  => 'Parsed',
+        'parsing' => 'Parsing',
+        'failed'  => 'Failed',
+        _         => 'Pending',
+      };
 
-  Color get _statusColor {
-    switch (report.status) {
-      case 'parsed':
-        return AppColors.success;
-      case 'failed':
-        return AppColors.error;
-      case 'parsing':
-        return AppColors.warning;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
+  Color get _color => switch (report.status) {
+        'parsed'  => AppColors.success,
+        'failed'  => AppColors.error,
+        'parsing' => AppColors.warning,
+        _         => AppColors.textSecondary,
+      };
+}
 
-  Widget _buildFinancials() {
-    return Row(
-      children: [
-        Expanded(
-          child: _FinStat(
-            label: 'Orders',
-            value: report.totalOrders.toString(),
-          ),
+// ── Delete button ────────────────────────────────────────────────────────────
+
+class _DeleteButton extends StatelessWidget {
+  const _DeleteButton({required this.onDelete});
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onDelete,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(7),
         ),
-        Expanded(
-          child: _FinStat(
-            label: 'Gross Revenue',
-            value: CurrencyFormatter.formatCompact(report.grossRevenue),
-          ),
-        ),
-        Expanded(
-          child: _FinStat(
-            label: 'Net Settlement',
-            value: CurrencyFormatter.formatCompact(report.netSettlement),
-            valueColor: AppColors.positive,
-          ),
-        ),
-        if (report.discrepancyCount > 0)
-          _DiscrepancyPill(count: report.discrepancyCount),
-      ],
+        child: const Icon(Icons.delete_outline_rounded,
+            size: 14, color: AppColors.error),
+      ),
     );
   }
+}
 
-  Widget _buildErrorRow() {
+// ── Financial row ────────────────────────────────────────────────────────────
+
+class _FinancialRow extends StatelessWidget {
+  const _FinancialRow({required this.report});
+  final ReportListItem report;
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.info_outline, color: AppColors.error, size: 14),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            report.errorMessage ?? 'Parse failed.',
-            style: AppTextStyles.labelSmall.copyWith(color: AppColors.error),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+        _Stat(
+          label: 'Orders',
+          value: report.totalOrders.toString(),
+          icon: Icons.shopping_bag_outlined,
+          iconColor: AppColors.info,
         ),
-        if (onRetry != null)
-          TextButton(
-            onPressed: onRetry,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              minimumSize: Size.zero,
-            ),
-            child: const Text('Retry', style: TextStyle(fontSize: 12)),
-          ),
+        _StatDivider(),
+        _Stat(
+          label: 'Gross Revenue',
+          value: CurrencyFormatter.formatCompact(report.grossRevenue),
+          icon: Icons.trending_up_rounded,
+          iconColor: AppColors.accent,
+        ),
+        _StatDivider(),
+        _Stat(
+          label: 'Net Settlement',
+          value: CurrencyFormatter.formatCompact(report.netSettlement),
+          icon: Icons.account_balance_outlined,
+          iconColor: AppColors.success,
+          valueColor: AppColors.success,
+        ),
+        if (report.discrepancyCount > 0) ...[
+          _StatDivider(),
+          _DiscrepancyPill(count: report.discrepancyCount),
+        ],
       ],
     );
   }
 }
 
-class _FinStat extends StatelessWidget {
-  const _FinStat({required this.label, required this.value, this.valueColor});
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+    this.valueColor,
+  });
 
   final String label;
   final String value;
+  final IconData icon;
+  final Color iconColor;
   final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value,
-            style: AppTextStyles.titleMedium.copyWith(
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 10, color: iconColor),
+              const SizedBox(width: 3),
+              Text(label, style: AppTextStyles.labelSmall),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: AppTextStyles.metricSmall.copyWith(
+              fontSize: 14,
               color: valueColor ?? AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            )),
-        Text(label, style: AppTextStyles.labelSmall),
-      ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 28,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      color: AppColors.divider,
     );
   }
 }
 
 class _DiscrepancyPill extends StatelessWidget {
   const _DiscrepancyPill({required this.count});
-
   final int count;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.12),
+        color: AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.warning_amber_rounded,
-              color: AppColors.warning, size: 13),
+              color: AppColors.warning, size: 11),
           const SizedBox(width: 3),
           Text(
             '$count',
-            style: AppTextStyles.labelSmall.copyWith(
-              color: AppColors.warning,
+            style: const TextStyle(
+              fontSize: 11,
               fontWeight: FontWeight.w700,
+              color: AppColors.warning,
             ),
           ),
         ],
@@ -295,28 +379,54 @@ class _DiscrepancyPill extends StatelessWidget {
   }
 }
 
-class _ApiSourceBadge extends StatelessWidget {
+// ── Error row ────────────────────────────────────────────────────────────────
+
+class _ErrorRow extends StatelessWidget {
+  const _ErrorRow({this.message, this.onRetry});
+  final String? message;
+  final VoidCallback? onRetry;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: _kFlipkartColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+      decoration: const BoxDecoration(
+        color: Color(0x06EF4444),
+        borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(AppRadius.r4)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_outlined, color: _kFlipkartColor, size: 11),
-          const SizedBox(width: 3),
-          Text(
-            'API',
-            style: AppTextStyles.labelSmall.copyWith(
-              color: _kFlipkartColor,
-              fontWeight: FontWeight.w700,
-              fontSize: 10,
+          const Icon(Icons.info_outline, color: AppColors.error, size: 13),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message ?? 'Parse failed.',
+              style: AppTextStyles.labelSmall
+                  .copyWith(color: AppColors.error),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (onRetry != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onRetry,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('Retry',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.error)),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -24,7 +24,12 @@ class ReportDetailScreen extends ConsumerWidget {
     final detailAsync = ref.watch(reportDetailProvider(reportId));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
         title: const Text('Report Detail'),
         actions: [
           detailAsync.when(
@@ -36,7 +41,7 @@ class ReportDetailScreen extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_outlined),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: () =>
                 ref.read(reportDetailProvider(reportId).notifier).refresh(),
           ),
@@ -121,7 +126,10 @@ class ReportDetailScreen extends ConsumerWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: SummaryFinancialsWidget(summary: detail.summary),
+                    child: SummaryFinancialsWidget(
+                      summary: detail.summary,
+                      orders: detail.orders,
+                    ),
                   ),
                 ),
               SliverToBoxAdapter(
@@ -164,7 +172,7 @@ class _ExportButton extends ConsumerWidget {
     final service = ref.read(exportServiceProvider);
 
     return PopupMenuButton<_ExportFormat>(
-      icon: const Icon(Icons.ios_share_outlined),
+      icon: const Icon(Icons.ios_share_outlined, size: 20),
       tooltip: 'Export',
       onSelected: (fmt) => _export(context, service, fmt),
       itemBuilder: (_) => const [
@@ -242,7 +250,7 @@ class _ExportMenuItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.primary),
+        Icon(icon, size: 18, color: AppColors.accent),
         const SizedBox(width: 10),
         Text(label),
       ],
@@ -272,49 +280,64 @@ class _HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(AppRadius.r5),
+        boxShadow: AppShadows.heroCard,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.table_chart_outlined,
-                  color: AppColors.primary, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  fileName,
-                  style: AppTextStyles.titleLarge,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // File name + icon
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.table_chart_outlined,
+                      color: Colors.white, size: 20),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _InfoRow(
-            icon: Icons.storefront_outlined,
-            label: marketplace.toUpperCase(),
-          ),
-          _InfoRow(
-            icon: Icons.upload_outlined,
-            label: 'Uploaded ${DateFormatter.formatDate(uploadedAt)}',
-          ),
-          if (parsedAt != null)
-            _InfoRow(
-              icon: Icons.check_circle_outline,
-              label: 'Parsed ${DateFormatter.formatRelative(parsedAt!)}',
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    fileName,
+                    style: AppTextStyles.titleLarge
+                        .copyWith(color: Colors.white),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-          _InfoRow(icon: Icons.storage_outlined, label: fileSize),
-          _InfoRow(
-              icon: Icons.code_outlined, label: 'Parser v$parserVersion'),
-        ],
+            const SizedBox(height: 16),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+            const SizedBox(height: 14),
+            // Meta rows
+            _InfoRow(
+              icon: Icons.storefront_outlined,
+              label: marketplace.toUpperCase(),
+            ),
+            _InfoRow(
+              icon: Icons.upload_outlined,
+              label: 'Uploaded ${DateFormatter.formatDate(uploadedAt)}',
+            ),
+            if (parsedAt != null)
+              _InfoRow(
+                icon: Icons.check_circle_outline,
+                label: 'Parsed ${DateFormatter.formatRelative(parsedAt!)}',
+              ),
+            _InfoRow(icon: Icons.storage_outlined, label: fileSize),
+            _InfoRow(
+                icon: Icons.code_outlined, label: 'Parser $parserVersion'),
+          ],
+        ),
       ),
     );
   }
@@ -332,9 +355,10 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: AppColors.textSecondary),
-          const SizedBox(width: 6),
-          Text(label, style: AppTextStyles.bodySmall),
+          Icon(icon, size: 13, color: Colors.white60),
+          const SizedBox(width: 7),
+          Text(label,
+              style: AppTextStyles.bodySmall.copyWith(color: Colors.white70)),
         ],
       ),
     );
@@ -363,7 +387,7 @@ class _StatsRow extends StatelessWidget {
             icon: Icons.shopping_bag_outlined,
             label: 'Orders',
             value: orders.toString(),
-            color: AppColors.primary,
+            color: AppColors.accent,
           ),
         ),
         const SizedBox(width: 8),
@@ -409,22 +433,31 @@ class _StatChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.r3),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: color),
           const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: AppTextStyles.titleMedium
-                    .copyWith(color: color, fontWeight: FontWeight.w700),
-              ),
-              Text(label, style: AppTextStyles.labelSmall),
-            ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: AppTextStyles.titleMedium
+                      .copyWith(color: color, fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  label,
+                  style: AppTextStyles.labelSmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -443,25 +476,60 @@ class _ActionButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton.icon(
-            onPressed: () =>
-                context.push(RouteConstants.reconciliationPath(reportId)),
-            icon: const Icon(Icons.fact_check_outlined, size: 18),
-            label: const Text('View Reconciliation'),
+        // Primary CTA
+        GestureDetector(
+          onTap: () =>
+              context.push(RouteConstants.reconciliationPath(reportId)),
+          child: Container(
+            width: double.infinity,
+            height: 50,
+            decoration: BoxDecoration(
+              color: AppColors.accent,
+              borderRadius: BorderRadius.circular(AppRadius.r2),
+              boxShadow: AppShadows.ctaButton,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.fact_check_outlined,
+                    size: 18, color: Colors.white),
+                SizedBox(width: 8),
+                Text('View Reconciliation',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: () => context
-                .push(RouteConstants.reportSettlementPath(reportId)),
-            icon: const Icon(Icons.receipt_long_outlined, size: 18),
-            label: const Text('View Settlements'),
+        // Secondary CTA
+        GestureDetector(
+          onTap: () => context
+              .push(RouteConstants.reportSettlementPath(reportId)),
+          child: Container(
+            width: double.infinity,
+            height: 50,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.r2),
+              border: Border.all(color: AppColors.divider),
+              boxShadow: AppShadows.card,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.receipt_long_outlined,
+                    size: 18, color: AppColors.textSecondary),
+                SizedBox(width: 8),
+                Text('View Settlements',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ),
       ],
@@ -483,7 +551,7 @@ class _IntelligenceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,7 +559,7 @@ class _IntelligenceCard extends StatelessWidget {
           // Header
           Row(
             children: [
-              const Icon(Icons.auto_awesome, color: AppColors.teal, size: 18),
+              const Icon(Icons.auto_awesome, color: AppColors.accent, size: 18),
               const SizedBox(width: 8),
               Text(
                 'Intelligence Analysis',
@@ -570,13 +638,13 @@ class _PlatformBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
+        color: AppColors.accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         '${platform.toUpperCase()} ${(confidence * 100).toStringAsFixed(0)}%',
         style: AppTextStyles.labelSmall.copyWith(
-          color: AppColors.primary,
+          color: AppColors.accent,
           fontWeight: FontWeight.w700,
           fontSize: 10,
         ),
@@ -674,7 +742,7 @@ class _MetricCell extends StatelessWidget {
           value,
           style: AppTextStyles.titleMedium.copyWith(
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: AppColors.textPrimary,
           ),
         ),
         Text(label, style: AppTextStyles.labelSmall),
@@ -873,7 +941,7 @@ class _ProcessingView extends StatelessWidget {
               height: 48,
               child: CircularProgressIndicator(
                 strokeWidth: 3,
-                color: AppColors.primary,
+                color: AppColors.accent,
               ),
             ),
             const SizedBox(height: 24),
