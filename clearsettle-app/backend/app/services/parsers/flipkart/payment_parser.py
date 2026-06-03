@@ -43,36 +43,79 @@ class FlipkartPaymentParser(BaseParser):
             "total_settlement": parsed.get("total_settlement"),
         }
 
-        # ── Order rows → sale/return LedgerRecords ────────────────────────────
+        # ── Order rows → sale / return / payout LedgerRecords ────────────────
         for i, row in enumerate(parsed.get("order_rows") or []):
-            tx_type = "return" if self._safe_str(row.get("return_type")) else "sale"
-            amount  = self._safe_decimal(row.get("sale_amount"))
+            oi          = self._safe_str(row.get("order_item_id") or row.get("order_id"))
+            has_return  = bool(self._safe_str(row.get("return_type")))
+            sale_amt    = self._safe_decimal(row.get("sale_amount"))
+            bank_settle = self._safe_decimal(row.get("bank_settlement"))
+            tcs_val     = self._safe_decimal(row.get("tcs"))
+            tds_val     = self._safe_decimal(row.get("tds"))
 
-            rec = LedgerRecord(
+            # 1. Sale or return transaction
+            tx_type = "return" if has_return else "sale"
+            result.ledger_records.append(LedgerRecord(
                 platform=self.platform,
                 report_type=self.report_type,
-                order_id=self._safe_str(row.get("order_item_id") or row.get("order_id")),
+                order_id=oi,
                 sku=self._safe_str(row.get("seller_sku")),
                 product_title=self._safe_str(row.get("product_title")),
-                category=self._safe_str(row.get("category")),
+                category=self._safe_str(row.get("product_sub_category")),
                 transaction_type=tx_type,
-                amount=amount,
+                amount=sale_amt,
                 currency="INR",
                 transaction_date=self._safe_date(row.get("order_date")),
-                settlement_date=self._safe_date(row.get("settlement_date")),
-                payout_status=self._safe_str(row.get("settlement_status")),
+                settlement_date=self._safe_date(row.get("payment_date")),
+                payout_status=self._safe_str(row.get("item_return_status")),
                 source_row_number=i,
                 lineage_metadata={
-                    "sheet":              "Payment Details",
+                    "sheet":              "Orders",
                     "commission":         row.get("commission"),
                     "fixed_fee":          row.get("fixed_fee"),
                     "shipping_fee":       row.get("shipping_fee"),
                     "reverse_shipping_fee": row.get("reverse_shipping_fee"),
                     "commission_rate_pct":  row.get("commission_rate_pct"),
-                    "settlement_amount":  row.get("settlement_amount"),
                 },
-            )
-            result.ledger_records.append(rec)
+            ))
+
+            # 2. Bank settlement (payout) — lets /summary show net_settlement
+            if bank_settle is not None and bank_settle != 0:
+                result.ledger_records.append(LedgerRecord(
+                    platform=self.platform,
+                    report_type=self.report_type,
+                    order_id=oi,
+                    transaction_type="payout",
+                    settlement_id=self._safe_str(row.get("neft_id")),
+                    amount=bank_settle,
+                    currency="INR",
+                    settlement_date=self._safe_date(row.get("payment_date")),
+                    source_row_number=i,
+                    lineage_metadata={"sheet": "Orders", "field": "bank_settlement"},
+                ))
+
+            # 3. TCS and TDS as tax rows
+            if tcs_val is not None and tcs_val != 0:
+                result.ledger_records.append(LedgerRecord(
+                    platform=self.platform,
+                    report_type=self.report_type,
+                    order_id=oi,
+                    transaction_type="tcs",
+                    amount=tcs_val,
+                    currency="INR",
+                    source_row_number=i,
+                    lineage_metadata={"sheet": "Orders", "field": "tcs"},
+                ))
+            if tds_val is not None and tds_val != 0:
+                result.ledger_records.append(LedgerRecord(
+                    platform=self.platform,
+                    report_type=self.report_type,
+                    order_id=oi,
+                    transaction_type="tds",
+                    amount=tds_val,
+                    currency="INR",
+                    source_row_number=i,
+                    lineage_metadata={"sheet": "Orders", "field": "tds"},
+                ))
 
         # ── GST detail rows → per-fee-type LedgerRecords ─────────────────────
         for j, row in enumerate(parsed.get("gst_rows") or []):

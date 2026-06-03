@@ -315,9 +315,17 @@ async def _run_ingestion(
                         lineage_metadata=lr.lineage_metadata,
                     ))
 
-            final_status = "needs_review" if pipeline_result.needs_manual_review else (
-                "failed" if pipeline_result.errors and not parse_result else "done"
-            )
+            # Determine terminal status:
+            # - needs_review: low confidence / schema drift flagged
+            # - failed: parser errored AND produced zero records (genuine failure)
+            # - done: any records persisted (even with warnings)
+            _has_records = parse_result is not None and not parse_result.is_empty
+            if pipeline_result.needs_manual_review and not _has_records:
+                final_status = "needs_review"
+            elif pipeline_result.errors and not _has_records:
+                final_status = "failed"
+            else:
+                final_status = "done"
             record.upload_status = final_status
             record.processed_at  = datetime.utcnow()
             if pipeline_result.errors:
@@ -388,9 +396,19 @@ async def upload_file(
     Returns immediately (202) with file_id + confidence preview.
     Processing happens in background — poll GET /ingestion/files/{id} for status.
     """
-    # Normalise hint values
+    # Normalise hint values — map legacy/alias names to canonical report types
+    _REPORT_TYPE_ALIASES: dict = {
+        "payment_ledger":    "payment_report",   # mobile used wrong key before fix
+        "settlement_report": "payment_report",
+        "settlement":        "payment_report",
+        "pl":                "pl_report",
+        "profit_loss":       "pl_report",
+        "profit_and_loss":   "pl_report",
+        "returns":           "returns_report",
+    }
     platform_hint    = (platform or "").strip().lower() or None
-    report_type_hint = (report_type or "").strip().lower() or None
+    _rt_raw          = (report_type or "").strip().lower() or None
+    report_type_hint = _REPORT_TYPE_ALIASES.get(_rt_raw, _rt_raw) if _rt_raw else None
     company_id = _company_id(user)
 
     fname_lower = (file.filename or "").lower()
