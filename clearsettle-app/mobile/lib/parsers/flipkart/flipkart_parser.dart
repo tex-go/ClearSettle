@@ -115,10 +115,18 @@ class FlipkartParser implements AbstractMarketplaceParser {
     }
 
     if (orders.isEmpty && summary == null) {
-      errors.add(const ParseError(
+      // Check if we at least got sheets (warnings from skipped sheets count as partial)
+      final hasSkippedSheets = warnings.any(
+        (w) => w.code == 'SHEET_SKIPPED_NO_ORDER_COLUMNS' || w.code == 'UNKNOWN_SHEET',
+      );
+      errors.add(ParseError(
         code: 'NO_PARSEABLE_DATA',
-        message: 'No order or summary data could be extracted.',
-        severity: ParseSeverity.high,
+        message: 'No order or summary data could be extracted from this file. '
+            '${hasSkippedSheets ? "Some sheets were skipped (see warnings). " : ""}'
+            'Sheets found: ${sheetsFound.join(", ")}',
+        // Only critical if there were no sheets at all — high if there were
+        // sheets but none matched. Neither case should block backend processing.
+        severity: sheetsFound.isEmpty ? ParseSeverity.critical : ParseSeverity.medium,
       ));
     }
 
@@ -230,14 +238,15 @@ class FlipkartParser implements AbstractMarketplaceParser {
     if (colMap[_k_netSettlement] == null) missingCols.add('Net Settlement');
 
     if (missingCols.length == 3) {
-      // All three are missing — file structure is unrecognisable
+      // All three are missing — this sheet is not an order-level sheet.
+      // Downgrade to WARNING (not high/critical) so other valid sheets in the
+      // same file can still be parsed successfully. The report is not "failed".
       final foundHeaders = orderHeaders.where((h) => h.isNotEmpty).take(12).join(', ');
-      errors.add(ParseError(
-        code: 'MISSING_REQUIRED_COLUMNS',
-        message: 'Sheet "$sheetName" is missing required columns '
-            '(${missingCols.join(", ")}). '
-            'Headers found: $foundHeaders',
-        severity: ParseSeverity.high,
+      warnings.add(ParseWarning(
+        code: 'SHEET_SKIPPED_NO_ORDER_COLUMNS',
+        message: 'Sheet "$sheetName" has no order-level columns '
+            '(${missingCols.join(", ")} not found). '
+            'Skipped. Headers found: $foundHeaders',
       ));
       return [];
     } else if (missingCols.isNotEmpty) {
