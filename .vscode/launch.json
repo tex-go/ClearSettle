@@ -3,13 +3,13 @@
   "configurations": [
 
     // ── Physical Android phone (Wi-Fi, same network as laptop) ─────────────────
-    // Your laptop's Wi-Fi IP: 10.83.8.137
-    // Backend must be running: docker-compose up   (binds 0.0.0.0:8000)
+    // Laptop Wi-Fi IP: 10.83.8.137
+    // Backend must be running: docker-compose up
     {
       "name": "📱 ClearSettle — Android Phone (10.83.8.137)",
       "type": "dart",
       "request": "launch",
-      "program": "clearsettle-app/mobile/lib/main.dart",
+      "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
       "cwd": "${workspaceFolder}/clearsettle-app/mobile",
       "flutterMode": "debug",
       "args": [
@@ -18,13 +18,12 @@
       ]
     },
 
-    // ── Android Emulator (AVD on same machine) ─────────────────────────────────
-    // 10.0.2.2 is the emulator's route to the host machine
+    // ── Android Emulator ───────────────────────────────────────────────────────
     {
       "name": "🖥️  ClearSettle — Android Emulator",
       "type": "dart",
       "request": "launch",
-      "program": "clearsettle-app/mobile/lib/main.dart",
+      "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
       "cwd": "${workspaceFolder}/clearsettle-app/mobile",
       "flutterMode": "debug",
       "args": [
@@ -33,12 +32,12 @@
       ]
     },
 
-    // ── Production (clearsettle.in) ────────────────────────────────────────────
+    // ── Production ────────────────────────────────────────────────────────────
     {
       "name": "🌐 ClearSettle — Production",
       "type": "dart",
       "request": "launch",
-      "program": "clearsettle-app/mobile/lib/main.dart",
+      "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
       "cwd": "${workspaceFolder}/clearsettle-app/mobile",
       "flutterMode": "release",
       "args": [
@@ -51,7 +50,7 @@
       "name": "⚡ ClearSettle — Profile Mode",
       "type": "dart",
       "request": "launch",
-      "program": "clearsettle-app/mobile/lib/main.dart",
+      "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
       "cwd": "${workspaceFolder}/clearsettle-app/mobile",
       "flutterMode": "profile",
       "args": [
