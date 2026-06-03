@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
 
+import '../../../../core/utils/cs_logger.dart';
 import '../abstract_marketplace_parser.dart';
 import '../parser_result.dart';
 import 'flipkart_column_aliases.dart';
@@ -22,6 +23,7 @@ class FlipkartParser implements AbstractMarketplaceParser {
 
   @override
   ParseResult parseSync(Uint8List bytes, String fileName, String fileHash) {
+    CsLogger.section('Flipkart Parser: $fileName  (${bytes.length} bytes)');
     final errors = <ParseError>[];
     final warnings = <ParseWarning>[];
     final sheetsFound = <String>[];
@@ -72,15 +74,32 @@ class FlipkartParser implements AbstractMarketplaceParser {
     List<ParsedOrder> orders = [];
     ParsedSummary? summary;
 
-    for (final sheetName in excel.tables.keys) {
+    final allSheets = excel.tables.keys.toList();
+    CsLogger.info('Parser', 'Sheets in file', data: {
+      'count': allSheets.length,
+      'names': allSheets.join(' | '),
+    });
+
+    for (final sheetName in allSheets) {
       final sheet = excel.tables[sheetName]!;
-      if (sheet.maxRows < 2) continue;
+      if (sheet.maxRows < 2) {
+        CsLogger.info('Parser', 'Sheet skipped (too few rows)',
+            data: {'sheet': sheetName, 'rows': sheet.maxRows});
+        continue;
+      }
 
       final rawHeaders = _extractHeaders(sheet);
-      if (rawHeaders.isEmpty) continue;
+      if (rawHeaders.isEmpty) {
+        CsLogger.info('Parser', 'Sheet skipped (no headers)',
+            data: {'sheet': sheetName});
+        continue;
+      }
 
       final type = FlipkartSheetDetector.detect(sheetName, rawHeaders);
       sheetsFound.add('$sheetName ($type)');
+      CsLogger.info('Parser', 'Sheet classified',
+          data: {'sheet': sheetName, 'type': type.name,
+                 'cols': rawHeaders.where((h) => h.isNotEmpty).length});
 
       switch (type) {
         case SheetType.orders:
@@ -130,7 +149,7 @@ class FlipkartParser implements AbstractMarketplaceParser {
       ));
     }
 
-    return ParseResult(
+    final result = ParseResult(
       marketplace: marketplace,
       parserVersion: parserVersion,
       fileHash: fileHash,
@@ -142,6 +161,22 @@ class FlipkartParser implements AbstractMarketplaceParser {
       warnings: warnings,
       sheetsFound: sheetsFound,
     );
+
+    if (result.hasErrors) {
+      CsLogger.error('Parser', 'Parse finished with errors', data: {
+        'orders': orders.length,
+        'errors': errors.map((e) => '${e.code}: ${e.message.substring(0, e.message.length.clamp(0, 80))}').join(' | '),
+      });
+    } else {
+      CsLogger.info('Parser', 'Parse complete', data: {
+        'orders': orders.length,
+        'hasSummary': summary != null,
+        'warnings': warnings.length,
+        'sheets': sheetsFound.join(' | '),
+      });
+    }
+
+    return result;
   }
 
   // ── Sheet extraction ────────────────────────────────────────────────────────
