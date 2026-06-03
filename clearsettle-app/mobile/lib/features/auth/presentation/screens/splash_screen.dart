@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
@@ -210,7 +211,7 @@ class _BottomMeta extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          'v1.0.0',
+          'v${AppConfig.appVersion}',
           style: TextStyle(fontSize: 10, color: Color(0xFF1E3050)),
         ),
       ],
