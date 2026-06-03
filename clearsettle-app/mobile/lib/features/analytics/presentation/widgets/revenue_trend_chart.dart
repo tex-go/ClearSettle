@@ -30,7 +30,7 @@ class RevenueTrendChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Legend(items: const [
+        const _Legend(items: [
           _LegendItem(label: 'Gross Revenue', color: AppColors.primary),
           _LegendItem(label: 'Net Settlement', color: AppColors.accent),
         ]),
@@ -379,7 +379,7 @@ class MonthlyComparisonChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Legend(items: const [
+        const _Legend(items: [
           _LegendItem(label: 'Gross', color: AppColors.primary),
           _LegendItem(label: 'Net', color: AppColors.accent),
           _LegendItem(label: 'Fees', color: AppColors.warning),

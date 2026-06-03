@@ -95,7 +95,7 @@ class _AlertList extends StatelessWidget {
                 )),
           ],
           if (read.isNotEmpty) ...[
-            _GroupHeader('Earlier'),
+            const _GroupHeader('Earlier'),
             ...read.map((a) => _AlertTile(
                   alert: a,
                   onTap: () => onTap(a),

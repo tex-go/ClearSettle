@@ -465,7 +465,7 @@ class _FeeAnalyticsCard extends StatelessWidget {
         children: [
           const Text('Fee Analytics', style: AppTextStyles.titleLarge),
           const SizedBox(height: 2),
-          Text(
+          const Text(
             'Per-category marketplace deductions',
             style: AppTextStyles.bodySmall,
           ),

@@ -20,7 +20,7 @@ class FirebaseSyncAdapter implements SyncRepository {
   @override
   Future<SyncStatus> getStatus() async => const SyncStatus(
         state: SyncStatusState.idle,
-        message: 'Firebase adapter not yet implemented.',
+        errorMessage: 'Firebase adapter not yet implemented.',
       );
 
   @override

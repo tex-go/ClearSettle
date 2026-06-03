@@ -66,7 +66,7 @@ class SyncService {
 
   void _updateSyncStatus(String status, {String? error}) {
     final box = HiveManager.syncStatusBox;
-    final key = AppConstants.syncStatusKey;
+    const key = AppConstants.syncStatusKey;
     final existing = box.get(key);
     if (existing != null) {
       existing.status = status;

@@ -34,9 +34,13 @@ abstract final class CsLogger {
     String message, {
     Object? error,
     StackTrace? stack,
+    Map<String, dynamic>? data,
   }) {
-    final line = _format('ERROR', stage, message,
-        error != null ? {'error': '$error'} : null);
+    final merged = <String, dynamic>{
+      if (data != null) ...data,
+      if (error != null) 'error': '$error',
+    };
+    final line = _format('ERROR', stage, message, merged.isEmpty ? null : merged);
     dev.log(line, name: _tag, level: 1000, error: error, stackTrace: stack);
     debugPrint('[$_tag] $line');
     if (stack != null && kDebugMode) {

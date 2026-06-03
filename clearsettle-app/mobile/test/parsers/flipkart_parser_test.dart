@@ -95,7 +95,7 @@ void main() {
   // ── Standard order sheet parsing ──────────────────────────────────────────
 
   group('standard Flipkart orders sheet', () {
-    Uint8List _buildStandardExcel({
+    Uint8List buildStandardExcel({
       String orderId = 'OD12345678901',
       double grossAmount = 1000.0,
       double commission = 100.0,
@@ -140,7 +140,7 @@ void main() {
     }
 
     test('parses one order correctly', () {
-      final bytes = _buildStandardExcel();
+      final bytes = buildStandardExcel();
       final result = parser.parseSync(bytes, 'standard.xlsx', 'hash1');
 
       expect(result.orders, hasLength(1));
@@ -160,7 +160,7 @@ void main() {
 
     test('records marketplace and parser version', () {
       final result = parser.parseSync(
-          _buildStandardExcel(), 'test.xlsx', 'hash2');
+          buildStandardExcel(), 'test.xlsx', 'hash2');
       expect(result.marketplace, equals('flipkart'));
       expect(result.parserVersion, isNotEmpty);
     });
@@ -168,7 +168,7 @@ void main() {
     test('sets file hash from parameter', () {
       const hash = 'abc123def456';
       final result = parser.parseSync(
-          _buildStandardExcel(), 'test.xlsx', hash);
+          buildStandardExcel(), 'test.xlsx', hash);
       expect(result.fileHash, equals(hash));
     });
 
@@ -183,8 +183,8 @@ void main() {
       sheet.appendRow([TextCellValue(''), TextCellValue(''), TextCellValue('')]);
       sheet.appendRow([
         TextCellValue('OD999'),
-        DoubleCellValue(500.0),
-        DoubleCellValue(400.0),
+        const DoubleCellValue(500.0),
+        const DoubleCellValue(400.0),
       ]);
       final bytes = Uint8List.fromList(excel.encode()!);
       final result = parser.parseSync(bytes, 'gaps.xlsx', 'h');
@@ -267,8 +267,8 @@ void main() {
       ]);
       sheet.appendRow([
         TextCellValue('OD10'),
-        DoubleCellValue(800.0),
-        DoubleCellValue(650.0),
+        const DoubleCellValue(800.0),
+        const DoubleCellValue(650.0),
       ]);
       final bytes = Uint8List.fromList(excel.encode()!);
       final result = parser.parseSync(bytes, 'alias.xlsx', 'h');
@@ -286,9 +286,9 @@ void main() {
       ]);
       sheet.appendRow([
         TextCellValue('OD11'),
-        DoubleCellValue(500.0),
-        DoubleCellValue(75.0),
-        DoubleCellValue(425.0),
+        const DoubleCellValue(500.0),
+        const DoubleCellValue(75.0),
+        const DoubleCellValue(425.0),
       ]);
       final bytes = Uint8List.fromList(excel.encode()!);
       final result = parser.parseSync(bytes, 'mktfee.xlsx', 'h');
@@ -312,7 +312,7 @@ void main() {
         sheet.appendRow([
           TextCellValue('OD${1000000 + i}'),
           DoubleCellValue(500.0 + i),
-          DoubleCellValue(50.0),
+          const DoubleCellValue(50.0),
           DoubleCellValue(450.0 + i),
         ]);
       }
@@ -336,11 +336,11 @@ void main() {
       sheet.appendRow([TextCellValue('Metric'), TextCellValue('Amount')]);
       sheet.appendRow([
         TextCellValue('Gross Sales'),
-        DoubleCellValue(50000.0),
+        const DoubleCellValue(50000.0),
       ]);
       sheet.appendRow([
         TextCellValue('Net Earnings'),
-        DoubleCellValue(38000.0),
+        const DoubleCellValue(38000.0),
       ]);
       final bytes = Uint8List.fromList(excel.encode()!);
       final result = parser.parseSync(bytes, 'summary.xlsx', 'hs');

@@ -268,9 +268,9 @@ class FlipkartParser implements AbstractMarketplaceParser {
 
     // Validate required columns are present
     final missingCols = <String>[];
-    if (colMap[_k_orderId] == null) missingCols.add('Order ID');
-    if (colMap[_k_grossAmount] == null) missingCols.add('Gross Amount');
-    if (colMap[_k_netSettlement] == null) missingCols.add('Net Settlement');
+    if (colMap[_kOrderId] == null) missingCols.add('Order ID');
+    if (colMap[_kGrossAmount] == null) missingCols.add('Gross Amount');
+    if (colMap[_kNetSettlement] == null) missingCols.add('Net Settlement');
 
     if (missingCols.length == 3) {
       // All three are missing — this sheet is not an order-level sheet.
@@ -298,36 +298,36 @@ class FlipkartParser implements AbstractMarketplaceParser {
       if (_isEmptyRow(row)) continue;
 
       try {
-        final orderId = _str(row, colMap[_k_orderId]);
-        final grossAmount = _num(row, colMap[_k_grossAmount]);
-        final netSettlement = _num(row, colMap[_k_netSettlement]);
+        final orderId = _str(row, colMap[_kOrderId]);
+        final grossAmount = _num(row, colMap[_kGrossAmount]);
+        final netSettlement = _num(row, colMap[_kNetSettlement]);
 
         // Skip rows that are clearly subtotals or labels (no order ID, no amounts)
         if (orderId == null && grossAmount == 0.0 && netSettlement == 0.0) continue;
 
         final order = ParsedOrder(
           orderId: orderId,
-          settlementId: _str(row, colMap[_k_settlementId]),
-          orderDate: _str(row, colMap[_k_orderDate]),
-          sku: _str(row, colMap[_k_sku]),
-          productTitle: _str(row, colMap[_k_productTitle]),
-          category: _str(row, colMap[_k_category]),
-          quantity: _numInt(row, colMap[_k_quantity]),
+          settlementId: _str(row, colMap[_kSettlementId]),
+          orderDate: _str(row, colMap[_kOrderDate]),
+          sku: _str(row, colMap[_kSku]),
+          productTitle: _str(row, colMap[_kProductTitle]),
+          category: _str(row, colMap[_kCategory]),
+          quantity: _numInt(row, colMap[_kQuantity]),
           grossAmount: grossAmount,
-          commission: _num(row, colMap[_k_commission]).abs(),
-          collectionFee: _num(row, colMap[_k_collectionFee]).abs(),
-          shippingFee: _num(row, colMap[_k_shippingFee]).abs(),
-          reverseShippingFee: _num(row, colMap[_k_reverseShippingFee]).abs(),
-          fixedFee: _num(row, colMap[_k_fixedFee]).abs(),
-          pickPackFee: _num(row, colMap[_k_pickPackFee]).abs(),
-          gstOnFees: _num(row, colMap[_k_gstOnFees]).abs(),
-          tcs: _num(row, colMap[_k_tcs]).abs(),
-          tds: _num(row, colMap[_k_tds]).abs(),
+          commission: _num(row, colMap[_kCommission]).abs(),
+          collectionFee: _num(row, colMap[_kCollectionFee]).abs(),
+          shippingFee: _num(row, colMap[_kShippingFee]).abs(),
+          reverseShippingFee: _num(row, colMap[_kReverseShippingFee]).abs(),
+          fixedFee: _num(row, colMap[_kFixedFee]).abs(),
+          pickPackFee: _num(row, colMap[_kPickPackFee]).abs(),
+          gstOnFees: _num(row, colMap[_kGstOnFees]).abs(),
+          tcs: _num(row, colMap[_kTcs]).abs(),
+          tds: _num(row, colMap[_kTds]).abs(),
           netSettlement: netSettlement,
-          status: _str(row, colMap[_k_orderStatus]),
-          fulfilmentType: _str(row, colMap[_k_fulfilmentType]),
-          settlementDate: _str(row, colMap[_k_settlementDate]),
-          rawCommissionRate: _numOrNull(row, colMap[_k_commissionRate]),
+          status: _str(row, colMap[_kOrderStatus]),
+          fulfilmentType: _str(row, colMap[_kFulfilmentType]),
+          settlementDate: _str(row, colMap[_kSettlementDate]),
+          rawCommissionRate: _numOrNull(row, colMap[_kCommissionRate]),
         );
         orders.add(order);
       } catch (e) {
@@ -350,7 +350,7 @@ class FlipkartParser implements AbstractMarketplaceParser {
   }) {
     // Summary sheets are key-value: col0=label, col1=value
     final rows = sheet.rows;
-    final labelCol = 0;
+    const labelCol = 0;
     final valueCol = headers.length > 1 ? 1 : 0;
 
     final kv = <String, double>{};
@@ -389,53 +389,53 @@ class FlipkartParser implements AbstractMarketplaceParser {
 
   // ── Column mapping ──────────────────────────────────────────────────────────
 
-  static const String _k_orderId = 'order_id';
-  static const String _k_settlementId = 'settlement_id';
-  static const String _k_orderDate = 'order_date';
-  static const String _k_settlementDate = 'settlement_date';
-  static const String _k_sku = 'sku';
-  static const String _k_productTitle = 'product_title';
-  static const String _k_category = 'category';
-  static const String _k_quantity = 'quantity';
-  static const String _k_orderStatus = 'order_status';
-  static const String _k_fulfilmentType = 'fulfilment_type';
-  static const String _k_grossAmount = 'gross_amount';
-  static const String _k_commission = 'commission';
-  static const String _k_collectionFee = 'collection_fee';
-  static const String _k_shippingFee = 'shipping_fee';
-  static const String _k_reverseShippingFee = 'reverse_shipping_fee';
-  static const String _k_fixedFee = 'fixed_fee';
-  static const String _k_pickPackFee = 'pick_pack_fee';
-  static const String _k_gstOnFees = 'gst_on_fees';
-  static const String _k_tcs = 'tcs';
-  static const String _k_tds = 'tds';
-  static const String _k_netSettlement = 'net_settlement';
-  static const String _k_commissionRate = 'commission_rate';
+  static const String _kOrderId = 'order_id';
+  static const String _kSettlementId = 'settlement_id';
+  static const String _kOrderDate = 'order_date';
+  static const String _kSettlementDate = 'settlement_date';
+  static const String _kSku = 'sku';
+  static const String _kProductTitle = 'product_title';
+  static const String _kCategory = 'category';
+  static const String _kQuantity = 'quantity';
+  static const String _kOrderStatus = 'order_status';
+  static const String _kFulfilmentType = 'fulfilment_type';
+  static const String _kGrossAmount = 'gross_amount';
+  static const String _kCommission = 'commission';
+  static const String _kCollectionFee = 'collection_fee';
+  static const String _kShippingFee = 'shipping_fee';
+  static const String _kReverseShippingFee = 'reverse_shipping_fee';
+  static const String _kFixedFee = 'fixed_fee';
+  static const String _kPickPackFee = 'pick_pack_fee';
+  static const String _kGstOnFees = 'gst_on_fees';
+  static const String _kTcs = 'tcs';
+  static const String _kTds = 'tds';
+  static const String _kNetSettlement = 'net_settlement';
+  static const String _kCommissionRate = 'commission_rate';
 
   Map<String, int?> _buildColumnMap(List<String> headers) {
     return {
-      _k_orderId: _findColumn(headers, FlipkartColumnAliases.orderId),
-      _k_settlementId: _findColumn(headers, FlipkartColumnAliases.settlementId),
-      _k_orderDate: _findColumn(headers, FlipkartColumnAliases.orderDate),
-      _k_settlementDate: _findColumn(headers, FlipkartColumnAliases.settlementDate),
-      _k_sku: _findColumn(headers, FlipkartColumnAliases.sku),
-      _k_productTitle: _findColumn(headers, FlipkartColumnAliases.productTitle),
-      _k_category: _findColumn(headers, FlipkartColumnAliases.category),
-      _k_quantity: _findColumn(headers, FlipkartColumnAliases.quantity),
-      _k_orderStatus: _findColumn(headers, FlipkartColumnAliases.orderStatus),
-      _k_fulfilmentType: _findColumn(headers, FlipkartColumnAliases.fulfilmentType),
-      _k_grossAmount: _findColumn(headers, FlipkartColumnAliases.grossAmount),
-      _k_commission: _findColumn(headers, FlipkartColumnAliases.commission),
-      _k_collectionFee: _findColumn(headers, FlipkartColumnAliases.collectionFee),
-      _k_shippingFee: _findColumn(headers, FlipkartColumnAliases.shippingFee),
-      _k_reverseShippingFee: _findColumn(headers, FlipkartColumnAliases.reverseShippingFee),
-      _k_fixedFee: _findColumn(headers, FlipkartColumnAliases.fixedFee),
-      _k_pickPackFee: _findColumn(headers, FlipkartColumnAliases.pickPackFee),
-      _k_gstOnFees: _findColumn(headers, FlipkartColumnAliases.gstOnFees),
-      _k_tcs: _findColumn(headers, FlipkartColumnAliases.tcs),
-      _k_tds: _findColumn(headers, FlipkartColumnAliases.tds),
-      _k_netSettlement: _findColumn(headers, FlipkartColumnAliases.netSettlement),
-      _k_commissionRate: _findColumn(headers, FlipkartColumnAliases.commissionRate),
+      _kOrderId: _findColumn(headers, FlipkartColumnAliases.orderId),
+      _kSettlementId: _findColumn(headers, FlipkartColumnAliases.settlementId),
+      _kOrderDate: _findColumn(headers, FlipkartColumnAliases.orderDate),
+      _kSettlementDate: _findColumn(headers, FlipkartColumnAliases.settlementDate),
+      _kSku: _findColumn(headers, FlipkartColumnAliases.sku),
+      _kProductTitle: _findColumn(headers, FlipkartColumnAliases.productTitle),
+      _kCategory: _findColumn(headers, FlipkartColumnAliases.category),
+      _kQuantity: _findColumn(headers, FlipkartColumnAliases.quantity),
+      _kOrderStatus: _findColumn(headers, FlipkartColumnAliases.orderStatus),
+      _kFulfilmentType: _findColumn(headers, FlipkartColumnAliases.fulfilmentType),
+      _kGrossAmount: _findColumn(headers, FlipkartColumnAliases.grossAmount),
+      _kCommission: _findColumn(headers, FlipkartColumnAliases.commission),
+      _kCollectionFee: _findColumn(headers, FlipkartColumnAliases.collectionFee),
+      _kShippingFee: _findColumn(headers, FlipkartColumnAliases.shippingFee),
+      _kReverseShippingFee: _findColumn(headers, FlipkartColumnAliases.reverseShippingFee),
+      _kFixedFee: _findColumn(headers, FlipkartColumnAliases.fixedFee),
+      _kPickPackFee: _findColumn(headers, FlipkartColumnAliases.pickPackFee),
+      _kGstOnFees: _findColumn(headers, FlipkartColumnAliases.gstOnFees),
+      _kTcs: _findColumn(headers, FlipkartColumnAliases.tcs),
+      _kTds: _findColumn(headers, FlipkartColumnAliases.tds),
+      _kNetSettlement: _findColumn(headers, FlipkartColumnAliases.netSettlement),
+      _kCommissionRate: _findColumn(headers, FlipkartColumnAliases.commissionRate),
     };
   }
 
@@ -510,7 +510,7 @@ class FlipkartParser implements AbstractMarketplaceParser {
     if (cleaned.isEmpty ||
         cleaned == '-' ||
         cleaned.toLowerCase() == 'n/a' ||
-        cleaned.toLowerCase() == 'null') return null;
+        cleaned.toLowerCase() == 'null') { return null; }
     return double.tryParse(cleaned);
   }
 

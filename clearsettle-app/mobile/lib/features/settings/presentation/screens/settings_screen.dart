@@ -148,7 +148,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _Section(
             title: 'App',
             children: [
-              _InfoTile(
+              const _InfoTile(
                 icon: Icons.info_outline,
                 label: 'Version',
                 value: AppConfig.appVersion,
@@ -438,7 +438,7 @@ class _ActionTile extends StatelessWidget {
                     .copyWith(color: labelColor ?? AppColors.textPrimary),
               ),
             ),
-            Icon(Icons.chevron_right,
+            const Icon(Icons.chevron_right,
                 color: AppColors.textDisabled, size: 18),
           ],
         ),
