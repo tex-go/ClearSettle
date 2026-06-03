@@ -169,11 +169,7 @@ class _DrawerHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CsLogo(
-            size: 42,
-            borderRadius: 10,
-            backgroundColor: Color(0x1A00C2D1),
-          ),
+          const CsLogo(size: 42),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

@@ -132,29 +132,15 @@ class _LogoCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
+        Image.asset(
+          'assets/images/clear_settle_logo_fintech_v4.png',
           width: 160,
           height: 160,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(32),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.30),
-                blurRadius: 32,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Image.asset(
-            'assets/images/cs_logo_v3.jpeg',
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.account_balance_outlined,
-              color: AppColors.accent,
-              size: 64,
-            ),
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.account_balance_outlined,
+            color: AppColors.accent,
+            size: 80,
           ),
         ),
         const SizedBox(height: 24),
