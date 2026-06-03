@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 
-/// ClearSettle logo widget — consistent across all screens.
+/// ClearSettle brand logo — v3 teal C + red S symbol.
 ///
-/// Always uses BoxFit.contain and never stretches.
-/// Falls back to a bank icon if the asset is missing.
+/// Always renders on a white rounded container so the logo looks crisp
+/// on any background color (dark or light). Falls back to a bank icon
+/// if the asset is missing.
 class CsLogo extends StatelessWidget {
   const CsLogo({
     super.key,
@@ -15,44 +16,43 @@ class CsLogo extends StatelessWidget {
     this.padding = EdgeInsets.zero,
   });
 
-  /// Square dimension (width = height = size).
   final double size;
   final double borderRadius;
 
-  /// Wraps the logo in a container with this background.
-  /// Pass null to render the image without a container.
+  /// Background behind the logo. Defaults to white so the logo
+  /// looks clean on both dark and light surfaces.
   final Color? backgroundColor;
   final EdgeInsets padding;
 
+  static const String _asset = 'assets/images/cs_logo_v3.jpeg';
+
   @override
   Widget build(BuildContext context) {
-    final img = Image.asset(
-      'assets/images/clearsettle_logo.png',
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => Icon(
-        Icons.account_balance_outlined,
-        color: AppColors.primary,
-        size: size * 0.55,
-      ),
-    );
-
-    if (backgroundColor == null && padding == EdgeInsets.zero) return img;
+    final bg = backgroundColor ?? Colors.white;
+    final effectivePadding = padding == EdgeInsets.zero
+        ? EdgeInsets.all(size * 0.08)
+        : padding;
 
     return Container(
       width: size,
       height: size,
-      padding: padding,
-      decoration: backgroundColor != null
-          ? BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(borderRadius),
-            )
-          : null,
-      child: ClipRRect(
+      decoration: BoxDecoration(
+        color: bg,
         borderRadius: BorderRadius.circular(borderRadius),
-        child: img,
+      ),
+      padding: effectivePadding,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(
+            (borderRadius - 2).clamp(0.0, borderRadius)),
+        child: Image.asset(
+          _asset,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.account_balance_outlined,
+            color: AppColors.teal500,
+            size: size * 0.55,
+          ),
+        ),
       ),
     );
   }

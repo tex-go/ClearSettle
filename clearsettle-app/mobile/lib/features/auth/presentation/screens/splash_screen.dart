@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -134,30 +132,28 @@ class _LogoCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              width: 160,
-              height: 160,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0x0DFFFFFF),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: const Color(0x1AFFFFFF)),
+        Container(
+          width: 160,
+          height: 160,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.30),
+                blurRadius: 32,
+                offset: const Offset(0, 8),
               ),
-              child: Image.asset(
-                'assets/images/clear_settle_logo.png',
-                width: 120,
-                height: 120,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.account_balance_outlined,
-                  color: AppColors.accent,
-                  size: 64,
-                ),
-              ),
+            ],
+          ),
+          child: Image.asset(
+            'assets/images/cs_logo_v3.jpeg',
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.account_balance_outlined,
+              color: AppColors.accent,
+              size: 64,
             ),
           ),
         ),
