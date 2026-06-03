@@ -1,96 +1,134 @@
 import 'package:flutter/material.dart';
 
-/// ClearSettle design tokens — premium fintech palette.
+/// ClearSettle design tokens — enterprise FinTech palette v2.0
 ///
-/// Primary:   #0F172A  (dark navy — replaces heavy cyan)
-/// Accent:    #14B8A6  (teal — used sparingly for highlights)
-/// Background:#F8FAFC  (off-white, not stark white)
+/// Primary Navy : #081B2E  — institutional authority (Bloomberg, bank apps)
+/// Primary Teal : #0DB7A3  — financial clarity, forward motion
+/// Background   : #F7F9FC  — clinical precision (Bloomberg off-white)
 abstract final class AppColors {
-  // ── Brand ─────────────────────────────────────────────────────────────────
-  /// Primary — dark navy. Used for text, active nav, prominent UI.
-  static const Color primary      = Color(0xFF0F172A);
-  static const Color primaryDark  = Color(0xFF1E293B);
-  static const Color primaryLight = Color(0xFF334155);
+  // ── Brand Core ─────────────────────────────────────────────────────────────
+  static const Color navy900 = Color(0xFF081B2E); // Primary Navy
+  static const Color navy800 = Color(0xFF0D2540);
+  static const Color navy700 = Color(0xFF123052);
+  static const Color navy600 = Color(0xFF1A3F6A);
+  static const Color navy500 = Color(0xFF234F82); // Interactive states
 
-  /// Accent — teal. Used sparingly: CTAs, badges, highlights.
-  static const Color accent      = Color(0xFF14B8A6);
-  static const Color accentDark  = Color(0xFF0D9488);
-  static const Color accentLight = Color(0xFF5EEAD4);
+  static const Color teal500 = Color(0xFF0DB7A3); // Primary Accent
+  static const Color teal400 = Color(0xFF1FCEBB);
+  static const Color teal300 = Color(0xFF4DD9CB);
+  static const Color teal200 = Color(0xFF8EEAE3);
+  static const Color teal100 = Color(0xFFD1F5F2);
+  static const Color teal50  = Color(0xFFEEFBFA);
 
-  /// Hero gradient — dark navy → teal
-  static const LinearGradient heroGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF0F172A), Color(0xFF134E4A)],
-    stops: [0.0, 1.0],
-  );
+  // ── Semantic ───────────────────────────────────────────────────────────────
+  static const Color success    = Color(0xFF17C964);
+  static const Color success100 = Color(0xFFE8FBF0);
+  static const Color warning    = Color(0xFFF5A524);
+  static const Color warning100 = Color(0xFFFEF3DC);
+  static const Color danger     = Color(0xFFF31260);
+  static const Color danger100  = Color(0xFFFFE4EE);
+  static const Color info       = Color(0xFF006FEE);
+  static const Color info100    = Color(0xFFE6F1FE);
+  static const Color purple     = Color(0xFF8B5CF6);
 
-  /// Accent gradient — teal variant for cards
-  static const LinearGradient accentGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF134E4A), Color(0xFF14B8A6)],
-  );
+  // ── Financial Semantic ─────────────────────────────────────────────────────
+  /// Money received / positive settlement
+  static const Color credit      = Color(0xFF17C964);
+  /// Money owed / overcharge / loss
+  static const Color debit       = Color(0xFFF31260);
+  /// Awaiting settlement
+  static const Color pending     = Color(0xFFF5A524);
+  /// Overcharged / recoverable amount
+  static const Color recoverable = Color(0xFF0DB7A3);
+  /// Neutral / informational transactions
+  static const Color neutral     = Color(0xFF64748B);
 
-  // ── Semantic ──────────────────────────────────────────────────────────────
-  static const Color success = Color(0xFF10B981);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color error   = Color(0xFFEF4444);
-  static const Color info    = Color(0xFF3B82F6);
-  static const Color purple  = Color(0xFF8B5CF6);
+  // ── Surfaces ───────────────────────────────────────────────────────────────
+  static const Color background      = Color(0xFFF7F9FC);
+  static const Color surface         = Color(0xFFFFFFFF);
+  static const Color surfaceAlt      = Color(0xFFF0F4F8);
+  static const Color surfaceVariant  = Color(0xFFF1F5F9);
+  static const Color surfaceVariant2 = Color(0xFFE2E8F0);
 
-  // ── Financial helpers ─────────────────────────────────────────────────────
-  static const Color positive = success;
-  static const Color negative = error;
-  static const Color neutral  = Color(0xFF94A3B8);
+  // ── Dark surfaces ──────────────────────────────────────────────────────────
+  static const Color backgroundDark     = Color(0xFF081B2E);
+  static const Color surfaceDark        = Color(0xFF0D2540);
+  static const Color surfaceVariantDark = Color(0xFF123052);
 
-  // ── Light-mode surfaces ───────────────────────────────────────────────────
-  static const Color background       = Color(0xFFF8FAFC);
-  static const Color backgroundLight  = Color(0xFFF8FAFC);
-  static const Color surface          = Color(0xFFFFFFFF);
-  static const Color surfaceVariant   = Color(0xFFF1F5F9);
-  static const Color surfaceVariant2  = Color(0xFFE2E8F0);
-
-  // ── Dark-mode surfaces ────────────────────────────────────────────────────
-  static const Color backgroundDark     = Color(0xFF0F172A);
-  static const Color surfaceDark        = Color(0xFF1E293B);
-  static const Color surfaceVariantDark = Color(0xFF334155);
-
-  // ── Dark-navy alias (hero card, top bar) ──────────────────────────────────
-  static const Color darkNavy  = primary;
-  static const Color darkNavy2 = primaryDark;
-  static const Color accentNavy = primaryLight;
-
-  // ── Borders / Dividers ────────────────────────────────────────────────────
+  // ── Borders ────────────────────────────────────────────────────────────────
+  static const Color border      = Color(0xFFE2E8F0);
+  static const Color borderLight = Color(0xFFF1F5F9);
   static const Color divider     = Color(0xFFE2E8F0);
   static const Color dividerDark = Color(0x1AFFFFFF);
 
-  // ── Light-mode text ───────────────────────────────────────────────────────
-  static const Color textPrimary   = Color(0xFF0F172A);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color textMuted     = Color(0xFF94A3B8);
-  static const Color textDisabled  = Color(0xFFCBD5E1);
+  // ── Text — light mode ──────────────────────────────────────────────────────
+  static const Color textPrimary   = Color(0xFF081B2E);
+  static const Color textSecondary = Color(0xFF4A6180);
+  static const Color textMuted     = Color(0xFF8BA3BE);
+  static const Color textDisabled  = Color(0xFFB8CDD9);
   static const Color textInverse   = Color(0xFFFFFFFF);
 
-  // ── Dark-mode text ────────────────────────────────────────────────────────
+  // ── Text — dark mode ───────────────────────────────────────────────────────
   static const Color textPrimaryDark   = Color(0xFFF1F5F9);
   static const Color textSecondaryDark = Color(0xFF94A3B8);
   static const Color textMutedDark     = Color(0xFF64748B);
 
-  // ── Backward-compat aliases ───────────────────────────────────────────────
-  /// Legacy teal alias — maps to new accent color.
-  static const Color teal     = accent;
-  static const Color tealDark = accentDark;
-  static const Color primary2 = primaryDark;  // secondary in design spec
+  // ── Gradients ──────────────────────────────────────────────────────────────
+  static const LinearGradient heroGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF081B2E), Color(0xFF0D2540), Color(0xFF0A3040)],
+    stops: [0.0, 0.6, 1.0],
+  );
+
+  static const LinearGradient accentGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF0DB7A3), Color(0xFF1FCEBB)],
+  );
+
+  static const LinearGradient tealTextGradient = LinearGradient(
+    colors: [Color(0xFF0DB7A3), Color(0xFF4DD9CB)],
+  );
+
+  // ── Data Visualisation (8-color scale) ────────────────────────────────────
+  static const List<Color> chartPalette = [
+    Color(0xFF0DB7A3), // teal      — primary series
+    Color(0xFF234F82), // navy      — secondary series
+    Color(0xFF17C964), // green     — positive
+    Color(0xFFF5A524), // amber     — warning
+    Color(0xFFF31260), // red       — negative
+    Color(0xFF8B5CF6), // purple    — category 6
+    Color(0xFF0EA5E9), // sky       — category 7
+    Color(0xFFEC4899), // pink      — category 8
+  ];
 
   // ── Marketplace brand colours ──────────────────────────────────────────────
-  static const Color flipkart  = Color(0xFF2874F0);
-  static const Color amazon    = Color(0xFFFF9900);
-  static const Color meesho    = Color(0xFF9B1FE8);
-  static const Color myntra    = Color(0xFFFF3E6C);
-  static const Color shopify   = Color(0xFF96BF48);
-  static const Color nykaa     = Color(0xFFFC2779);
-  static const Color ajio      = Color(0xFFE03018);
-  static const Color snapdeal  = Color(0xFFE40046);
-  static const Color jiomart   = Color(0xFF0071F6);
+  static const Color flipkart = Color(0xFF2874F0);
+  static const Color amazon   = Color(0xFFFF9900);
+  static const Color meesho   = Color(0xFFE91E8C);
+  static const Color myntra   = Color(0xFFFF3E6C);
+  static const Color shopify  = Color(0xFF96BF48);
+  static const Color nykaa    = Color(0xFFFC2779);
+  static const Color ajio     = Color(0xFFE03018);
+  static const Color snapdeal = Color(0xFFE40046);
+  static const Color jiomart  = Color(0xFF0071F6);
+
+  // ── Backward-compat aliases ────────────────────────────────────────────────
+  static const Color primary      = navy900;
+  static const Color primaryDark  = navy800;
+  static const Color primaryLight = navy600;
+  static const Color accent       = teal500;
+  static const Color accentDark   = Color(0xFF0B9E8C);
+  static const Color accentLight  = teal300;
+  static const Color teal         = teal500;
+  static const Color tealDark     = Color(0xFF0B9E8C);
+  static const Color error        = danger;
+  static const Color positive     = success;
+  static const Color negative     = danger;
+  static const Color darkNavy     = navy900;
+  static const Color darkNavy2    = navy800;
+  static const Color accentNavy   = navy600;
+  static const Color primary2     = navy800;
+  static const Color backgroundLight = background;
 }
