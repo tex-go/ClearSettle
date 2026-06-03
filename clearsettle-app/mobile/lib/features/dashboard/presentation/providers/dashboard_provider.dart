@@ -50,6 +50,12 @@ class DashboardNotifier extends AsyncNotifier<DashboardSummary?> {
     DashboardSummary? result;
     try {
       result = await _getSummary();
+      // If the backend returns an empty summary (zeroes), prefer locally-aggregated
+      // Hive data which is always up-to-date with parsed reports.
+      if (_isEmptySummary(result)) {
+        final hiveResult = await _local.buildFromHiveReports();
+        if (hiveResult != null) result = hiveResult;
+      }
     } catch (_) {
       result = await _local.getCachedSummary();
       result ??= await _local.buildFromHiveReports();
@@ -63,6 +69,10 @@ class DashboardNotifier extends AsyncNotifier<DashboardSummary?> {
       organization: result.organization.isEmpty ? organisation : null,
     );
   }
+
+  static bool _isEmptySummary(DashboardSummary? s) =>
+      s == null ||
+      (s.grossRevenue == 0 && s.totalOrders == 0 && s.netSettlement == 0);
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
