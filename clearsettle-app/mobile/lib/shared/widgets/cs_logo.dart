@@ -27,7 +27,7 @@ class CsLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final img = Image.asset(
-      'assets/images/clear_settle_logo.png',
+      'assets/images/clearsettle_logo.png',
       width: size,
       height: size,
       fit: BoxFit.contain,

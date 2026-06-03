@@ -501,11 +501,11 @@ class _LogoBadge extends StatelessWidget {
         color: const Color(0xFF0D2137),
         border: Border.all(color: _C.cardBorder),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
         child: Image.asset(
-          'assets/images/clear_settle_logo.png',
-          width: 44, height: 44,
+          'assets/images/clearsettle_logo.png',
+          width: 32, height: 32,
           fit: BoxFit.contain,
         ),
       ),
