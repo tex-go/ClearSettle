@@ -25,7 +25,7 @@ abstract final class AppConfig {
   static const Duration sendTimeout = Duration(seconds: 60);
 
   static const String appName = 'ClearSettle';
-  static const String appVersion = '1.5.0';
+  static const String appVersion = '1.5.1';
 
   static const Duration syncInterval = Duration(minutes: 15);
   static const int maxSyncRetries = 3;
