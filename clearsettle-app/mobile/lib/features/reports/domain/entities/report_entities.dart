@@ -41,6 +41,10 @@ class ReportListItem {
   bool get isPendingParse      => status == 'pending_parse';
   bool get isBackendProcessing => status == 'backend_processing';
 
+  /// Parsed but returned 0 orders and ₹0 gross — likely a parser/detection issue.
+  bool get isParsedButEmpty =>
+      isParsed && totalOrders == 0 && grossRevenue == 0.0;
+
   bool get isApiSync => reportType == 'api_sync';
 
   String get fileSizeLabel {

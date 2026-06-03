@@ -25,7 +25,7 @@ class ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Allow opening parsed, failed, and backend_processing reports (detail shows processing state)
-    final canOpen = report.isParsed || report.isFailed || report.isBackendProcessing;
+    final canOpen = report.isParsed || report.isFailed || report.isBackendProcessing || report.isParsedButEmpty;
 
     return GestureDetector(
       onTap: canOpen ? onTap : null,
@@ -96,6 +96,14 @@ class ReportCard extends StatelessWidget {
               ),
             ],
 
+            // ── Parsed-but-empty warning ─────────────────────────────
+            if (report.isParsedButEmpty && !isParsing)
+              _ErrorRow(
+                message: 'No data extracted. Tap to retry or check file format.',
+                onRetry: onRetry,
+                isWarning: true,
+              ),
+
             // ── Error row ────────────────────────────────────────────
             if (report.isFailed)
               _ErrorRow(
@@ -110,6 +118,7 @@ class ReportCard extends StatelessWidget {
 
   Color get _borderColor {
     if (report.isFailed) return AppColors.error.withValues(alpha: 0.25);
+    if (report.isParsedButEmpty) return AppColors.warning.withValues(alpha: 0.35);
     if (report.isParsed && report.discrepancyCount > 0) {
       return AppColors.warning.withValues(alpha: 0.35);
     }
@@ -138,6 +147,7 @@ class _LeadingIcon extends StatelessWidget {
 
   Color get _bg {
     if (report.isFailed) return AppColors.error.withValues(alpha: 0.08);
+    if (report.isParsedButEmpty) return AppColors.warning.withValues(alpha: 0.08);
     if (report.isParsed) return AppColors.success.withValues(alpha: 0.08);
     if (report.isApiSync) return AppColors.flipkart.withValues(alpha: 0.08);
     return AppColors.accent.withValues(alpha: 0.08);
@@ -145,6 +155,7 @@ class _LeadingIcon extends StatelessWidget {
 
   Color get _color {
     if (report.isFailed) return AppColors.error;
+    if (report.isParsedButEmpty) return AppColors.warning;
     if (report.isParsed) return AppColors.success;
     if (report.isApiSync) return AppColors.flipkart;
     return AppColors.accent;
@@ -152,6 +163,7 @@ class _LeadingIcon extends StatelessWidget {
 
   IconData get _icon {
     if (report.isFailed) return Icons.error_outline_rounded;
+    if (report.isParsedButEmpty) return Icons.warning_amber_rounded;
     if (report.isParsed) return Icons.check_circle_outline_rounded;
     if (report.isApiSync) return Icons.cloud_done_outlined;
     return Icons.pending_outlined;
@@ -212,19 +224,27 @@ class _StatusPill extends StatelessWidget {
     );
   }
 
-  String get _label => switch (report.status) {
-        'parsed'  => 'Parsed',
-        'parsing' => 'Parsing',
-        'failed'  => 'Failed',
-        _         => 'Pending',
-      };
+  String get _label {
+    if (report.isParsedButEmpty) return 'No Data';
+    return switch (report.status) {
+      'parsed'  => 'Parsed',
+      'parsing' => 'Parsing',
+      'failed'  => 'Failed',
+      'backend_processing' => 'Processing',
+      _         => 'Pending',
+    };
+  }
 
-  Color get _color => switch (report.status) {
-        'parsed'  => AppColors.success,
-        'failed'  => AppColors.error,
-        'parsing' => AppColors.warning,
-        _         => AppColors.textSecondary,
-      };
+  Color get _color {
+    if (report.isParsedButEmpty) return AppColors.warning;
+    return switch (report.status) {
+      'parsed'  => AppColors.success,
+      'failed'  => AppColors.error,
+      'parsing' => AppColors.warning,
+      'backend_processing' => AppColors.info,
+      _         => AppColors.textSecondary,
+    };
+  }
 }
 
 // ── Delete button ────────────────────────────────────────────────────────────
@@ -384,28 +404,29 @@ class _DiscrepancyPill extends StatelessWidget {
 // ── Error row ────────────────────────────────────────────────────────────────
 
 class _ErrorRow extends StatelessWidget {
-  const _ErrorRow({this.message, this.onRetry});
+  const _ErrorRow({this.message, this.onRetry, this.isWarning = false});
   final String? message;
   final VoidCallback? onRetry;
+  final bool isWarning;
 
   @override
   Widget build(BuildContext context) {
+    final color = isWarning ? AppColors.warning : AppColors.error;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-      decoration: const BoxDecoration(
-        color: Color(0x06EF4444),
-        borderRadius: BorderRadius.vertical(
+      decoration: BoxDecoration(
+        color: isWarning ? const Color(0x08F59E0B) : const Color(0x06EF4444),
+        borderRadius: const BorderRadius.vertical(
             bottom: Radius.circular(AppRadius.r4)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: AppColors.error, size: 13),
+          Icon(isWarning ? Icons.warning_amber_rounded : Icons.info_outline, color: color, size: 13),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               message ?? 'Parse failed.',
-              style: AppTextStyles.labelSmall
-                  .copyWith(color: AppColors.error),
+              style: AppTextStyles.labelSmall.copyWith(color: color),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
