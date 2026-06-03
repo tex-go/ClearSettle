@@ -2,11 +2,28 @@
   "version": "0.2.0",
   "configurations": [
 
-    // ── Physical Android phone (Wi-Fi, same network as laptop) ─────────────────
-    // Laptop Wi-Fi IP: 10.83.8.137
-    // Backend must be running: docker-compose up
+    // ─────────────────────────────────────────────────────────────────────────
+    // USE THIS to test login + see live logs against the real production server
+    // ─────────────────────────────────────────────────────────────────────────
     {
-      "name": "📱 ClearSettle — Android Phone (10.83.8.137)",
+      "name": "🔍 Debug → Production (clearsettle.in)",
+      "type": "dart",
+      "request": "launch",
+      "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
+      "cwd": "${workspaceFolder}/clearsettle-app/mobile",
+      "flutterMode": "debug",
+      "args": [
+        "--dart-define=API_BASE_URL=https://clearsettle.in/api",
+        "--dart-define=SUPER_ADMIN_EMAIL=admin@clearsettle.com"
+      ]
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // USE THIS only when running backend locally on your laptop (docker-compose up)
+    // Phone and laptop must be on the same Wi-Fi. Laptop IP: 10.83.8.137
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      "name": "📱 Debug → Local Backend (10.83.8.137)",
       "type": "dart",
       "request": "launch",
       "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
@@ -18,9 +35,11 @@
       ]
     },
 
-    // ── Android Emulator ───────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // USE THIS for Android Emulator on the same machine (docker-compose up)
+    // ─────────────────────────────────────────────────────────────────────────
     {
-      "name": "🖥️  ClearSettle — Android Emulator",
+      "name": "🖥️  Debug → Emulator + Local Backend",
       "type": "dart",
       "request": "launch",
       "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
@@ -32,9 +51,11 @@
       ]
     },
 
-    // ── Production ────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // Release build — no debug logs, full optimisation, production server
+    // ─────────────────────────────────────────────────────────────────────────
     {
-      "name": "🌐 ClearSettle — Production",
+      "name": "🌐 Release → Production (clearsettle.in)",
       "type": "dart",
       "request": "launch",
       "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
@@ -45,16 +66,18 @@
       ]
     },
 
-    // ── Profile mode (performance tracing) ────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // Profile mode — performance flame chart, production server
+    // ─────────────────────────────────────────────────────────────────────────
     {
-      "name": "⚡ ClearSettle — Profile Mode",
+      "name": "⚡ Profile → Production",
       "type": "dart",
       "request": "launch",
       "program": "${workspaceFolder}/clearsettle-app/mobile/lib/main.dart",
       "cwd": "${workspaceFolder}/clearsettle-app/mobile",
       "flutterMode": "profile",
       "args": [
-        "--dart-define=API_BASE_URL=http://10.83.8.137:8000"
+        "--dart-define=API_BASE_URL=https://clearsettle.in/api"
       ]
     }
 
