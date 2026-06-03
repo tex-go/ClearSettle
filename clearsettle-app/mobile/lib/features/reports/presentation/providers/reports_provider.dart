@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/cs_logger.dart';
 
 import '../../../../reconciliation/reconciliation_engine.dart';
+import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 import '../../../../services/file_storage/file_storage_service.dart';
 import '../../data/datasources/report_local_datasource.dart';
 import '../../data/datasources/report_remote_datasource.dart';
@@ -176,6 +177,8 @@ class ReportsNotifier extends Notifier<ReportsState> {
         reports: _getReports(),
         clearParsingId: true,
       );
+      // Refresh dashboard so Key Metrics immediately reflect the newly parsed report
+      ref.read(dashboardProvider.notifier).refresh();
       return detail;
     } catch (e, st) {
       CsLogger.error('Parse', 'Reconciliation failed', error: e, stack: st);
@@ -184,6 +187,8 @@ class ReportsNotifier extends Notifier<ReportsState> {
         clearParsingId: true,
         errorMessage: 'Parse failed: $e',
       );
+      // Still refresh dashboard to update report count even on failure
+      ref.read(dashboardProvider.notifier).refresh();
       return null;
     }
   }

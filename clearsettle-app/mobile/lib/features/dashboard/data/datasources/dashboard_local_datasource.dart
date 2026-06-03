@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/cs_logger.dart';
 import '../../../../storage/hive_manager.dart';
 import '../../domain/entities/dashboard_summary_entity.dart';
 import '../models/dashboard_summary_model.dart';
@@ -32,9 +33,14 @@ class DashboardLocalDataSource {
   /// Builds a summary directly from locally-parsed Hive reports.
   /// Used as offline-first fallback when there is no remote connection and no cache.
   Future<DashboardSummary?> buildFromHiveReports() async {
-    final reports = HiveManager.localReportBox.values
-        .where((r) => r.status == 'parsed')
-        .toList();
+    final allReports = HiveManager.localReportBox.values.toList();
+    final reports = allReports.where((r) => r.status == 'parsed').toList();
+
+    CsLogger.info('Dashboard', 'buildFromHiveReports', data: {
+      'total_in_box': allReports.length,
+      'parsed_count': reports.length,
+      'statuses': allReports.map((r) => '${r.fileName}:${r.status}').toList(),
+    });
 
     if (reports.isEmpty) return null;
 
@@ -68,6 +74,15 @@ class DashboardLocalDataSource {
     final userObj = HiveManager.userBox.get(AppConstants.currentUserKey);
     final sellerName = userObj?.sellerName ?? 'Seller';
     final organization = userObj?.organization ?? 'My Store';
+
+    CsLogger.info('Dashboard', 'Hive aggregation result', data: {
+      'reports': reports.length,
+      'total_orders': totalOrders,
+      'gross_revenue': grossRevenue,
+      'net_settlement': netSettlement,
+      'total_fees': totalFees,
+      'marketplaces': marketplaces.toList(),
+    });
 
     return DashboardSummary(
       sellerName:   sellerName,
