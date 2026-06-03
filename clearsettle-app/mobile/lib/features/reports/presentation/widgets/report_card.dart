@@ -24,7 +24,8 @@ class ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canOpen = report.isParsed || report.isFailed;
+    // Allow opening parsed, failed, and backend_processing reports (detail shows processing state)
+    final canOpen = report.isParsed || report.isFailed || report.isBackendProcessing;
 
     return GestureDetector(
       onTap: canOpen ? onTap : null,
@@ -266,14 +267,14 @@ class _FinancialRow extends StatelessWidget {
           icon: Icons.shopping_bag_outlined,
           iconColor: AppColors.info,
         ),
-        _StatDivider(),
+        const _StatDivider(),
         _Stat(
           label: 'Gross Revenue',
           value: CurrencyFormatter.formatCompact(report.grossRevenue),
           icon: Icons.trending_up_rounded,
           iconColor: AppColors.accent,
         ),
-        _StatDivider(),
+        const _StatDivider(),
         _Stat(
           label: 'Net Settlement',
           value: CurrencyFormatter.formatCompact(report.netSettlement),
@@ -282,7 +283,7 @@ class _FinancialRow extends StatelessWidget {
           valueColor: AppColors.success,
         ),
         if (report.discrepancyCount > 0) ...[
-          _StatDivider(),
+          const _StatDivider(),
           _DiscrepancyPill(count: report.discrepancyCount),
         ],
       ],
@@ -335,6 +336,7 @@ class _Stat extends StatelessWidget {
 }
 
 class _StatDivider extends StatelessWidget {
+  const _StatDivider();
   @override
   Widget build(BuildContext context) {
     return Container(
