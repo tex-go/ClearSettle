@@ -1,36 +1,55 @@
 name: Deploy ClearSettle
 
-# Staging:  CI passes on main → auto-deploy to staging VM
-# Production: push a vX.Y.Z tag → release.yml handles it (not this file)
+# Auto-deploys on every push to main — no CI gate.
+# The job SSHes into the GCP production VM, pulls latest code,
+# rebuilds the backend image (picks up VERSION + any code changes),
+# and restarts all containers via the prod compose file.
 
 on:
-  workflow_run:
-    workflows: ["CI — Test & Coverage"]
+  push:
     branches: [main]
-    types: [completed]
 
 concurrency:
-  group: deploy-staging
-  cancel-in-progress: false
+  group: deploy-production
+  cancel-in-progress: false   # never cancel an in-progress deploy
 
 jobs:
-  deploy-staging:
-    name: Deploy to Staging
+  deploy:
+    name: Deploy to Production VM
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - name: Deploy to Staging VM
+      - name: SSH → Pull → Rebuild → Restart
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:     ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key:      ${{ secrets.VM_SSH_KEY }}
+          host:        ${{ secrets.VM_HOST }}
+          username:    ${{ secrets.VM_USER }}
+          key:         ${{ secrets.VM_SSH_KEY }}
+          command_timeout: 10m
           script: |
+            set -e
+
+            echo "=== Pulling latest code ==="
             cd ~/ClearSettle
             git checkout main
             git pull origin main
+
+            echo "=== Rebuilding containers ==="
             cd clearsettle-app
-            docker compose down
-            docker compose up --build -d
-            echo "Staging deploy complete at $(date -u)"
+            docker compose -f docker-compose.prod.yml --env-file .env.prod \
+              up --build -d --remove-orphans
+
+            echo "=== Waiting for backend to be healthy ==="
+            for i in $(seq 1 24); do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "Backend healthy after ${i}x5s"
+                break
+              fi
+              echo "  attempt $i/24 — waiting..."
+              sleep 5
+            done
+
+            echo "=== Deployment result ==="
+            curl -s http://localhost:8000/ || echo "WARNING: root endpoint not reachable"
+            docker compose -f docker-compose.prod.yml ps
+            echo "=== Deploy complete at $(date -u) ==="
