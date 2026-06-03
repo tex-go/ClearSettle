@@ -488,27 +488,17 @@ class _Orbs extends StatelessWidget {
   );
 }
 
-// Logo contained in a dark-glassed rounded badge
+// Logo badge — transparent PNG floats on dark card background
 class _LogoBadge extends StatelessWidget {
   const _LogoBadge();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 44, height: 44,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: const Color(0xFF0D2137),
-        border: Border.all(color: _C.cardBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Image.asset(
-          'assets/images/clearsettle_logo.png',
-          width: 32, height: 32,
-          fit: BoxFit.contain,
-        ),
-      ),
+    return Image.asset(
+      'assets/images/clear_settle_logo_fintech_v4.png',
+      width: 44,
+      height: 44,
+      fit: BoxFit.contain,
     );
   }
 }
