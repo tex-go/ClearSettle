@@ -120,6 +120,19 @@ class ApiClient {
     }
   }
 
+  /// Downloads raw bytes — used for HTML reports, PDFs, and binary content.
+  Future<List<int>> getBytes(String path) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        path,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data ?? [];
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   /// Multipart file upload — used by the ingestion pipeline endpoint.
   Future<Response<T>> uploadFile<T>(
     String path, {
