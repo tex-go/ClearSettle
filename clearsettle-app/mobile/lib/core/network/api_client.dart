@@ -30,7 +30,9 @@ class ApiClient {
 
     _dio.interceptors.addAll([
       AuthInterceptor(
-        readToken: _secureStorage.getAccessToken,
+        readToken:    _secureStorage.getAccessToken,
+        saveToken:    _secureStorage.saveAccessToken,
+        refreshToken: _refreshAccessToken,
         clearSession: _secureStorage.clearAll,
       ),
       ErrorInterceptor(),
@@ -45,6 +47,39 @@ class ApiClient {
 
   late final Dio _dio;
   final SecureStorageService _secureStorage;
+
+  /// Called by AuthInterceptor on 401: try to exchange the stored refresh
+  /// token for a new access token. Returns null if no refresh token or if the
+  /// server rejects it (caller will then force logout).
+  Future<String?> _refreshAccessToken() async {
+    final refreshToken = await _secureStorage.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return null;
+
+    try {
+      // Bypass the interceptor-equipped _dio to avoid an infinite retry loop.
+      final raw = Dio(BaseOptions(
+        baseUrl: AppConfig.apiBaseUrl,
+        connectTimeout: AppConfig.connectTimeout,
+        receiveTimeout: AppConfig.receiveTimeout,
+      ));
+      final response = await raw.post<Map<String, dynamic>>(
+        '/auth/refresh',
+        data: {'refresh_token': refreshToken},
+      );
+      final data = response.data;
+      final newToken = data?['access_token'] as String?;
+      if (newToken != null && newToken.isNotEmpty) {
+        // Persist new refresh token if server rotated it
+        final newRefresh = data?['refresh_token'] as String?;
+        if (newRefresh != null && newRefresh.isNotEmpty) {
+          await _secureStorage.saveRefreshToken(newRefresh);
+        }
+      }
+      return newToken;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<Response<T>> get<T>(
     String path, {

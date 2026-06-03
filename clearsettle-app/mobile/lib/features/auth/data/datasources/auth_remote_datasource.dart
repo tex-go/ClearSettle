@@ -60,6 +60,18 @@ class AuthRemoteDataSource {
     }
   }
 
+  Future<String?> refreshAccessToken(String refreshToken) async {
+    try {
+      final response = await apiClient.post<Map<String, dynamic>>(
+        ApiEndpoints.refreshToken,
+        data: {'refresh_token': refreshToken},
+      );
+      return response.data?['access_token'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> logout() async {
     try {
       await apiClient.post<void>(ApiEndpoints.logout);

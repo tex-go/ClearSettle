@@ -5,17 +5,16 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import useAuthStore from '../store/authStore'
+import _axiosApi from '../utils/api'
 
-var BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
-
-function api(token, path, opts) {
-  return fetch(BASE + path, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(opts && opts.headers) },
-  }).then(function(r) {
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || r.statusText) })
-    return r.json()
-  })
+// Proxy through the shared axios client (which handles 401 refresh automatically).
+// Token parameter is kept for backward-compat with child component calls but is ignored —
+// axios interceptor injects the token from localStorage on every request.
+function api(_token, path, opts) {
+  var method = (opts && opts.method ? opts.method : 'GET').toLowerCase()
+  var body = opts && opts.body ? JSON.parse(opts.body) : undefined
+  if (method === 'get') return _axiosApi.get(path).then(function(r) { return r.data })
+  return _axiosApi[method](path, body).then(function(r) { return r.data })
 }
 
 function fmt(n, compact) {

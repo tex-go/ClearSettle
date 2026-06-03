@@ -584,7 +584,7 @@ class _QualityScoreRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text('Quality Score', style: AppTextStyles.bodySmall),
+        const Text('Quality Score', style: AppTextStyles.bodySmall),
         const Spacer(),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),

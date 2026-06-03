@@ -22,7 +22,7 @@ class SummaryFinancialsWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Financial Summary', style: AppTextStyles.titleLarge),
+          const Text('Financial Summary', style: AppTextStyles.titleLarge),
           const SizedBox(height: 14),
           _Row(label: 'Gross Revenue', value: summary.grossSales, isPositive: true),
           _Row(label: 'Returns', value: -summary.returnsValue),

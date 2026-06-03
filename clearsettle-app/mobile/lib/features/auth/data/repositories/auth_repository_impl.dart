@@ -17,7 +17,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthAuthenticated> login(String email, String password) async {
     final response = await remoteDataSource.login(email, password);
     final state = response.toAuthState();
-    await localDataSource.saveSession(state);
+    await localDataSource.saveSession(state, refreshToken: response.refreshToken);
     return state;
   }
 
@@ -25,7 +25,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthAuthenticated> register(RegisterRequestModel request) async {
     final response = await remoteDataSource.register(request);
     final state = response.toAuthState();
-    await localDataSource.saveSession(state);
+    await localDataSource.saveSession(state, refreshToken: response.refreshToken);
     return state;
   }
 
