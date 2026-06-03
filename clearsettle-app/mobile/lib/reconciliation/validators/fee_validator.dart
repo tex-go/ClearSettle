@@ -46,7 +46,7 @@ class FeeValidator {
           severity: DiscrepancySeverity.critical,
           orderId: orderId,
           description:
-              '"${label}" is a non-standard deduction. '
+              '"$label" is a non-standard deduction. '
               'Raise dispute with Flipkart Seller Support.',
           expectedAmount: 0.0,
           actualAmount: 0.0,

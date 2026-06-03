@@ -127,9 +127,9 @@ class AnalyticsRepositoryImpl implements AnalyticsRepository {
         return false;
       }
       if (filter.discrepancyStatus == DiscrepancyFilter.hasIssues &&
-          r.discrepancyCount == 0) return false;
+          r.discrepancyCount == 0) { return false; }
       if (filter.discrepancyStatus == DiscrepancyFilter.clean &&
-          r.discrepancyCount > 0) return false;
+          r.discrepancyCount > 0) { return false; }
       return true;
     }).toList();
   }
@@ -296,7 +296,7 @@ class AnalyticsRepositoryImpl implements AnalyticsRepository {
     if (parts.length == 3) return '${parts[2]}/${parts[1]}/${parts[0]}';
     final m = int.tryParse(parts[1]) ?? 0;
     final y = parts[0];
-    return m > 0 && m <= 12 ? "${months[m]} $y" : key;
+    return m > 0 && m <= 12 ? '${months[m]} $y' : key;
   }
 
   String _p(int n) => n.toString().padLeft(2, '0');

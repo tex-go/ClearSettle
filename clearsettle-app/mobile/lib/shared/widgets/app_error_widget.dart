@@ -35,7 +35,7 @@ class AppErrorWidget extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'Oops!',
               style: AppTextStyles.headlineMedium,
               textAlign: TextAlign.center,

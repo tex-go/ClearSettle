@@ -21,7 +21,7 @@ class SupabaseSyncAdapter implements SyncRepository {
   @override
   Future<SyncStatus> getStatus() async => const SyncStatus(
         state: SyncStatusState.idle,
-        message: 'Supabase adapter not yet implemented.',
+        errorMessage: 'Supabase adapter not yet implemented.',
       );
 
   @override

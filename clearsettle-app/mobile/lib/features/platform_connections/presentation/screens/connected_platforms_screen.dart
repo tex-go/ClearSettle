@@ -218,11 +218,11 @@ class _BodyState extends ConsumerState<_Body> {
         );
       }
     } catch (e) {
+      if (!context.mounted) return;
       await _showOAuthError(
         context: context,
         platformName: platformName,
         error: e,
-        // Retry runs the same flow again from scratch.
         onRetry: () => _runOAuth(
           context: context,
           platformName: platformName,

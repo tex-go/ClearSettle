@@ -78,9 +78,9 @@ class _SearchHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: const Column(
+    return const Padding(
+      padding: EdgeInsets.all(24),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Search across', style: AppTextStyles.titleMedium),

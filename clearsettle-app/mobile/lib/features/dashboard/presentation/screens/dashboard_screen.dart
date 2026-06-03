@@ -113,8 +113,8 @@ class _DashboardAppBar extends StatelessWidget {
         child: Row(
           children: [
             // Hamburger — opens side drawer
-            IconButton(
-              icon: const Icon(Icons.menu, color: AppColors.textInverse),
+            const IconButton(
+              icon: Icon(Icons.menu, color: AppColors.textInverse),
               onPressed: AppShell.openDrawer,
               tooltip: 'Menu',
             ),

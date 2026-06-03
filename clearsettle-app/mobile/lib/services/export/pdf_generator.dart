@@ -88,11 +88,11 @@ abstract final class PdfGenerator {
       children: [
         pw.Text(
           'ClearSettle — Confidential',
-          style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
+          style: const pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
         ),
         pw.Text(
           'Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-          style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
+          style: const pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
         ),
       ],
     );
@@ -130,7 +130,7 @@ abstract final class PdfGenerator {
         pw.SizedBox(height: 8),
         pw.Text(
           'Total Orders: ${summary.totalOrders}',
-          style: pw.TextStyle(fontSize: 9, color: PdfColors.blueGrey700),
+          style: const pw.TextStyle(fontSize: 9, color: PdfColors.blueGrey700),
         ),
       ],
     );
@@ -171,7 +171,7 @@ abstract final class PdfGenerator {
             padding: const pw.EdgeInsets.only(top: 4),
             child: pw.Text(
               '... and ${discrepancies.length - 50} more. Export Excel for full list.',
-              style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
             ),
           ),
       ],
@@ -214,7 +214,7 @@ abstract final class PdfGenerator {
             padding: const pw.EdgeInsets.only(top: 4),
             child: pw.Text(
               '... and ${orders.length - 100} more rows. Export Excel/CSV for full data.',
-              style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
             ),
           ),
       ],

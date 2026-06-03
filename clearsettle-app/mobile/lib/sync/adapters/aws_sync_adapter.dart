@@ -22,7 +22,7 @@ class AWSSyncAdapter implements SyncRepository {
   @override
   Future<SyncStatus> getStatus() async => const SyncStatus(
         state: SyncStatusState.idle,
-        message: 'AWS adapter not yet implemented.',
+        errorMessage: 'AWS adapter not yet implemented.',
       );
 
   @override
