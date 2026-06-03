@@ -35,10 +35,11 @@ class ReportListItem {
   final String? errorMessage;
   final String? filePath;
 
-  bool get isParsed => status == 'parsed';
-  bool get isFailed => status == 'failed';
-  bool get isParsing => status == 'parsing';
-  bool get isPendingParse => status == 'pending_parse';
+  bool get isParsed    => status == 'parsed';
+  bool get isFailed    => status == 'failed';
+  bool get isParsing   => status == 'parsing';
+  bool get isPendingParse      => status == 'pending_parse';
+  bool get isBackendProcessing => status == 'backend_processing';
 
   bool get isApiSync => reportType == 'api_sync';
 

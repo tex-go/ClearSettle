@@ -30,6 +30,16 @@ abstract final class ApiEndpoints {
   static const String reports      = '/reports';
   static const String reportUpload = '/reports/upload';
 
+  // ── Ingestion (14-agent intelligent pipeline) ─────────────────────────────
+  static const String ingestionUpload   = '/ingestion/upload';
+  static const String ingestionFiles    = '/ingestion/files';
+  static String ingestionFile(String id)          => '/ingestion/files/$id';
+  static String ingestionLogs(String id)          => '/ingestion/files/$id/logs';
+  static String ingestionSummary(String id)       => '/ingestion/files/$id/summary';
+  static String ingestionReconciliation(String id) => '/ingestion/files/$id/reconciliation';
+  static String ingestionIntelligence(String id)  => '/ingestion/files/$id/intelligence';
+  static String ingestionReprocess(String id)     => '/ingestion/files/$id/reprocess';
+
   // ── Marketplace ───────────────────────────────────────────────────────────
   static const String marketplaceList        = '/marketplace/';
   static const String marketplaceConnections = '/marketplace/connections/';

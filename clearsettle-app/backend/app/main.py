@@ -3,6 +3,9 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from app.core.logging_setup import configure_logging
+configure_logging()
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 

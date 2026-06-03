@@ -43,6 +43,14 @@ abstract final class RouteConstants {
   static const String analytics          = '/settings/analytics';
   static const String helpCenter         = '/help';
 
+  // ── Upload Center / Reconciliation ────────────────────────────────────────
+  static const String uploadCenter    = '/reports';          // reuses reports
+  static const String reconciliation  = '/reconciliation';
+
+  // ── Coming Soon ───────────────────────────────────────────────────────────
+  static const String comingSoon = '/coming-soon';
+  static String comingSoonPath(String feature) => '/coming-soon/$feature';
+
   // ── Settlement detail ─────────────────────────────────────────────────────
   static const String settlementDetail = '/settlements/:id';
   static String settlementDetailPath(String id) => '/settlements/$id';
