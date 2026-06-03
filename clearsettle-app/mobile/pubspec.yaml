@@ -71,10 +71,10 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/images/clear_settle_logo.png"
+  image_path: "assets/images/cs_logo_v3.jpeg"
   min_sdk_android: 21
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/clear_settle_logo.png"
+  adaptive_icon_foreground: "assets/images/cs_logo_v3.jpeg"
   web:
     generate: false
 
