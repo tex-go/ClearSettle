@@ -121,15 +121,19 @@ async def get_summary(
             "platform_share": [],
         }
 
-    result = await analytics_queries.get_dashboard_summary(
-        db, _company_id(user), platform=platform
-    )
+    cid = _company_id(user)
+    result = await analytics_queries.get_dashboard_summary(db, cid, platform=platform)
 
-    # If the legacy settlements tables are empty, fall back to Flipkart P&L data
+    # If legacy settlements table is empty, try ingestion_ledger first (new ETL path)
     if result["settlements"]["total_gross"] == 0:
-        fk_result = await analytics_queries.get_flipkart_dashboard_summary(
-            db, _company_id(user)
+        ledger_result = await analytics_queries.get_ingestion_ledger_kpis(
+            db, cid, platform=platform
         )
+        if ledger_result:
+            return ledger_result
+
+        # Last resort: Flipkart P&L legacy tables
+        fk_result = await analytics_queries.get_flipkart_dashboard_summary(db, cid)
         if fk_result:
             return fk_result
 
