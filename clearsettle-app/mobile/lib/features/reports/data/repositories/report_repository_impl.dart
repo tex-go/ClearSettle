@@ -374,4 +374,78 @@ class ReportRepositoryImpl implements ReportRepository {
   @override
   Future<void> deleteReport(String reportId) =>
       localDataSource.deleteReport(reportId);
+
+  // ── Sync remote reports into Hive ─────────────────────────────────────────
+
+  @override
+  Future<void> syncRemoteReports() async {
+    try {
+      final remoteFiles = await remoteDataSource.fetchFiles();
+      CsLogger.info('Repo', 'syncRemoteReports: ${remoteFiles.length} files from server');
+
+      for (final rf in remoteFiles) {
+        if (!rf.isTerminal) continue; // skip files still processing
+
+        final existing = HiveManager.localReportBox.get(rf.fileId);
+        if (existing != null && existing.status == 'parsed') {
+          // Already fully parsed locally — don't overwrite with stale data
+          continue;
+        }
+
+        if (existing == null) {
+          // New report on server not in Hive — create a skeleton entry
+          final entry = LocalReportHiveObject(
+            id:         rf.fileId,
+            fileName:   '${rf.platform}_${rf.reportType}',
+            platform:   rf.platform,
+            reportType: rf.reportType,
+            uploadedAt: (rf.processedAt ?? DateTime.now()).toIso8601String(),
+            status:     rf.isFailed ? 'failed' : 'backend_processing',
+          );
+          await HiveManager.localReportBox.put(rf.fileId, entry);
+          CsLogger.info('Repo', 'Synced new remote report', data: {'id': rf.fileId});
+        }
+
+        if (!rf.isFailed) {
+          // Fetch summary + reconciliation for this report
+          try {
+            final results = await Future.wait([
+              remoteDataSource.fetchSummary(rf.fileId),
+              remoteDataSource.fetchReconciliation(rf.fileId, rf.platform),
+            ]);
+            final summary = results[0] as ParsedSummary;
+            final recon   = results[1] as ReconciliationResult;
+
+            final entry = HiveManager.localReportBox.get(rf.fileId)
+                ?? LocalReportHiveObject(
+                      id: rf.fileId,
+                      fileName: '${rf.platform}_report',
+                      platform: rf.platform,
+                      reportType: rf.reportType,
+                      uploadedAt: (rf.processedAt ?? DateTime.now()).toIso8601String(),
+                      status: 'parsed',
+                    );
+
+            entry
+              ..status           = 'parsed'
+              ..platform         = rf.platform.isNotEmpty ? rf.platform : entry.platform
+              ..reportType       = rf.reportType.isNotEmpty ? rf.reportType : entry.reportType
+              ..parsedAt         = (rf.processedAt ?? DateTime.now()).toIso8601String()
+              ..totalOrders      = summary.totalOrders
+              ..grossRevenue     = summary.grossSales
+              ..totalFees        = summary.totalFees
+              ..netSettlement    = summary.netEarnings
+              ..discrepancyCount = recon.discrepancyCount
+              ..parserVersion    = _kBackendParserVersion;
+            await HiveManager.localReportBox.put(rf.fileId, entry);
+          } catch (_) {
+            // Non-fatal — leave entry in backend_processing state; will retry later
+          }
+        }
+      }
+    } catch (e) {
+      CsLogger.warning('Repo', 'syncRemoteReports failed (network?)', data: {'error': '$e'});
+      // Silently fail — app still works with cached data
+    }
+  }
 }

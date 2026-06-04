@@ -44,6 +44,7 @@ class ReportsState {
   const ReportsState({
     this.reports = const [],
     this.isUploading = false,
+    this.isSyncing = false,
     this.uploadingFileName,
     this.parsingReportId,
     this.errorMessage,
@@ -51,6 +52,7 @@ class ReportsState {
 
   final List<ReportListItem> reports;
   final bool isUploading;
+  final bool isSyncing;
   final String? uploadingFileName;
   final String? parsingReportId;
   final String? errorMessage;
@@ -60,6 +62,7 @@ class ReportsState {
   ReportsState copyWith({
     List<ReportListItem>? reports,
     bool? isUploading,
+    bool? isSyncing,
     String? uploadingFileName,
     String? parsingReportId,
     String? errorMessage,
@@ -70,6 +73,7 @@ class ReportsState {
     return ReportsState(
       reports: reports ?? this.reports,
       isUploading: isUploading ?? this.isUploading,
+      isSyncing: isSyncing ?? this.isSyncing,
       uploadingFileName:
           clearUploadingName ? null : (uploadingFileName ?? this.uploadingFileName),
       parsingReportId:
@@ -93,7 +97,21 @@ class ReportsNotifier extends Notifier<ReportsState> {
     _parse = ParseReportUseCase(repo);
     _delete = DeleteReportUseCase(repo);
 
+    // Start with Hive-cached reports immediately, then sync from server
+    Future.microtask(syncFromServer);
     return ReportsState(reports: _getReports());
+  }
+
+  /// Pull latest file list from backend and update Hive + state.
+  Future<void> syncFromServer() async {
+    state = state.copyWith(isSyncing: true);
+    try {
+      final repo = ref.read(reportRepositoryProvider);
+      await repo.syncRemoteReports();
+      state = state.copyWith(reports: _getReports(), isSyncing: false);
+    } catch (_) {
+      state = state.copyWith(isSyncing: false);
+    }
   }
 
   Future<bool> pickAndUpload({

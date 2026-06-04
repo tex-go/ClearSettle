@@ -351,6 +351,47 @@ class ReportRemoteDataSource {
     }
   }
 
+  // ── Fetch remote file list ──────────────────────────────────────────────────
+
+  /// Fetches the paginated list of all uploaded files from the backend.
+  /// Used to sync the reports list on app startup (replacing stale Hive-only state).
+  Future<List<RemoteFileStatus>> fetchFiles({
+    String? platform,
+    int page = 1,
+    int limit = 100,
+  }) async {
+    final qp = <String, dynamic>{'page': page, 'limit': limit};
+    if (platform != null) qp['platform'] = platform;
+
+    CsLogger.info('RemoteDS', 'GET /ingestion/files', data: qp);
+    try {
+      final response = await apiClient.get<Map<String, dynamic>>(
+        ApiEndpoints.ingestionFiles,
+        queryParameters: qp,
+      );
+      final body  = response.data as Map<String, dynamic>;
+      final items = body['items'] as List? ?? [];
+      CsLogger.info('RemoteDS', 'fetchFiles returned ${items.length} items');
+      return items.map((raw) {
+        final j = raw as Map<String, dynamic>;
+        return RemoteFileStatus(
+          fileId:      j['id'] as String,
+          status:      j['upload_status'] as String? ?? 'done',
+          platform:    (j['detection'] as Map<String, dynamic>?)?['detected_platform'] as String? ?? 'unknown',
+          reportType:  (j['detection'] as Map<String, dynamic>?)?['detected_report_type'] as String? ?? 'unknown',
+          errorMessage: j['error_message'] as String?,
+          ledgerCount: (j['detection'] as Map<String, dynamic>?)?['ledger_records_count'] as int?,
+          processedAt: j['processed_at'] != null
+              ? DateTime.tryParse(j['processed_at'] as String)
+              : null,
+        );
+      }).toList();
+    } catch (e, st) {
+      CsLogger.error('RemoteDS', 'fetchFiles FAILED', error: e, stack: st);
+      rethrow;
+    }
+  }
+
   /// Fetches the HTML analytics report as raw bytes.
   /// Caller saves to a temp file and shares via share_plus.
   Future<List<int>> fetchHtmlReportBytes(String fileId) async {

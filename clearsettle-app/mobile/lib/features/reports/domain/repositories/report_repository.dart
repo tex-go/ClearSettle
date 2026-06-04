@@ -22,4 +22,8 @@ abstract interface class ReportRepository {
 
   /// Permanently delete report file + sidecar + Hive entry
   Future<void> deleteReport(String reportId);
+
+  /// Pull the file list from the backend and sync any new/updated reports
+  /// into the local Hive cache.  Safe to call on every app start.
+  Future<void> syncRemoteReports();
 }
