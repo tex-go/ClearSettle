@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -99,6 +101,67 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Requested-With", "X-CSRF-Token"],
 )
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next) -> Response:
+    """Logs every HTTP request with timing, correlation ID, and status.
+    Adds X-Request-ID header to response for client-side correlation.
+    """
+    request_id = str(uuid.uuid4())[:8]
+    start      = time.perf_counter()
+
+    # Skip health-check noise in logs
+    path = request.url.path
+    is_health = path in ("/health", "/", "/favicon.ico")
+
+    if not is_health:
+        logger.info(
+            "HTTP request started",
+            extra={
+                "request_id":  request_id,
+                "method":      request.method,
+                "path":        path,
+                "query":       str(request.url.query) or None,
+                "client_ip":   request.client.host if request.client else None,
+                "user_agent":  request.headers.get("user-agent", "")[:100],
+            },
+        )
+
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        logger.error(
+            "HTTP request failed with unhandled exception",
+            extra={
+                "request_id":  request_id,
+                "method":      request.method,
+                "path":        path,
+                "duration_ms": duration_ms,
+                "error":       str(exc),
+            },
+            exc_info=True,
+        )
+        raise
+
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+
+    if not is_health:
+        log_fn = logger.warning if response.status_code >= 400 else logger.info
+        log_fn(
+            "HTTP request completed",
+            extra={
+                "request_id":   request_id,
+                "method":       request.method,
+                "path":         path,
+                "status":       response.status_code,
+                "duration_ms":  duration_ms,
+            },
+        )
+
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 @app.middleware("http")
