@@ -105,15 +105,35 @@ class ReportProcessingLog(Base):
 class IngestionLedger(Base):
     """Unified canonical transaction record.
 
-    Every normalized record from every platform lands here.
-    This is the single source of truth for cross-platform reconciliation.
-    source_row_number + uploaded_file_id + lineage_metadata give full traceability.
+    Every normalised record from every source (manual upload, Amazon API,
+    Flipkart API, Meesho API, …) lands here via LedgerSyncExecutor.
+
+    PROVENANCE COLUMNS (source_type, connection_id, sync_job_id):
+      Set by the connector; used only for traceability and debugging.
+      The ETL, dashboard, and analytics layers never read these — they are
+      invisible to all financial calculations.
+
+    FROZEN COLUMNS (transaction_type, amount, order_id, …):
+      Read by ETL (ledger_etl.py) to produce settlements + payout_events.
+      Never rename or change semantics; adding new nullable columns is fine.
     """
     __tablename__ = "ingestion_ledger"
 
     id               = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     uploaded_file_id = Column(PG_UUID(as_uuid=True), ForeignKey("uploaded_files.id", ondelete="CASCADE"), nullable=False, index=True)
     company_id       = Column(PG_UUID(as_uuid=True), ForeignKey("companies.id",    ondelete="CASCADE"), nullable=False, index=True)
+
+    # ── Provenance (migration 036) ─────────────────────────────────────────────
+    # manual_upload | amazon_api | flipkart_api | meesho_api | shopify_api | …
+    source_type  = Column(String(30), nullable=True, index=True, server_default="manual_upload")
+    # FK to marketplace_connections.id (null for manual uploads)
+    connection_id = Column(PG_UUID(as_uuid=True),
+                           ForeignKey("marketplace_connections.id", ondelete="SET NULL"),
+                           nullable=True, index=True)
+    # FK to marketplace_sync_jobs.id (null for manual uploads)
+    sync_job_id   = Column(PG_UUID(as_uuid=True),
+                           ForeignKey("marketplace_sync_jobs.id", ondelete="SET NULL"),
+                           nullable=True)
 
     platform         = Column(String(50),  nullable=False, index=True)
     report_type      = Column(String(50),  nullable=True)
