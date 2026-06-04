@@ -39,6 +39,7 @@ from app.routers import flipkart_reports, amazon_reports, meesho_reports, admin,
 from app.routers import marketplace as marketplace_router
 from app.routers import notifications
 from app.routers import rbac_admin
+from app.routers import connections as connections_router
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +206,8 @@ app.include_router(flipkart_reports.router,  prefix="/flipkart",  tags=["flipkar
 app.include_router(amazon_reports.router,    prefix="/amazon",     tags=["amazon"])
 app.include_router(meesho_reports.router,    prefix="/meesho",     tags=["meesho"])
 app.include_router(admin.router,             prefix="/admin",      tags=["admin"])
-app.include_router(ingestion.router,         prefix="/ingestion",  tags=["ingestion"])
+app.include_router(ingestion.router,            prefix="/ingestion",   tags=["ingestion"])
+app.include_router(connections_router.router,  prefix="/connections",  tags=["connections"])
 app.include_router(notifications.router,     prefix="/notifications", tags=["notifications"])
 app.include_router(rbac_admin.router,        tags=["RBAC Admin"])
 

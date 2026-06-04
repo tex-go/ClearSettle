@@ -157,7 +157,18 @@ async def _run_ingestion(
     platform_hint: Optional[str] = None,
     report_type_hint: Optional[str] = None,
 ) -> None:
-    """Full ingestion pipeline: detect → parse → persist."""
+    """
+    Full ingestion pipeline via ManualUploadConnector + LedgerSyncExecutor.
+
+    Pipeline:
+        ManualUploadConnector (detect + parse → CanonicalLedgerEvent)
+        ↓  LedgerSyncExecutor (write ingestion_ledger + run ETL)
+        ↓  ingestion_ledger → settlements → payout_events → dashboard
+
+    All future API connectors (AmazonConnector, FlipkartConnector, …) follow
+    the same code path through LedgerSyncExecutor.  This function handles only
+    the manual-upload-specific steps (intelligence pipeline, detection metadata).
+    """
     import time as _time
     if AsyncSessionLocal is None:
         logger.error("DB not configured — cannot run ingestion", extra={"file_id": str(uploaded_file_id)})
@@ -173,176 +184,122 @@ async def _run_ingestion(
             return
 
         try:
-            # ── STEP 1: Receive & validate ────────────────────────────────────
+            # ── STEP 1: Mark detecting ────────────────────────────────────────
             logger.info(
-                "INGESTION[1/6] File received — starting pipeline",
+                "INGESTION[1/5] File received",
                 extra={
-                    "file_id":        fid,
-                    "file_name":      file_name,
-                    "file_bytes":     len(file_bytes),
-                    "file_kb":        round(len(file_bytes) / 1024, 1),
-                    "company_id":     str(company_id),
-                    "platform_hint":  platform_hint,
+                    "file_id":          fid,
+                    "file_name":        file_name,
+                    "file_kb":          round(len(file_bytes) / 1024, 1),
+                    "company_id":       str(company_id),
+                    "source_type":      "manual_upload",
+                    "platform_hint":    platform_hint,
                     "report_type_hint": report_type_hint,
                 },
             )
             record.upload_status = "detecting"
             await db.commit()
 
-            # ── STEP 2: Detect + Parse ────────────────────────────────────────
-            t0 = _time.perf_counter()
-            logger.info("INGESTION[2/6] Running detection + parse pipeline", extra={"file_id": fid})
-
-            from app.services.pipeline.router import run_ingestion_pipeline
-            pipeline_result, parse_result = run_ingestion_pipeline(
-                file_bytes, file_name, uploaded_file_id,
+            # ── STEP 2: Create connector ──────────────────────────────────────
+            from app.connectors.manual_upload import ManualUploadConnector
+            connector = ManualUploadConnector(
+                file_bytes=file_bytes,
+                file_name=file_name,
+                uploaded_file_id=uploaded_file_id,
                 platform_hint=platform_hint,
                 report_type_hint=report_type_hint,
             )
-            detect_ms = round((_time.perf_counter() - t0) * 1000, 1)
+
+            # ── STEP 3: Run connector → LedgerSyncExecutor ────────────────────
+            record.upload_status = "processing"
+            await db.commit()
+
+            from app.services.sync.ledger_executor import LedgerSyncExecutor
+            executor = LedgerSyncExecutor()
+            sync_result = await executor.run(
+                connector=connector,
+                company_id=company_id,
+                db=db,
+                uploaded_file_id=uploaded_file_id,
+                run_etl=True,
+            )
+
+            _has_records = sync_result.events_written > 0
 
             logger.info(
-                "INGESTION[2/6] Detection complete",
+                "INGESTION[3/5] LedgerSyncExecutor complete",
                 extra={
-                    "file_id":            fid,
-                    "file_name":          file_name,
-                    "platform":           pipeline_result.platform,
-                    "confidence":         round(pipeline_result.confidence_score, 4),
-                    "confidence_pct":     f"{pipeline_result.confidence_score:.1%}",
-                    "needs_review":       pipeline_result.needs_manual_review,
-                    "parser":             pipeline_result.parser_name,
-                    "schema_version":     pipeline_result.schema_version,
-                    "report_type":        pipeline_result.report_type,
-                    "detect_duration_ms": detect_ms,
+                    "file_id":             fid,
+                    "source_type":         "manual_upload",
+                    "platform":            connector.detected_platform,
+                    "confidence":          round(connector.confidence_score, 4),
+                    "events_written":      sync_result.events_written,
+                    "settlements_created": sync_result.settlements_created,
+                    "etl_errors":          sync_result.errors[:3] if sync_result.errors else [],
+                    "duration_ms":         sync_result.duration_ms,
                 },
             )
 
-            if parse_result:
-                # Log sample of first 3 ledger records for debugging
-                sample = []
-                for lr in (parse_result.ledger_records or [])[:3]:
-                    sample.append({
-                        "order_id":         lr.order_id,
-                        "transaction_type": lr.transaction_type,
-                        "amount":           str(lr.amount),
-                        "transaction_date": str(lr.transaction_date),
-                        "platform":         lr.platform,
-                    })
-                logger.info(
-                    "INGESTION[2/6] Parse complete",
-                    extra={
-                        "file_id":       fid,
-                        "file_name":     file_name,
-                        "record_count":  parse_result.record_count,
-                        "recon_issues":  len(parse_result.recon_issues),
-                        "parse_errors":  parse_result.errors[:3] if parse_result.errors else [],
-                        "parse_warnings": parse_result.warnings[:3] if parse_result.warnings else [],
-                        "sample_records": sample,
-                    },
-                )
-                if parse_result.errors:
-                    for err in parse_result.errors[:5]:
-                        logger.warning(
-                            "INGESTION parse error",
-                            extra={"file_id": fid, "file_name": file_name, "parse_error": err},
-                        )
-            else:
-                logger.warning(
-                    "INGESTION[2/6] Parser returned NO records — file may be unsupported format",
-                    extra={
-                        "file_id":       fid,
-                        "file_name":     file_name,
-                        "platform":      pipeline_result.platform,
-                        "parser":        pipeline_result.parser_name,
-                        "pipeline_errors": pipeline_result.errors,
-                    },
-                )
-
-            # ── STEP 3: Intelligence pipeline ─────────────────────────────────
-            t0 = _time.perf_counter()
-            logger.info(
-                "INGESTION[3/6] Starting intelligence pipeline",
-                extra={
-                    "file_id":     fid,
-                    "has_records": parse_result is not None and not parse_result.is_empty,
-                    "anthropic_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
-                },
-            )
-
-            parsed_data_for_intel: dict = {}
-            if parse_result and not parse_result.is_empty:
-                parsed_data_for_intel = {
-                    "orders": [
-                        {k: str(v) if hasattr(v, "__class__") and v.__class__.__name__ == "Decimal" else v
-                         for k, v in (o.__dict__ if hasattr(o, "__dict__") else o).items()
-                         if not k.startswith("_")}
-                        for o in (parse_result.ledger_records or [])[:500]
-                    ],
-                    "summary": {},
-                }
-
+            # ── STEP 4: Intelligence pipeline (optional) ──────────────────────
             intel_result = None
-            try:
-                intel_pipeline = IntelligencePipeline()
-                intel_result = await intel_pipeline.run(
-                    file_bytes=file_bytes,
-                    filename=file_name,
-                    upload_id=str(uploaded_file_id),
-                    company_id=str(company_id),
-                    db=db,
-                    parsed_data=parsed_data_for_intel,
-                    platform_hint=platform_hint,
-                    report_type_hint=report_type_hint,
-                )
-                intel_ms = round((_time.perf_counter() - t0) * 1000, 1)
-                logger.info(
-                    "INGESTION[3/6] Intelligence pipeline complete",
-                    extra={
-                        "file_id":        fid,
-                        "platform":       intel_result.summary.get("platform", "?"),
-                        "quality_score":  intel_result.summary.get("quality_score", 0),
-                        "insights_count": intel_result.summary.get("insights_count", 0),
-                        "recoverable":    intel_result.summary.get("total_recoverable", "0"),
-                        "intel_duration_ms": intel_ms,
-                    },
-                )
-            except Exception as intel_exc:
-                intel_ms = round((_time.perf_counter() - t0) * 1000, 1)
-                logger.warning(
-                    "INGESTION[3/6] Intelligence pipeline skipped (non-fatal)",
-                    extra={
-                        "file_id":          fid,
-                        "error":            str(intel_exc)[:300],
-                        "intel_duration_ms": intel_ms,
-                        "likely_cause":     "ANTHROPIC_API_KEY not set or API unreachable",
-                    },
-                )
+            if _has_records and os.environ.get("ANTHROPIC_API_KEY"):
+                t_intel = _time.perf_counter()
+                try:
+                    intel_pipeline = IntelligencePipeline()
+                    intel_result = await intel_pipeline.run(
+                        file_bytes=file_bytes,
+                        filename=file_name,
+                        upload_id=fid,
+                        company_id=str(company_id),
+                        db=db,
+                        platform_hint=platform_hint,
+                        report_type_hint=report_type_hint,
+                    )
+                    logger.info(
+                        "INGESTION[4/5] Intelligence pipeline complete",
+                        extra={
+                            "file_id":           fid,
+                            "quality_score":     intel_result.summary.get("quality_score", 0),
+                            "insights_count":    intel_result.summary.get("insights_count", 0),
+                            "recoverable":       intel_result.summary.get("total_recoverable", "0"),
+                            "intel_duration_ms": round((_time.perf_counter() - t_intel) * 1000, 1),
+                        },
+                    )
+                except Exception as intel_exc:
+                    logger.warning(
+                        "INGESTION[4/5] Intelligence pipeline skipped (non-fatal)",
+                        extra={"file_id": fid, "error": str(intel_exc)[:200]},
+                    )
 
-            # ── STEP 4: Persist detection result ──────────────────────────────
-            logger.info("INGESTION[4/6] Persisting detection result", extra={"file_id": fid})
-            base_metadata = pipeline_result.detection_metadata or {}
+            # ── Persist detection result ──────────────────────────────────────
+            base_metadata = dict(connector.detection_metadata)
             if intel_result:
                 try:
-                    intel_dict = intel_result.model_dump(mode="json")
-                    base_metadata["intelligence"] = intel_dict
+                    base_metadata["intelligence"] = intel_result.model_dump(mode="json")
                     base_metadata["intelligence_summary"] = intel_result.summary
                 except Exception:
                     pass
+            base_metadata["connector_framework"] = {
+                "source_type":      "manual_upload",
+                "events_written":   sync_result.events_written,
+                "events_skipped":   sync_result.events_skipped,
+                "etl_warnings":     sync_result.warnings[:3],
+            }
 
             detection = ReportDetectionResult(
                 id=uuid.uuid4(),
                 uploaded_file_id=uploaded_file_id,
-                detected_platform=pipeline_result.platform,
-                detected_report_type=pipeline_result.report_type,
-                schema_version=pipeline_result.schema_version,
-                confidence_score=Decimal(str(pipeline_result.confidence_score)),
+                detected_platform=connector.detected_platform,
+                detected_report_type=connector.detected_report_type,
+                schema_version=connector.schema_version,
+                confidence_score=Decimal(str(connector.confidence_score)),
                 detection_metadata=base_metadata,
-                parser_name=pipeline_result.parser_name,
-                needs_manual_review=pipeline_result.needs_manual_review,
+                parser_name=connector.detected_parser,
+                needs_manual_review=connector.needs_manual_review,
             )
             db.add(detection)
 
-            for entry in (pipeline_result.detection_metadata.get("processing_logs") or []):
+            for entry in (connector.detection_metadata.get("processing_logs") or []):
                 db.add(ReportProcessingLog(
                     id=uuid.uuid4(),
                     uploaded_file_id=uploaded_file_id,
@@ -352,157 +309,47 @@ async def _run_ingestion(
                     context=entry.get("context"),
                 ))
 
-            # ── STEP 5: Persist ledger records ────────────────────────────────
-            _has_records = parse_result is not None and not parse_result.is_empty
-
-            if _has_records:
-                t0 = _time.perf_counter()
-                logger.info(
-                    "INGESTION[5/6] Writing ledger records to DB",
-                    extra={
-                        "file_id":      fid,
-                        "record_count": parse_result.record_count,
-                    },
-                )
-                record.upload_status = "processing"
-                await db.commit()
-
-                # Log transaction_type distribution to catch mapping issues
-                tx_type_counts: dict[str, int] = {}
-                for lr in parse_result.ledger_records:
-                    tx = lr.transaction_type or "null"
-                    tx_type_counts[tx] = tx_type_counts.get(tx, 0) + 1
-                    db.add(IngestionLedger(
-                        id=uuid.uuid4(),
-                        uploaded_file_id=uploaded_file_id,
-                        company_id=company_id,
-                        platform=lr.platform,
-                        report_type=lr.report_type,
-                        order_id=lr.order_id,
-                        shipment_id=lr.shipment_id,
-                        settlement_id=lr.settlement_id,
-                        invoice_id=getattr(lr, "invoice_id", None),
-                        sku=lr.sku,
-                        product_title=lr.product_title,
-                        category=lr.category,
-                        transaction_type=lr.transaction_type,
-                        fee_type=lr.fee_type,
-                        amount=Decimal(str(lr.amount)) if lr.amount is not None else None,
-                        tax_amount=Decimal(str(lr.tax_amount)) if lr.tax_amount is not None else None,
-                        currency=lr.currency,
-                        transaction_date=lr.transaction_date,
-                        settlement_date=lr.settlement_date,
-                        return_status=lr.return_status,
-                        payout_status=lr.payout_status,
-                        source_row_number=lr.source_row_number,
-                        lineage_metadata=lr.lineage_metadata,
-                    ))
-
-                db_write_ms = round((_time.perf_counter() - t0) * 1000, 1)
-                logger.info(
-                    "INGESTION[5/6] Ledger records written",
-                    extra={
-                        "file_id":            fid,
-                        "records_written":    parse_result.record_count,
-                        "tx_type_breakdown":  tx_type_counts,
-                        "db_write_duration_ms": db_write_ms,
-                        "WARNING_if_all_sale": (
-                            "ALL records have tx_type=sale — verify column mapping"
-                            if list(tx_type_counts.keys()) == ["sale"] else "ok"
-                        ),
-                    },
-                )
-            else:
-                logger.warning(
-                    "INGESTION[5/6] No records to write — skipping ledger insert",
-                    extra={
-                        "file_id":         fid,
-                        "file_name":       file_name,
-                        "parse_result":    "None" if parse_result is None else "empty",
-                        "pipeline_errors": pipeline_result.errors,
-                        "needs_review":    pipeline_result.needs_manual_review,
-                    },
-                )
-
-            # ── STEP 6: Finalise status ───────────────────────────────────────
-            if pipeline_result.needs_manual_review and not _has_records:
+            # ── STEP 5: Finalise status ───────────────────────────────────────
+            if connector.needs_manual_review and not _has_records:
                 final_status = "needs_review"
-            elif pipeline_result.errors and not _has_records:
+            elif connector.pipeline_errors and not _has_records:
                 final_status = "failed"
             else:
                 final_status = "done"
 
             record.upload_status = final_status
             record.processed_at  = datetime.utcnow()
-            if pipeline_result.errors:
-                record.error_message = "; ".join(pipeline_result.errors[:3])
+            if connector.pipeline_errors:
+                record.error_message = "; ".join(connector.pipeline_errors[:3])
 
             await db.commit()
 
-            # ── STEP 7: ETL — ingest_ledger → settlements + payout_events ────
-            if _has_records:
-                t7 = _time.perf_counter()
-                logger.info(
-                    "INGESTION[7/7] Running ledger ETL",
-                    extra={"file_id": fid, "record_count": parse_result.record_count},
-                )
-                try:
-                    from app.services.etl import run_ledger_etl
-                    etl_summary = await run_ledger_etl(
-                        db=db,
-                        uploaded_file_id=uploaded_file_id,
-                        company_id=company_id,
-                        platform=pipeline_result.platform,
-                    )
-                    logger.info(
-                        "INGESTION[7/7] ETL complete — dashboard now has real data",
-                        extra={
-                            "file_id":             fid,
-                            "settlements_created": etl_summary.get("settlements_created"),
-                            "settlements_updated": etl_summary.get("settlements_updated"),
-                            "payouts_upserted":    etl_summary.get("payouts_upserted"),
-                            "etl_duration_ms":     round((_time.perf_counter() - t7) * 1000, 1),
-                        },
-                    )
-                except Exception as etl_exc:
-                    logger.error(
-                        "INGESTION[7/7] ETL failed (non-fatal — ledger data still intact)",
-                        extra={
-                            "file_id":         fid,
-                            "error":           str(etl_exc)[:300],
-                            "etl_duration_ms": round((_time.perf_counter() - t7) * 1000, 1),
-                        },
-                        exc_info=True,
-                    )
-
             total_ms = round((_time.perf_counter() - pipeline_start) * 1000, 1)
             logger.info(
-                "INGESTION[7/7] Pipeline complete",
+                "INGESTION[5/5] Pipeline complete",
                 extra={
-                    "file_id":         fid,
-                    "file_name":       file_name,
-                    "final_status":    final_status,
-                    "platform":        pipeline_result.platform,
-                    "parser":          pipeline_result.parser_name,
-                    "ledger_count":    pipeline_result.ledger_count,
-                    "recon_issues":    pipeline_result.recon_issue_count,
-                    "has_errors":      bool(pipeline_result.errors),
-                    "total_duration_ms": total_ms,
-                    "NEXT_STEP":       f"GET /ingestion/files/{fid}/summary to see KPIs",
+                    "file_id":             fid,
+                    "file_name":           file_name,
+                    "final_status":        final_status,
+                    "source_type":         "manual_upload",
+                    "platform":            connector.detected_platform,
+                    "parser":              connector.detected_parser,
+                    "events_written":      sync_result.events_written,
+                    "settlements_created": sync_result.settlements_created,
+                    "has_errors":          bool(connector.pipeline_errors),
+                    "total_duration_ms":   total_ms,
+                    "NEXT_STEP":           f"GET /ingestion/files/{fid}/summary to see KPIs",
                 },
             )
 
-            if pipeline_result.errors:
-                for err in pipeline_result.errors[:5]:
-                    logger.error(
-                        "Pipeline error detail",
-                        extra={"file_id": fid, "error": err},
-                    )
+            if connector.pipeline_errors:
+                for err in connector.pipeline_errors[:5]:
+                    logger.error("Pipeline error detail", extra={"file_id": fid, "error": err})
 
         except Exception as exc:
             total_ms = round((_time.perf_counter() - pipeline_start) * 1000, 1)
             logger.error(
-                "INGESTION FAILED — unhandled exception in pipeline",
+                "INGESTION FAILED — unhandled exception",
                 extra={
                     "file_id":         fid,
                     "file_name":       file_name,
@@ -514,7 +361,7 @@ async def _run_ingestion(
             try:
                 record.upload_status = "failed"
                 record.error_message = str(exc)[:500]
-                record.processed_at  = datetime.utcnow()  # always set on all paths
+                record.processed_at  = datetime.utcnow()
                 await db.commit()
             except Exception:
                 pass
