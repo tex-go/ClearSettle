@@ -1,19 +1,22 @@
 x-logging: &default-logging
-  driver: "gcplogs"
-  options:
-    gcp-log-cmd: "true"
-    labels: "com.clearsettle.service"
-    # Falls back to json-file if GCP logging API is unavailable
-    # To use: GCP VM needs roles/logging.logWriter on its service account.
-    # View logs: GCP Console → Logging → Logs Explorer → resource.type="global"
-    # Filter by: logName="projects/YOUR_PROJECT/logs/clearsettle-backend-prod"
-
-x-logging-fallback: &fallback-logging
   driver: "json-file"
   options:
     max-size: "50m"
     max-file: "5"
     tag: "{{.Name}}"
+  # NOTE: Logs are structured JSON — view with:
+  #   docker logs -f clearsettle-backend-prod | python3 -c "
+  #   import sys,json
+  #   for l in sys.stdin:
+  #     try: d=json.loads(l); print(d.get('severity','?')[:4],'|',d.get('message','')[:140])
+  #     except: print(l,end='')"
+  #
+  # To enable GCP Cloud Logging driver on the VM, run once:
+  #   gcloud projects add-iam-policy-binding clearsettle-prod \
+  #     --member="serviceAccount:$(gcloud compute instances describe clearsettle-backend \
+  #       --format='value(serviceAccounts[0].email)')" \
+  #     --role="roles/logging.logWriter"
+  # Then change driver to gcplogs and add: gcp-project: "clearsettle-prod"
 
 x-restart: &always-restart
   restart: unless-stopped
