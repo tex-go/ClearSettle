@@ -373,7 +373,9 @@ _DOC_TYPE_LABELS = {
 }
 
 
-@router.post("/upload", status_code=202)
+@router.post("/upload", status_code=301,
+             deprecated=True,
+             summary="[DEPRECATED] Use POST /ingestion/upload instead")
 async def upload_report(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),

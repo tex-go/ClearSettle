@@ -62,8 +62,7 @@ class ReportsScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: _UploadChip(
-                onTap: () =>
-                    ref.read(reportsProvider.notifier).pickAndUpload(),
+                onTap: () => _showUploadSheet(context, ref),
               ),
             ),
         ],
@@ -94,8 +93,7 @@ class ReportsScreen extends ConsumerWidget {
           Expanded(
             child: state.reports.isEmpty
                 ? _EmptyReports(
-                    onUpload: () =>
-                        ref.read(reportsProvider.notifier).pickAndUpload(),
+                    onUpload: () => _showUploadSheet(context, ref),
                   )
                 : RefreshIndicator(
                     color: AppColors.accent,
@@ -134,8 +132,7 @@ class ReportsScreen extends ConsumerWidget {
       floatingActionButton: state.isBusy
           ? null
           : FloatingActionButton.extended(
-              onPressed: () =>
-                  ref.read(reportsProvider.notifier).pickAndUpload(),
+              onPressed: () => _showUploadSheet(context, ref),
               backgroundColor: AppColors.accent,
               foregroundColor: Colors.white,
               elevation: 4,
@@ -143,6 +140,25 @@ class ReportsScreen extends ConsumerWidget {
               label: const Text('Upload Report',
                   style: TextStyle(fontWeight: FontWeight.w600)),
             ),
+    );
+  }
+
+  void _showUploadSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _PlatformPickerSheet(
+        onSelected: (marketplace, reportType) {
+          Navigator.of(ctx).pop();
+          ref.read(reportsProvider.notifier).pickAndUpload(
+                marketplace: marketplace,
+                reportType: reportType,
+              );
+        },
+      ),
     );
   }
 
@@ -497,7 +513,7 @@ class _EmptyReports extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Upload your Flipkart settlement Excel file to get a full financial analytics report.',
+              'Upload a marketplace settlement report (Flipkart, Amazon, Meesho) to see full financial analytics.',
               style: AppTextStyles.bodyMedium
                   .copyWith(color: AppColors.textSecondary),
               textAlign: TextAlign.center,
@@ -548,6 +564,155 @@ class _EmptyReports extends StatelessWidget {
                         .copyWith(color: AppColors.textMuted)),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Platform Picker Bottom Sheet ─────────────────────────────────────────────
+
+class _PlatformPickerSheet extends StatelessWidget {
+  const _PlatformPickerSheet({required this.onSelected});
+
+  final void Function(String marketplace, String reportType) onSelected;
+
+  static const _platforms = [
+    _PlatformOption(
+      label: 'Flipkart',
+      marketplace: 'flipkart',
+      reportType: 'payment_report',
+      icon: Icons.storefront_outlined,
+      color: Color(0xFF2874F0),
+      subtitle: 'P&L or Payment Report',
+    ),
+    _PlatformOption(
+      label: 'Amazon',
+      marketplace: 'amazon',
+      reportType: 'settlement_report',
+      icon: Icons.shopping_cart_outlined,
+      color: Color(0xFFFF9900),
+      subtitle: 'Settlement Statement',
+    ),
+    _PlatformOption(
+      label: 'Meesho',
+      marketplace: 'meesho',
+      reportType: 'payment_report',
+      icon: Icons.local_offer_outlined,
+      color: Color(0xFF9B2FAE),
+      subtitle: 'Payment Report',
+    ),
+    _PlatformOption(
+      label: 'Auto-Detect',
+      marketplace: 'unknown',
+      reportType: 'unknown',
+      icon: Icons.auto_fix_high_outlined,
+      color: AppColors.accent,
+      subtitle: 'Let AI identify the platform',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Select Platform',
+                    style: AppTextStyles.headlineSmall),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  color: AppColors.textMuted,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            Text(
+              'Choose your marketplace to ensure accurate parsing.',
+              style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ..._platforms.map((p) => _PlatformTile(
+                  option: p,
+                  onTap: () => onSelected(p.marketplace, p.reportType),
+                )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlatformOption {
+  const _PlatformOption({
+    required this.label,
+    required this.marketplace,
+    required this.reportType,
+    required this.icon,
+    required this.color,
+    required this.subtitle,
+  });
+  final String label;
+  final String marketplace;
+  final String reportType;
+  final IconData icon;
+  final Color color;
+  final String subtitle;
+}
+
+class _PlatformTile extends StatelessWidget {
+  const _PlatformTile({required this.option, required this.onTap});
+  final _PlatformOption option;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: option.color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(option.icon, color: option.color, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(option.label,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600)),
+                  Text(option.subtitle,
+                      style: AppTextStyles.labelSmall.copyWith(
+                          color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textDisabled, size: 20),
           ],
         ),
       ),

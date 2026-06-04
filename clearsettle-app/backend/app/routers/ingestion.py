@@ -31,6 +31,8 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from app.services.storage import get_storage_service
+
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form,
     HTTPException, Query, UploadFile, status,
@@ -51,9 +53,6 @@ from app.services.intelligence.pipeline import IntelligencePipeline
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Mount a persistent volume at UPLOAD_DIR in production (e.g. /data/uploads or S3-fuse).
-# Defaults to /tmp only for local dev — /tmp is ephemeral in containers.
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/ingestion_uploads")
 MAX_FILE_MB = 100
 
 
@@ -440,9 +439,45 @@ async def _run_ingestion(
 
             await db.commit()
 
+            # ── STEP 7: ETL — ingest_ledger → settlements + payout_events ────
+            if _has_records:
+                t7 = _time.perf_counter()
+                logger.info(
+                    "INGESTION[7/7] Running ledger ETL",
+                    extra={"file_id": fid, "record_count": parse_result.record_count},
+                )
+                try:
+                    from app.services.etl import run_ledger_etl
+                    etl_summary = await run_ledger_etl(
+                        db=db,
+                        uploaded_file_id=uploaded_file_id,
+                        company_id=company_id,
+                        platform=pipeline_result.platform,
+                    )
+                    logger.info(
+                        "INGESTION[7/7] ETL complete — dashboard now has real data",
+                        extra={
+                            "file_id":             fid,
+                            "settlements_created": etl_summary.get("settlements_created"),
+                            "settlements_updated": etl_summary.get("settlements_updated"),
+                            "payouts_upserted":    etl_summary.get("payouts_upserted"),
+                            "etl_duration_ms":     round((_time.perf_counter() - t7) * 1000, 1),
+                        },
+                    )
+                except Exception as etl_exc:
+                    logger.error(
+                        "INGESTION[7/7] ETL failed (non-fatal — ledger data still intact)",
+                        extra={
+                            "file_id":         fid,
+                            "error":           str(etl_exc)[:300],
+                            "etl_duration_ms": round((_time.perf_counter() - t7) * 1000, 1),
+                        },
+                        exc_info=True,
+                    )
+
             total_ms = round((_time.perf_counter() - pipeline_start) * 1000, 1)
             logger.info(
-                "INGESTION[6/6] Pipeline complete",
+                "INGESTION[7/7] Pipeline complete",
                 extra={
                     "file_id":         fid,
                     "file_name":       file_name,
@@ -579,12 +614,9 @@ async def upload_file(
             "detection":          _detection_to_dict(detection) if detection else None,
         }
 
-    # ── Store file ────────────────────────────────────────────────────────────
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    stored_name = f"{uuid.uuid4()}{ext}"
-    stored_path = os.path.join(UPLOAD_DIR, stored_name)
-    with open(stored_path, "wb") as fh:
-        fh.write(file_bytes)
+    # ── Store file (persistent storage — local volume or GCS) ────────────────
+    storage = get_storage_service()
+    stored_path = storage.save(file_bytes, ext, str(company_id))
 
     # ── Quick fingerprint preview (synchronous, lightweight) ─────────────────
     preview: Dict[str, Any] = {}
@@ -849,11 +881,11 @@ async def reprocess_file(
         raise HTTPException(status_code=409, detail="File is already being processed.")
 
     stored_path = record.storage_path
-    if not stored_path or not os.path.exists(stored_path):
+    storage = get_storage_service()
+    if not stored_path or not storage.exists(stored_path):
         raise HTTPException(status_code=404, detail="Original file not found in storage.")
 
-    with open(stored_path, "rb") as fh:
-        file_bytes = fh.read()
+    file_bytes = storage.read(stored_path)
 
     # Clear previous derived data
     await db.execute(
@@ -965,9 +997,9 @@ async def manual_review(
 
     # Trigger re-parse with overridden settings
     stored_path = record.storage_path
-    if stored_path and os.path.exists(stored_path):
-        with open(stored_path, "rb") as fh:
-            file_bytes = fh.read()
+    _storage = get_storage_service()
+    if stored_path and _storage.exists(stored_path):
+        file_bytes = _storage.read(stored_path)
         background_tasks.add_task(
             _run_ingestion,
             record.id, file_bytes, record.original_file_name,
@@ -1333,10 +1365,10 @@ async def get_intelligence(
 
     if not intelligence:
         # Intelligence pipeline not yet run — trigger it now synchronously
-        if record.storage_path and os.path.exists(record.storage_path):
+        _stg = get_storage_service()
+        if record.storage_path and _stg.exists(record.storage_path):
             try:
-                with open(record.storage_path, "rb") as fh:
-                    file_bytes = fh.read()
+                file_bytes = _stg.read(record.storage_path)
 
                 intel_pipeline = IntelligencePipeline()
                 intel_result = await intel_pipeline.run(
@@ -1478,9 +1510,9 @@ async def delete_file(
     _assert_owner(record, company_id)
 
     # Remove from storage
-    if record.storage_path and os.path.exists(record.storage_path):
+    if record.storage_path:
         try:
-            os.remove(record.storage_path)
+            get_storage_service().delete(record.storage_path)
         except Exception:
             pass
 

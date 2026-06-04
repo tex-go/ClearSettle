@@ -290,7 +290,9 @@ async def _ingest_report(report_id: UUID, file_bytes: bytes, filename: str) -> N
 
 # ── Upload ────────────────────────────────────────────────────────────────────
 
-@router.post("/upload", status_code=202)
+@router.post("/upload", status_code=301,
+             deprecated=True,
+             summary="[DEPRECATED] Use POST /ingestion/upload instead")
 async def upload_report(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
