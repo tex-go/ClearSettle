@@ -159,51 +159,117 @@ async def _run_ingestion(
     report_type_hint: Optional[str] = None,
 ) -> None:
     """Full ingestion pipeline: detect → parse → persist."""
+    import time as _time
     if AsyncSessionLocal is None:
+        logger.error("DB not configured — cannot run ingestion", extra={"file_id": str(uploaded_file_id)})
         return
+
+    pipeline_start = _time.perf_counter()
+    fid = str(uploaded_file_id)
 
     async with AsyncSessionLocal() as db:
         record = await db.get(UploadedFile, uploaded_file_id)
         if not record:
+            logger.error("UploadedFile record not found", extra={"file_id": fid})
             return
 
         try:
+            # ── STEP 1: Receive & validate ────────────────────────────────────
             logger.info(
-                "[INFO] Upload received file=%s bytes=%d company=%s",
-                file_name, len(file_bytes), company_id,
+                "INGESTION[1/6] File received — starting pipeline",
+                extra={
+                    "file_id":        fid,
+                    "file_name":      file_name,
+                    "file_bytes":     len(file_bytes),
+                    "file_kb":        round(len(file_bytes) / 1024, 1),
+                    "company_id":     str(company_id),
+                    "platform_hint":  platform_hint,
+                    "report_type_hint": report_type_hint,
+                },
             )
             record.upload_status = "detecting"
             await db.commit()
-            logger.info("[INFO] File saved file_id=%s", uploaded_file_id)
 
-            # ── Run pipeline ──────────────────────────────────────────────────
-            logger.info("[INFO] Pipeline started file_id=%s", uploaded_file_id)
+            # ── STEP 2: Detect + Parse ────────────────────────────────────────
+            t0 = _time.perf_counter()
+            logger.info("INGESTION[2/6] Running detection + parse pipeline", extra={"file_id": fid})
+
             from app.services.pipeline.router import run_ingestion_pipeline
             pipeline_result, parse_result = run_ingestion_pipeline(
                 file_bytes, file_name, uploaded_file_id,
                 platform_hint=platform_hint,
                 report_type_hint=report_type_hint,
             )
+            detect_ms = round((_time.perf_counter() - t0) * 1000, 1)
 
             logger.info(
-                "[INFO] Platform detected platform=%s confidence=%.2f needs_review=%s",
-                pipeline_result.platform, pipeline_result.confidence_score,
-                pipeline_result.needs_manual_review,
+                "INGESTION[2/6] Detection complete",
+                extra={
+                    "file_id":            fid,
+                    "file_name":          file_name,
+                    "platform":           pipeline_result.platform,
+                    "confidence":         round(pipeline_result.confidence_score, 4),
+                    "confidence_pct":     f"{pipeline_result.confidence_score:.1%}",
+                    "needs_review":       pipeline_result.needs_manual_review,
+                    "parser":             pipeline_result.parser_name,
+                    "schema_version":     pipeline_result.schema_version,
+                    "report_type":        pipeline_result.report_type,
+                    "detect_duration_ms": detect_ms,
+                },
             )
-            logger.info(
-                "[INFO] Parser selected parser=%s schema=%s report_type=%s",
-                pipeline_result.parser_name, pipeline_result.schema_version,
-                pipeline_result.report_type,
-            )
+
             if parse_result:
+                # Log sample of first 3 ledger records for debugging
+                sample = []
+                for lr in (parse_result.ledger_records or [])[:3]:
+                    sample.append({
+                        "order_id":         lr.order_id,
+                        "transaction_type": lr.transaction_type,
+                        "amount":           str(lr.amount),
+                        "transaction_date": str(lr.transaction_date),
+                        "platform":         lr.platform,
+                    })
                 logger.info(
-                    "[INFO] Records parsed count=%d recon_issues=%d",
-                    parse_result.record_count, len(parse_result.recon_issues),
+                    "INGESTION[2/6] Parse complete",
+                    extra={
+                        "file_id":       fid,
+                        "file_name":     file_name,
+                        "record_count":  parse_result.record_count,
+                        "recon_issues":  len(parse_result.recon_issues),
+                        "parse_errors":  parse_result.errors[:3] if parse_result.errors else [],
+                        "parse_warnings": parse_result.warnings[:3] if parse_result.warnings else [],
+                        "sample_records": sample,
+                    },
                 )
+                if parse_result.errors:
+                    for err in parse_result.errors[:5]:
+                        logger.warning(
+                            "INGESTION parse error",
+                            extra={"file_id": fid, "file_name": file_name, "parse_error": err},
+                        )
             else:
-                logger.warning("[WARNING] Parser returned no records file_id=%s", uploaded_file_id)
+                logger.warning(
+                    "INGESTION[2/6] Parser returned NO records — file may be unsupported format",
+                    extra={
+                        "file_id":       fid,
+                        "file_name":     file_name,
+                        "platform":      pipeline_result.platform,
+                        "parser":        pipeline_result.parser_name,
+                        "pipeline_errors": pipeline_result.errors,
+                    },
+                )
 
-            # ── Run 14-agent Intelligence Pipeline ───────────────────────────────
+            # ── STEP 3: Intelligence pipeline ─────────────────────────────────
+            t0 = _time.perf_counter()
+            logger.info(
+                "INGESTION[3/6] Starting intelligence pipeline",
+                extra={
+                    "file_id":     fid,
+                    "has_records": parse_result is not None and not parse_result.is_empty,
+                    "anthropic_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
+                },
+            )
+
             parsed_data_for_intel: dict = {}
             if parse_result and not parse_result.is_empty:
                 parsed_data_for_intel = {
@@ -229,22 +295,32 @@ async def _run_ingestion(
                     platform_hint=platform_hint,
                     report_type_hint=report_type_hint,
                 )
+                intel_ms = round((_time.perf_counter() - t0) * 1000, 1)
                 logger.info(
-                    "Intelligence pipeline complete for file %s: platform=%s quality=%.0f "
-                    "insights=%d recoverable=%s",
-                    uploaded_file_id,
-                    intel_result.summary.get("platform", "?"),
-                    intel_result.summary.get("quality_score", 0),
-                    intel_result.summary.get("insights_count", 0),
-                    intel_result.summary.get("total_recoverable", "0"),
+                    "INGESTION[3/6] Intelligence pipeline complete",
+                    extra={
+                        "file_id":        fid,
+                        "platform":       intel_result.summary.get("platform", "?"),
+                        "quality_score":  intel_result.summary.get("quality_score", 0),
+                        "insights_count": intel_result.summary.get("insights_count", 0),
+                        "recoverable":    intel_result.summary.get("total_recoverable", "0"),
+                        "intel_duration_ms": intel_ms,
+                    },
                 )
             except Exception as intel_exc:
+                intel_ms = round((_time.perf_counter() - t0) * 1000, 1)
                 logger.warning(
-                    "Intelligence pipeline error for file %s (non-fatal): %s",
-                    uploaded_file_id, intel_exc,
+                    "INGESTION[3/6] Intelligence pipeline skipped (non-fatal)",
+                    extra={
+                        "file_id":          fid,
+                        "error":            str(intel_exc)[:300],
+                        "intel_duration_ms": intel_ms,
+                        "likely_cause":     "ANTHROPIC_API_KEY not set or API unreachable",
+                    },
                 )
 
-            # Build detection_metadata: combine existing pipeline metadata + intelligence result
+            # ── STEP 4: Persist detection result ──────────────────────────────
+            logger.info("INGESTION[4/6] Persisting detection result", extra={"file_id": fid})
             base_metadata = pipeline_result.detection_metadata or {}
             if intel_result:
                 try:
@@ -254,7 +330,6 @@ async def _run_ingestion(
                 except Exception:
                     pass
 
-            # ── Persist detection result ──────────────────────────────────────
             detection = ReportDetectionResult(
                 id=uuid.uuid4(),
                 uploaded_file_id=uploaded_file_id,
@@ -268,7 +343,6 @@ async def _run_ingestion(
             )
             db.add(detection)
 
-            # ── Persist processing logs ───────────────────────────────────────
             for entry in (pipeline_result.detection_metadata.get("processing_logs") or []):
                 db.add(ReportProcessingLog(
                     id=uuid.uuid4(),
@@ -279,16 +353,26 @@ async def _run_ingestion(
                     context=entry.get("context"),
                 ))
 
-            # ── Persist ledger records ────────────────────────────────────────
-            if parse_result and not parse_result.is_empty:
+            # ── STEP 5: Persist ledger records ────────────────────────────────
+            _has_records = parse_result is not None and not parse_result.is_empty
+
+            if _has_records:
+                t0 = _time.perf_counter()
                 logger.info(
-                    "[INFO] Ledger creation started file_id=%s records=%d",
-                    uploaded_file_id, parse_result.record_count,
+                    "INGESTION[5/6] Writing ledger records to DB",
+                    extra={
+                        "file_id":      fid,
+                        "record_count": parse_result.record_count,
+                    },
                 )
                 record.upload_status = "processing"
                 await db.commit()
 
+                # Log transaction_type distribution to catch mapping issues
+                tx_type_counts: dict[str, int] = {}
                 for lr in parse_result.ledger_records:
+                    tx = lr.transaction_type or "null"
+                    tx_type_counts[tx] = tx_type_counts.get(tx, 0) + 1
                     db.add(IngestionLedger(
                         id=uuid.uuid4(),
                         uploaded_file_id=uploaded_file_id,
@@ -298,7 +382,7 @@ async def _run_ingestion(
                         order_id=lr.order_id,
                         shipment_id=lr.shipment_id,
                         settlement_id=lr.settlement_id,
-                        invoice_id=lr.invoice_id,
+                        invoice_id=getattr(lr, "invoice_id", None),
                         sku=lr.sku,
                         product_title=lr.product_title,
                         category=lr.category,
@@ -315,17 +399,40 @@ async def _run_ingestion(
                         lineage_metadata=lr.lineage_metadata,
                     ))
 
-            # Determine terminal status:
-            # - needs_review: low confidence / schema drift flagged
-            # - failed: parser errored AND produced zero records (genuine failure)
-            # - done: any records persisted (even with warnings)
-            _has_records = parse_result is not None and not parse_result.is_empty
+                db_write_ms = round((_time.perf_counter() - t0) * 1000, 1)
+                logger.info(
+                    "INGESTION[5/6] Ledger records written",
+                    extra={
+                        "file_id":            fid,
+                        "records_written":    parse_result.record_count,
+                        "tx_type_breakdown":  tx_type_counts,
+                        "db_write_duration_ms": db_write_ms,
+                        "WARNING_if_all_sale": (
+                            "ALL records have tx_type=sale — verify column mapping"
+                            if list(tx_type_counts.keys()) == ["sale"] else "ok"
+                        ),
+                    },
+                )
+            else:
+                logger.warning(
+                    "INGESTION[5/6] No records to write — skipping ledger insert",
+                    extra={
+                        "file_id":         fid,
+                        "file_name":       file_name,
+                        "parse_result":    "None" if parse_result is None else "empty",
+                        "pipeline_errors": pipeline_result.errors,
+                        "needs_review":    pipeline_result.needs_manual_review,
+                    },
+                )
+
+            # ── STEP 6: Finalise status ───────────────────────────────────────
             if pipeline_result.needs_manual_review and not _has_records:
                 final_status = "needs_review"
             elif pipeline_result.errors and not _has_records:
                 final_status = "failed"
             else:
                 final_status = "done"
+
             record.upload_status = final_status
             record.processed_at  = datetime.utcnow()
             if pipeline_result.errors:
@@ -333,29 +440,41 @@ async def _run_ingestion(
 
             await db.commit()
 
-            if pipeline_result.ledger_count > 0:
-                logger.info(
-                    "[INFO] Ledger records created count=%d file_id=%s",
-                    pipeline_result.ledger_count, uploaded_file_id,
-                )
+            total_ms = round((_time.perf_counter() - pipeline_start) * 1000, 1)
             logger.info(
-                "[INFO] Reconciliation completed recon_issues=%d file_id=%s",
-                pipeline_result.recon_issue_count, uploaded_file_id,
-            )
-            if pipeline_result.errors:
-                for err in pipeline_result.errors[:5]:
-                    logger.error("[ERROR] Pipeline error file_id=%s error=%s", uploaded_file_id, err)
-            logger.info(
-                "[INFO] Dashboard metrics generated platform=%s type=%s "
-                "ledger=%d status=%s file_id=%s",
-                pipeline_result.platform, pipeline_result.report_type,
-                pipeline_result.ledger_count, final_status, uploaded_file_id,
+                "INGESTION[6/6] Pipeline complete",
+                extra={
+                    "file_id":         fid,
+                    "file_name":       file_name,
+                    "final_status":    final_status,
+                    "platform":        pipeline_result.platform,
+                    "parser":          pipeline_result.parser_name,
+                    "ledger_count":    pipeline_result.ledger_count,
+                    "recon_issues":    pipeline_result.recon_issue_count,
+                    "has_errors":      bool(pipeline_result.errors),
+                    "total_duration_ms": total_ms,
+                    "NEXT_STEP":       f"GET /ingestion/files/{fid}/summary to see KPIs",
+                },
             )
 
+            if pipeline_result.errors:
+                for err in pipeline_result.errors[:5]:
+                    logger.error(
+                        "Pipeline error detail",
+                        extra={"file_id": fid, "error": err},
+                    )
+
         except Exception as exc:
+            total_ms = round((_time.perf_counter() - pipeline_start) * 1000, 1)
             logger.error(
-                "[ERROR] Ingestion pipeline failed file=%s file_id=%s error=%s",
-                file_name, uploaded_file_id, exc,
+                "INGESTION FAILED — unhandled exception in pipeline",
+                extra={
+                    "file_id":         fid,
+                    "file_name":       file_name,
+                    "error":           str(exc)[:500],
+                    "total_duration_ms": total_ms,
+                },
+                exc_info=True,
             )
             try:
                 record.upload_status = "failed"

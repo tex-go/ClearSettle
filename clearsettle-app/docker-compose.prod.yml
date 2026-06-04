@@ -1,4 +1,14 @@
 x-logging: &default-logging
+  driver: "gcplogs"
+  options:
+    gcp-log-cmd: "true"
+    labels: "com.clearsettle.service"
+    # Falls back to json-file if GCP logging API is unavailable
+    # To use: GCP VM needs roles/logging.logWriter on its service account.
+    # View logs: GCP Console → Logging → Logs Explorer → resource.type="global"
+    # Filter by: logName="projects/YOUR_PROJECT/logs/clearsettle-backend-prod"
+
+x-logging-fallback: &fallback-logging
   driver: "json-file"
   options:
     max-size: "50m"

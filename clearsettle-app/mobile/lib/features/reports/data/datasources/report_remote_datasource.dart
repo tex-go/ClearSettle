@@ -1,9 +1,8 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
+import '../../../../core/utils/cs_logger.dart';
 import '../../../../parsers/parser_result.dart';
 import '../../../../reconciliation/reconciliation_result.dart';
 
@@ -108,70 +107,128 @@ class ReportRemoteDataSource {
     String? platformHint,
     String? reportTypeHint,
   }) async {
-    dev.log(
-      '[INFO] Upload started | file=$fileName bytes=${fileBytes.length}',
-      name: 'ClearSettle.Upload',
+    CsLogger.uploadStarted(
+      fileName: fileName,
+      fileSizeBytes: fileBytes.length,
+      marketplace: platformHint ?? 'auto-detect',
     );
+    CsLogger.info('RemoteDS', 'POST /ingestion/upload', data: {
+      'file_name':        fileName,
+      'bytes':            fileBytes.length,
+      'platform_hint':    platformHint ?? 'none',
+      'report_type_hint': reportTypeHint ?? 'none',
+    });
 
     final fields = <String, String>{};
     if (platformHint != null) fields['platform'] = platformHint;
     if (reportTypeHint != null) fields['report_type'] = reportTypeHint;
 
-    final response = await apiClient.uploadFile<Map<String, dynamic>>(
-      ApiEndpoints.ingestionUpload,
-      fileBytes: fileBytes,
-      fileName: fileName,
-      fields: fields.isEmpty ? null : fields,
-    );
+    try {
+      CsLogger.uploadSent(fileName: fileName, bytes: fileBytes.length);
+      final response = await apiClient.uploadFile<Map<String, dynamic>>(
+        ApiEndpoints.ingestionUpload,
+        fileBytes: fileBytes,
+        fileName: fileName,
+        fields: fields.isEmpty ? null : fields,
+      );
 
-    final body = response.data as Map<String, dynamic>;
-    final result = RemoteUploadResponse.fromJson(body);
+      final body = response.data as Map<String, dynamic>;
+      CsLogger.info('RemoteDS', 'Raw upload response', data: {
+        'keys':          body.keys.join(', '),
+        'id':            body['id'],
+        'upload_status': body['upload_status'],
+        'file_size_bytes': body['file_size_bytes'],
+        'duplicate':     body['duplicate'],
+      });
 
-    dev.log(
-      '[INFO] Upload accepted | file_id=${result.fileId} '
-      'status=${result.uploadStatus} platform=${result.platform} '
-      'confidence=${result.platformConfidence?.toStringAsFixed(2)}',
-      name: 'ClearSettle.Upload',
-    );
-
-    return result;
+      final result = RemoteUploadResponse.fromJson(body);
+      CsLogger.uploadAccepted(
+        fileId:     result.fileId,
+        status:     result.uploadStatus,
+        isDuplicate: result.isDuplicate,
+        platform:   result.platform,
+        confidence: result.platformConfidence,
+      );
+      return result;
+    } catch (e, st) {
+      CsLogger.error('RemoteDS', 'Upload request FAILED', error: e, stack: st, data: {
+        'file_name': fileName,
+        'endpoint':  ApiEndpoints.ingestionUpload,
+      });
+      rethrow;
+    }
   }
 
   // ── Poll for completion ─────────────────────────────────────────────────────
 
-  /// Polls GET /ingestion/files/{id} until status is terminal (done/failed).
-  /// Throws [TimeoutException] if not complete within [maxWait].
   Future<RemoteFileStatus> pollUntilDone(
     String fileId, {
     Duration pollInterval = const Duration(seconds: 3),
     Duration maxWait = const Duration(minutes: 5),
   }) async {
-    final deadline = DateTime.now().add(maxWait);
+    final deadline  = DateTime.now().add(maxWait);
+    final startTime = DateTime.now();
+    int   pollCount = 0;
 
-    dev.log(
-      '[INFO] Polling backend for processing result | file_id=$fileId',
-      name: 'ClearSettle.Upload',
-    );
+    CsLogger.info('Poll', 'Starting poll loop', data: {
+      'file_id':          fileId,
+      'poll_interval_s':  pollInterval.inSeconds,
+      'max_wait_s':       maxWait.inSeconds,
+      'endpoint':         ApiEndpoints.ingestionFile(fileId),
+    });
 
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(pollInterval);
+      pollCount++;
+      final elapsed = DateTime.now().difference(startTime).inSeconds;
 
-      final response = await apiClient.get<Map<String, dynamic>>(
-        ApiEndpoints.ingestionFile(fileId),
-      );
-      final status = RemoteFileStatus.fromJson(
-        response.data as Map<String, dynamic>,
-      );
+      try {
+        final response = await apiClient.get<Map<String, dynamic>>(
+          ApiEndpoints.ingestionFile(fileId),
+        );
+        final raw    = response.data as Map<String, dynamic>;
+        final status = RemoteFileStatus.fromJson(raw);
 
-      dev.log(
-        '[INFO] Poll result | file_id=$fileId status=${status.status} '
-        'platform=${status.platform}',
-        name: 'ClearSettle.Upload',
-      );
+        CsLogger.pollTick(
+          fileId: fileId,
+          status: status.status,
+          elapsedSeconds: elapsed,
+        );
+        CsLogger.info('Poll', 'Poll #$pollCount response', data: {
+          'file_id':        fileId,
+          'status':         status.status,
+          'platform':       status.platform,
+          'report_type':    status.reportType,
+          'ledger_count':   status.ledgerCount,
+          'is_terminal':    status.isTerminal,
+          'is_done':        status.isDone,
+          'is_failed':      status.isFailed,
+          'elapsed_s':      elapsed,
+          'error_message':  status.errorMessage,
+        });
 
-      if (status.isTerminal) return status;
+        if (status.isTerminal) {
+          CsLogger.pollDone(
+            fileId: fileId,
+            status: status.status,
+            totalSeconds: elapsed,
+          );
+          return status;
+        }
+      } catch (e, st) {
+        CsLogger.warning('Poll', 'Poll request failed — will retry', data: {
+          'file_id':  fileId,
+          'attempt':  pollCount,
+          'error':    '$e',
+          'elapsed_s': elapsed,
+        });
+      }
     }
 
+    CsLogger.error('Poll', 'TIMEOUT — backend did not finish in ${maxWait.inSeconds}s', data: {
+      'file_id':   fileId,
+      'polls_made': pollCount,
+    });
     throw TimeoutException(
       'Backend processing timed out after ${maxWait.inSeconds}s for file $fileId',
     );
@@ -180,33 +237,58 @@ class ReportRemoteDataSource {
   // ── Fetch financial summary ─────────────────────────────────────────────────
 
   Future<ParsedSummary> fetchSummary(String fileId) async {
-    final response = await apiClient.get<Map<String, dynamic>>(
-      ApiEndpoints.ingestionSummary(fileId),
-    );
-    final j = response.data as Map<String, dynamic>;
+    CsLogger.info('Summary', 'GET /ingestion/files/$fileId/summary', data: {'file_id': fileId});
+    try {
+      final response = await apiClient.get<Map<String, dynamic>>(
+        ApiEndpoints.ingestionSummary(fileId),
+      );
+      final j = response.data as Map<String, dynamic>;
 
-    dev.log(
-      '[INFO] Summary fetched | file_id=$fileId '
-      'gross=${j['gross_revenue']} payout=${j['payout_total']} '
-      'records=${j['total_records']}',
-      name: 'ClearSettle.Upload',
-    );
+      // Log the full raw response so we can see exactly what the backend returns
+      CsLogger.info('Summary', 'Raw summary response from backend', data: {
+        'file_id':       fileId,
+        'total_records': j['total_records'],
+        'unique_orders': j['unique_orders'],
+        'gross_revenue': j['gross_revenue'],
+        'returns_total': j['returns_total'],
+        'fees_total':    j['fees_total'],
+        'tax_total':     j['tax_total'],
+        'payout_total':  j['payout_total'],
+        'net_sales':     j['net_sales'],
+        'net_settlement': j['net_settlement'],
+        'platform':      j['platform'],
+        'report_type':   j['report_type'],
+        'all_keys':      j.keys.join(', '),
+      });
 
-    // Backend returns aggregate fees_total; map to commission as the primary fee field.
-    // tax_total → totalGstOnFees; remaining → totalCommission.
-    final feesTotal = (j['fees_total'] as num?)?.toDouble() ?? 0.0;
-    final taxTotal  = (j['tax_total']  as num?)?.toDouble() ?? 0.0;
+      final feesTotal  = (j['fees_total'] as num?)?.toDouble() ?? 0.0;
+      final taxTotal   = (j['tax_total']  as num?)?.toDouble() ?? 0.0;
+      final grossSales = (j['gross_revenue'] as num?)?.toDouble() ?? 0.0;
+      final orders     = (j['unique_orders'] as int?) ?? 0;
+      final payout     = (j['payout_total']  as num?)?.toDouble() ?? 0.0;
 
-    return ParsedSummary(
-      grossSales:       (j['gross_revenue'] as num?)?.toDouble() ?? 0.0,
-      returnsValue:     (j['returns_total'] as num?)?.toDouble() ?? 0.0,
-      netSales:         (j['net_sales']     as num?)?.toDouble() ?? 0.0,
-      totalCommission:  feesTotal - taxTotal,   // fees minus tax component
-      totalGstOnFees:   taxTotal,
-      netEarnings:      (j['payout_total']  as num?)?.toDouble() ?? 0.0,
-      amountSettled:    (j['payout_total']  as num?)?.toDouble() ?? 0.0,
-      totalOrders:      (j['unique_orders'] as int?) ?? 0,
-    );
+      CsLogger.summaryReceived(
+        fileId:       fileId,
+        totalRecords: (j['total_records'] as int?) ?? 0,
+        uniqueOrders: orders,
+        grossRevenue: grossSales,
+        payoutTotal:  payout,
+      );
+
+      return ParsedSummary(
+        grossSales:      grossSales,
+        returnsValue:    (j['returns_total'] as num?)?.toDouble() ?? 0.0,
+        netSales:        (j['net_sales']     as num?)?.toDouble() ?? 0.0,
+        totalCommission: feesTotal - taxTotal,
+        totalGstOnFees:  taxTotal,
+        netEarnings:     payout,
+        amountSettled:   payout,
+        totalOrders:     orders,
+      );
+    } catch (e, st) {
+      CsLogger.error('Summary', 'fetchSummary FAILED', error: e, stack: st, data: {'file_id': fileId});
+      rethrow;
+    }
   }
 
   // ── Fetch reconciliation discrepancies ──────────────────────────────────────
@@ -215,51 +297,58 @@ class ReportRemoteDataSource {
     String fileId,
     String marketplace,
   ) async {
-    final response = await apiClient.get<Map<String, dynamic>>(
-      ApiEndpoints.ingestionReconciliation(fileId),
-      queryParameters: {'limit': 500},
-    );
-    final j = response.data as Map<String, dynamic>;
-    final summaryJ = j['summary'] as Map<String, dynamic>? ?? {};
-    final items = j['items'] as List? ?? [];
-
-    dev.log(
-      '[INFO] Reconciliation fetched | file_id=$fileId '
-      'issues=${summaryJ['total_issues']} '
-      'critical=${summaryJ['critical_count']} '
-      'recoverable=${summaryJ['recoverable']}',
-      name: 'ClearSettle.Upload',
-    );
-
-    final discrepancies = items.map((raw) {
-      final i = raw as Map<String, dynamic>;
-      final severity = _mapSeverity(i['severity'] as String? ?? 'info');
-      final absVar = (i['abs_variance'] as num?)?.toDouble() ?? 0.0;
-      final direction = i['direction'] as String? ?? '';
-      return Discrepancy(
-        type: DiscrepancyType.settlementMismatch,
-        severity: severity,
-        orderId: i['order_id'] as String?,
-        description:
-            '$direction | ₹${absVar.toStringAsFixed(2)} variance on ${i['platform'] ?? marketplace}',
-        expectedAmount: (i['expected_amount'] as num?)?.toDouble() ?? 0.0,
-        actualAmount: (i['actual_amount'] as num?)?.toDouble() ?? 0.0,
-        ruleName: 'settlement_variance',
+    CsLogger.info('Recon', 'GET /ingestion/files/$fileId/reconciliation', data: {'file_id': fileId});
+    try {
+      final response = await apiClient.get<Map<String, dynamic>>(
+        ApiEndpoints.ingestionReconciliation(fileId),
+        queryParameters: {'limit': 500},
       );
-    }).toList();
+      final j        = response.data as Map<String, dynamic>;
+      final summaryJ = j['summary'] as Map<String, dynamic>? ?? {};
+      final items    = j['items'] as List? ?? [];
 
-    final reconSummary = (j['summary'] as Map<String, dynamic>? ?? {});
-    return ReconciliationResult(
-      reportId: fileId,
-      marketplace: marketplace,
-      reconciledAt: DateTime.now(),
-      totalOrders: (reconSummary['total_issues'] as int?) ?? 0,
-      grossRevenue: 0.0,
-      totalFees: 0.0,
-      netSettlement: (reconSummary['recoverable'] as num?)?.toDouble() ?? 0.0,
-      discrepancies: discrepancies,
-      parseWarnings: [],
-    );
+      CsLogger.info('Recon', 'Reconciliation response', data: {
+        'file_id':        fileId,
+        'total_issues':   summaryJ['total_issues'],
+        'critical_count': summaryJ['critical_count'],
+        'recoverable':    summaryJ['recoverable'],
+        'items_count':    items.length,
+      });
+
+      final discrepancies = items.map((raw) {
+        final i         = raw as Map<String, dynamic>;
+        final severity  = _mapSeverity(i['severity'] as String? ?? 'info');
+        final absVar    = (i['abs_variance'] as num?)?.toDouble() ?? 0.0;
+        final direction = i['direction'] as String? ?? '';
+        return Discrepancy(
+          type: DiscrepancyType.settlementMismatch,
+          severity: severity,
+          orderId: i['order_id'] as String?,
+          description:
+              '$direction | ₹${absVar.toStringAsFixed(2)} variance on ${i['platform'] ?? marketplace}',
+          expectedAmount: (i['expected_amount'] as num?)?.toDouble() ?? 0.0,
+          actualAmount:   (i['actual_amount']   as num?)?.toDouble() ?? 0.0,
+          ruleName: 'settlement_variance',
+        );
+      }).toList();
+
+      final reconSummary = j['summary'] as Map<String, dynamic>? ?? {};
+      return ReconciliationResult(
+        reportId:     fileId,
+        marketplace:  marketplace,
+        reconciledAt: DateTime.now(),
+        totalOrders:  (reconSummary['total_issues'] as int?) ?? 0,
+        grossRevenue: 0.0,
+        totalFees:    0.0,
+        netSettlement: (reconSummary['recoverable'] as num?)?.toDouble() ?? 0.0,
+        discrepancies: discrepancies,
+        parseWarnings: [],
+      );
+    } catch (e, st) {
+      CsLogger.error('Recon', 'fetchReconciliation FAILED', error: e, stack: st,
+          data: {'file_id': fileId});
+      rethrow;
+    }
   }
 
   /// Fetches the HTML analytics report as raw bytes.
