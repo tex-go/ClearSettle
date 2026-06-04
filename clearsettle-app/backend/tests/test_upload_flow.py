@@ -31,6 +31,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+# Force UTF-8 output on Windows so Unicode symbols don't crash
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 import requests
 
 # ── Colour helpers ─────────────────────────────────────────────────────────────
@@ -42,10 +48,10 @@ CYAN   = "\033[96m"
 BOLD   = "\033[1m"
 RESET  = "\033[0m"
 
-def ok(msg):    print(f"{GREEN}  ✓ {msg}{RESET}")
-def fail(msg):  print(f"{RED}  ✗ {msg}{RESET}")
-def warn(msg):  print(f"{YELLOW}  ⚠ {msg}{RESET}")
-def info(msg):  print(f"{CYAN}  → {msg}{RESET}")
+def ok(msg):     print(f"{GREEN}  [PASS] {msg}{RESET}")
+def fail(msg):   print(f"{RED}  [FAIL] {msg}{RESET}")
+def warn(msg):   print(f"{YELLOW}  [WARN] {msg}{RESET}")
+def info(msg):   print(f"{CYAN}  [INFO] {msg}{RESET}")
 def header(msg): print(f"\n{BOLD}{msg}{RESET}")
 
 
@@ -79,9 +85,9 @@ class TestResult:
         print(f"  Total:    {total}")
         print(f"{'='*60}")
         if self.failed == 0:
-            print(f"{GREEN}{BOLD}  ALL TESTS PASSED{RESET}")
+            print(f"{GREEN}{BOLD}  *** ALL TESTS PASSED ***{RESET}")
         else:
-            print(f"{RED}{BOLD}  {self.failed} TEST(S) FAILED{RESET}")
+            print(f"{RED}{BOLD}  *** {self.failed} TEST(S) FAILED ***{RESET}")
         return self.failed == 0
 
 
