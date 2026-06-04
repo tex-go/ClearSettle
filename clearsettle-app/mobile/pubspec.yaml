@@ -47,6 +47,7 @@ dependencies:
   # Firebase — FCM push notifications + App Distribution
   firebase_core: ^3.6.0
   firebase_messaging: ^15.1.4
+  firebase_crashlytics: ^4.1.3
 
   # Typography
   google_fonts: ^6.2.1

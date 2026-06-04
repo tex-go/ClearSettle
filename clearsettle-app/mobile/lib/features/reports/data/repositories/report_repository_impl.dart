@@ -217,18 +217,26 @@ class ReportRepositoryImpl implements ReportRepository {
                  'discrepancies': recon.discrepancyCount});
 
       entry
-        ..status          = 'parsed'
-        ..platform        = status.platform.isNotEmpty ? status.platform : entry.platform
-        ..reportType      = status.reportType.isNotEmpty ? status.reportType : entry.reportType
-        ..parsedAt        = DateTime.now().toIso8601String()
-        ..totalOrders     = summary.totalOrders
-        ..grossRevenue    = summary.grossSales
-        ..totalFees       = summary.totalFees
-        ..netSettlement   = summary.netEarnings
+        ..status           = 'parsed'
+        ..platform         = status.platform.isNotEmpty ? status.platform : entry.platform
+        ..reportType       = status.reportType.isNotEmpty ? status.reportType : entry.reportType
+        ..parsedAt         = DateTime.now().toIso8601String()
+        ..totalOrders      = summary.totalOrders
+        ..grossRevenue     = summary.grossSales
+        ..totalFees        = summary.totalFees
+        ..netSettlement    = summary.netEarnings
         ..discrepancyCount = recon.discrepancyCount
-        ..parserVersion   = _kBackendParserVersion
-        ..errorMessage    = null;
+        ..parserVersion    = _kBackendParserVersion
+        ..errorMessage     = null;
       await entry.save();
+
+      CsLogger.hiveUpdated(
+        reportId:     reportId,
+        status:       'parsed',
+        totalOrders:  summary.totalOrders,
+        grossRevenue: summary.grossSales,
+        netSettlement: summary.netEarnings,
+      );
 
       return ReportDetail(
         report: _toListItem(entry),
