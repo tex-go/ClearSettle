@@ -154,5 +154,12 @@ def hash_secure_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+# Convenience wrapper used by social_auth/provider_service.py
+def create_refresh_token() -> tuple[str, str]:
+    """Return (raw_token, hashed_token). Raw is sent to client; hash is stored in DB."""
+    raw = generate_refresh_token()
+    return raw, hash_refresh_token(raw)
+
+
 # Backward-compat alias (used by auth_service.py)
 REFRESH_TOKEN_EXPIRE_DAYS: int = 7
