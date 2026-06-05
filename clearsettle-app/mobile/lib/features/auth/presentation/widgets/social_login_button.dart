@@ -193,7 +193,6 @@ class _GooglePainter extends CustomPainter {
     );
 
     // Google 'G' text (simplified as a colored arc)
-    final path = Path();
     const double gStart  = 0.1;
     const double gSweep  = 1.55;
 

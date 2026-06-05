@@ -215,7 +215,7 @@ class ReportRemoteDataSource {
           );
           return status;
         }
-      } catch (e, st) {
+      } catch (e) {
         CsLogger.warning('Poll', 'Poll request failed — will retry', data: {
           'file_id':  fileId,
           'attempt':  pollCount,
