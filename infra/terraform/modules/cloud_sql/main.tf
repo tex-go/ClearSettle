@@ -6,6 +6,7 @@ resource "google_sql_database_instance" "postgres" {
   name             = "${var.project_name}-${var.env}-pg-${random_id.db_suffix.hex}"
   database_version = "POSTGRES_15"
   region           = var.region
+  project          = var.project_id
 
   deletion_protection = var.env == "prod" ? true : false
 
@@ -64,12 +65,14 @@ resource "google_sql_database_instance" "postgres" {
 }
 
 resource "google_sql_database" "clearsettle" {
-  name     = "clearsettle"
+  name     = var.database_name
   instance = google_sql_database_instance.postgres.name
+  project  = var.project_id
 }
 
 resource "google_sql_user" "app_user" {
-  name     = "clearsettle"
+  name     = var.database_user
   instance = google_sql_database_instance.postgres.name
   password = var.db_password
+  project  = var.project_id
 }
