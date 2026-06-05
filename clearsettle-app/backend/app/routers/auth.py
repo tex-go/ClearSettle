@@ -17,6 +17,13 @@ POST /auth/verify-email            → verify email address via token
 POST /auth/invite                  → invite a team member (admin only)
 POST /auth/accept-invite           → accept invitation, create / link account
 GET  /auth/permissions             → list permission strings for current role
+
+Social Auth
+-----------
+POST /auth/google                  → Google ID token → ClearSettle JWT
+POST /auth/instagram               → Instagram OAuth code → ClearSettle JWT
+GET  /auth/social                  → list linked social providers for current user
+DELETE /auth/social/{provider}     → unlink a social provider
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -323,3 +330,203 @@ async def invite_member(
 async def accept_invite(req: AcceptInviteRequest, db: AsyncSession = Depends(get_db)):
     from app.services.auth_service import accept_invitation
     return await accept_invitation(req.token, req.password, req.name, db)
+
+
+# ── Social Auth ────────────────────────────────────────────────────────────────
+# All social auth endpoints follow the same response shape as /auth/login.
+
+from pydantic import BaseModel as _BM
+from typing import Optional as _Opt
+
+class GoogleAuthRequest(_BM):
+    id_token: str       # Google ID token from flutter google_sign_in
+
+class InstagramAuthRequest(_BM):
+    code:         _Opt[str] = None           # authorization code from OAuth redirect
+    access_token: _Opt[str] = None           # or an existing access token
+    redirect_uri: _Opt[str] = None           # must match what was used in the OAuth flow
+    use_meta_graph: bool = False             # True for Facebook Login / business accounts
+
+
+def _social_response(result, user) -> dict:
+    """Build a login response identical in shape to /auth/login."""
+    return {
+        "access_token":   result.access_token,
+        "token_type":     "bearer",
+        "refresh_token":  result.refresh_token,
+        "user": {
+            "id":             str(user.id),
+            "email":          user.email,
+            "name":           user.name,
+            "role":           user.role,
+            "email_verified": user.email_verified,
+        },
+        "is_new_user":    result.is_new_user,
+        "is_new_link":    result.is_new_link,
+        "needs_email":    result.needs_email,     # True for Instagram personal accounts
+        "placeholder_email": result.placeholder_email,
+    }
+
+
+@router.post("/google")
+async def login_with_google(
+    req: GoogleAuthRequest,
+    db:  AsyncSession = Depends(get_db),
+):
+    """
+    Authenticate with a Google ID token.
+
+    Flow:
+        1. Flutter google_sign_in authenticates the user
+        2. Send googleSignIn.currentUser.authentication.idToken here
+        3. Backend verifies the token with Google's JWKS endpoint
+        4. Finds or creates a ClearSettle user
+        5. Returns access_token + refresh_token (identical shape to /auth/login)
+
+    Google Cloud Console setup:
+        - Create OAuth 2.0 Client IDs for Android, iOS, and Web
+        - Set GOOGLE_CLIENT_ID env var to the Web client ID (or comma-separated list)
+        - The Android/iOS client IDs must be registered in the Meta app as well
+    """
+    from app.services.social_auth.google_auth import verify_google_token
+    from app.services.social_auth.provider_service import SocialAuthService, SocialProfile
+    from sqlalchemy import select
+    from app.db.models.user import User
+
+    try:
+        gprofile = await verify_google_token(req.id_token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Google token verification failed: {str(e)[:200]}",
+        )
+
+    profile = SocialProfile(
+        provider         = "google",
+        provider_user_id = gprofile.sub,
+        email            = gprofile.email,
+        name             = gprofile.name,
+        picture          = gprofile.picture,
+        email_verified   = gprofile.email_verified,
+        extra            = {"locale": gprofile.locale, "hd": gprofile.hd},
+    )
+
+    svc = SocialAuthService()
+    try:
+        result = await svc.authenticate(profile, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    user = await db.get(User, result.user_id)
+    return _social_response(result, user)
+
+
+@router.post("/instagram")
+async def login_with_instagram(
+    req: InstagramAuthRequest,
+    db:  AsyncSession = Depends(get_db),
+):
+    """
+    Authenticate with Instagram OAuth.
+
+    Flow:
+        1. Flutter opens Instagram OAuth URL via flutter_web_auth_2
+        2. Instagram redirects to clearsettle://oauth/instagram/callback?code=...
+        3. Send the code here (code field)
+        4. Backend exchanges code for token, fetches profile
+        5. Returns access_token + refresh_token
+
+    Instagram Basic Display API (personal accounts):
+        - Returns id + username only (no email)
+        - A placeholder email is generated: instagram_{id}@social.clearsettle.app
+        - needs_email=True in the response — prompt user to enter their email
+
+    Meta Graph API (business accounts, use_meta_graph=true):
+        - Returns id + name + email (if user granted email permission)
+        - needs_email=False if email was returned
+
+    Meta App setup:
+        - Create a Meta App at https://developers.facebook.com/
+        - Add Instagram Basic Display product
+        - Set INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI env vars
+        - Add clearsettle://oauth/instagram/callback as a valid OAuth redirect URI
+    """
+    from app.services.social_auth.instagram_auth import verify_instagram_token
+    from app.services.social_auth.provider_service import SocialAuthService, SocialProfile
+    from app.db.models.user import User
+
+    if not req.code and not req.access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'code' (OAuth authorization code) or 'access_token' must be provided.",
+        )
+
+    try:
+        igprofile = await verify_instagram_token(
+            code=req.code,
+            access_token=req.access_token,
+            use_meta_graph=req.use_meta_graph,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Instagram authentication failed: {str(e)[:200]}",
+        )
+
+    from datetime import datetime, timedelta
+    profile = SocialProfile(
+        provider         = "instagram",
+        provider_user_id = igprofile.provider_id,
+        email            = igprofile.email,
+        name             = igprofile.name,
+        picture          = igprofile.picture,
+        username         = igprofile.username,
+        access_token     = igprofile.access_token,
+        email_verified   = igprofile.email is not None,
+    )
+
+    svc = SocialAuthService()
+    try:
+        result = await svc.authenticate(profile, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    user = await db.get(User, result.user_id)
+    return _social_response(result, user)
+
+
+@router.get("/social")
+async def list_social_accounts(
+    db:   AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """List all linked social identity providers for the current user."""
+    from app.services.social_auth.provider_service import SocialAuthService
+    svc = SocialAuthService()
+    providers = await svc.list_linked_providers(user.id, db)
+    return {"providers": providers}
+
+
+@router.delete("/social/{provider}", status_code=200)
+async def unlink_social_account(
+    provider: str,
+    db:   AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Unlink a social identity provider from the current account.
+
+    Fails with 400 if this is the user's only authentication method
+    (no password + no other social accounts).
+    """
+    from app.services.social_auth.provider_service import SocialAuthService
+    svc = SocialAuthService()
+    try:
+        await svc.unlink_provider(user.id, provider, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"detail": f"{provider.title()} account unlinked successfully."}

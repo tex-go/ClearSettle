@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/social_login_button.dart';
 
 // ── Dark auth screen design tokens ───────────────────────────────────────────
 // Self-contained (do not pull app_colors.dart — that's the light app theme).
@@ -105,6 +106,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _passCtrl  = TextEditingController();
   bool _hidePass = true;
   String? _error;
+  bool _googleLoading    = false;
+  bool _instagramLoading = false;
   late final AnimationController _orbAnim;
 
   @override
@@ -152,6 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   String _parseError(Object e) {
     final msg = e.toString();
+    if (msg.contains('cancelled') || msg.contains('cancelled.')) return '';
     if (msg.contains('401') || msg.contains('Unauthorized')) {
       return 'Invalid email or password.';
     }
@@ -167,6 +171,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (detail != null && detail != 'Server error.') return detail;
     }
     return 'Login failed. Please try again.';
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() { _googleLoading = true; _error = null; });
+    try {
+      final result = await ref.read(authProvider.notifier).loginWithGoogle();
+      if (!mounted) return;
+      if (result.needsEmail) _showNeedsEmailDialog(result.placeholderEmail);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = _parseError(e);
+      if (msg.isNotEmpty) setState(() => _error = msg);
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
+
+  Future<void> _loginWithInstagram() async {
+    setState(() { _instagramLoading = true; _error = null; });
+    try {
+      final result = await ref.read(authProvider.notifier).loginWithInstagram();
+      if (!mounted) return;
+      if (result.needsEmail) _showNeedsEmailDialog(result.placeholderEmail);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = _parseError(e);
+      if (msg.isNotEmpty) setState(() => _error = msg);
+    } finally {
+      if (mounted) setState(() => _instagramLoading = false);
+    }
+  }
+
+  /// Instagram personal accounts don't return an email from Meta.
+  /// Show a dialog so the user can set their real email after first login.
+  void _showNeedsEmailDialog(String placeholderEmail) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _NeedsEmailDialog(
+        placeholderEmail: placeholderEmail,
+        onDone: (email) => Navigator.of(ctx).pop(),
+      ),
+    );
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -292,6 +339,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                   ),
                 ),
+              ),
+              const SizedBox(height: 20),
+              // ── Social login divider ───────────────────────────────────────
+              Row(children: [
+                const Expanded(child: Divider(color: Color(0x1AFFFFFF))),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('or continue with',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF4B6080))),
+                ),
+                const Expanded(child: Divider(color: Color(0x1AFFFFFF))),
+              ]),
+              const SizedBox(height: 14),
+              // ── Google button ─────────────────────────────────────────────
+              SocialLoginButton(
+                provider:  SocialProvider.google,
+                isLoading: _googleLoading,
+                isDisabled: _instagramLoading,
+                onPressed: _loginWithGoogle,
+              ),
+              const SizedBox(height: 10),
+              // ── Instagram button ──────────────────────────────────────────
+              SocialLoginButton(
+                provider:  SocialProvider.instagram,
+                isLoading: _instagramLoading,
+                isDisabled: _googleLoading,
+                onPressed: _loginWithInstagram,
               ),
               const SizedBox(height: 20),
               const Divider(color: Color(0x1AFFFFFF)),
@@ -598,6 +672,113 @@ class _GradientButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Email prompt for Instagram personal accounts ──────────────────────────────
+// Instagram Basic Display API doesn't return an email address.
+// Show this dialog after first Instagram login so the user can set theirs.
+
+class _NeedsEmailDialog extends StatefulWidget {
+  const _NeedsEmailDialog({
+    required this.placeholderEmail,
+    required this.onDone,
+  });
+
+  final String placeholderEmail;
+  final void Function(String email) onDone;
+
+  @override
+  State<_NeedsEmailDialog> createState() => _NeedsEmailDialogState();
+}
+
+class _NeedsEmailDialogState extends State<_NeedsEmailDialog> {
+  final _ctrl = TextEditingController();
+  final _key  = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF0D1F35),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0x1AFFFFFF)),
+      ),
+      title: const Text(
+        'Add your email',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+      ),
+      content: Form(
+        key: _key,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Instagram did not share your email.\nEnter it so you can sign in later.',
+              style: TextStyle(color: Color(0xFF8FA5BD), fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _ctrl,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'you@company.in',
+                hintStyle: const TextStyle(color: Color(0xFF4B6080)),
+                filled: true,
+                fillColor: const Color(0x12FFFFFF),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF0ABFCA)),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Email is required';
+                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) {
+                  return 'Enter a valid email address';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => widget.onDone(''),
+          child: const Text('Skip',
+              style: TextStyle(color: Color(0xFF4B6080))),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF0ABFCA),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () {
+            if (_key.currentState!.validate()) {
+              widget.onDone(_ctrl.text.trim());
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

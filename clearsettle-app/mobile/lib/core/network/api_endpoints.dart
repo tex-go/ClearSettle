@@ -10,6 +10,12 @@ abstract final class ApiEndpoints {
   static const String checkEmail     = '/auth/check-email';
   static const String acceptInvite   = '/auth/accept-invite';
 
+  // ── Social Auth ───────────────────────────────────────────────────────────
+  static const String googleLogin       = '/auth/google';
+  static const String instagramLogin    = '/auth/instagram';
+  static const String socialAccounts    = '/auth/social';
+  static String unlinkSocial(String provider) => '/auth/social/$provider';
+
   // ── Dashboard ─────────────────────────────────────────────────────────────
   static const String dashboardSummary = '/dashboard/summary';
 
