@@ -1,29 +1,34 @@
 name: Android — Build & Distribute
 
 on:
+  # Fires after auto-version pushes the vX.Y.Z tag — APK has the correct version baked in.
+  # This avoids the race condition where the distribute job runs before the version bump.
   push:
-    branches: [main]
-    paths:
-      - 'clearsettle-app/mobile/lib/**'
-      - 'clearsettle-app/mobile/android/**'
-      - 'clearsettle-app/mobile/pubspec.yaml'
-      - '.github/workflows/distribute.yml'
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
+  # Manual trigger for hotfixes / on-demand distribution
   workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Release notes for testers'
+        required: false
+        default: 'Manual build'
 
 concurrency:
   group: distribute-${{ github.ref }}
-  cancel-in-progress: false  # never cancel — auto-version bot would kill real builds
+  cancel-in-progress: false
 
 jobs:
   distribute:
     name: Build signed APK → Firebase App Distribution
     runs-on: ubuntu-latest
-    # Skip version-bump-only commits from the auto-version bot
-    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Checkout the commit the tag points to (not detached HEAD issues)
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-java@v4
         with:
@@ -58,20 +63,21 @@ jobs:
 
       - name: Build signed release APK
         working-directory: clearsettle-app/mobile
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.GOOGLE_SERVER_CLIENT_ID }} \
+            --dart-define=INSTAGRAM_APP_ID=${{ secrets.INSTAGRAM_APP_ID }}
 
-      # Upload APK via Firebase CLI (official, no tester-group required)
+      # Upload APK via Firebase CLI
       - name: Install Firebase CLI
         run: npm install -g firebase-tools@latest
 
       - name: Upload to Firebase App Distribution
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          # Pass as env var to avoid shell-quoting issues with multi-line messages
-          RELEASE_NOTES: ${{ github.event.head_commit.message }}
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes || github.event.head_commit.message || github.ref_name }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/svc.json
-          # Write to file — avoids "Too many arguments" from special chars in message
           printf '%s' "$RELEASE_NOTES" > /tmp/release-notes.txt
           GOOGLE_APPLICATION_CREDENTIALS=/tmp/svc.json \
           firebase appdistribution:distribute \
@@ -86,6 +92,6 @@ jobs:
       - name: Save APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: clearsettle-release-${{ github.sha }}
+          name: clearsettle-${{ github.ref_name }}-${{ github.sha }}
           path: clearsettle-app/mobile/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
