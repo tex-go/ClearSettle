@@ -234,15 +234,11 @@ class LedgerSyncExecutor:
     ) -> Optional[IngestionLedger]:
         """Convert a CanonicalLedgerEvent to an IngestionLedger ORM row."""
         try:
-            # Use provenance from the event, fall back to executor-level values
             ev_file_id = event.uploaded_file_id or uploaded_file_id
             ev_conn_id = event.connection_id or connection_id
             ev_job_id  = event.sync_job_id  or sync_job_id
 
             if ev_file_id is None:
-                # API connectors that don't create an UploadedFile record must
-                # pass uploaded_file_id at the executor level — raise rather than
-                # silently dropping rows.
                 raise ValueError(
                     "uploaded_file_id required in LedgerSyncExecutor.run() "
                     "when connector.source_type != manual_upload"
@@ -254,6 +250,8 @@ class LedgerSyncExecutor:
                 company_id=company_id,
                 # Provenance
                 source_type=event.source_type.value,
+                event_version=event.event_version,
+                external_event_id=event.external_event_id,
                 connection_id=ev_conn_id,
                 sync_job_id=ev_job_id,
                 # Frozen financial fields
@@ -291,11 +289,53 @@ class LedgerSyncExecutor:
         batch: list[IngestionLedger],
         fid: str,
     ) -> int:
-        for row in batch:
+        """
+        Idempotent batch insert.
+
+        Uses PostgreSQL INSERT ... ON CONFLICT (uploaded_file_id, external_event_id)
+        DO NOTHING so that:
+          1. Re-running a sync for the same date range never creates duplicate rows.
+          2. The reprocess endpoint (which deletes old rows first) still works correctly
+             for manual uploads because external_event_id is reset with each reprocess.
+
+        Rows without external_event_id (legacy manual uploads pre-1.1) fall back to
+        plain INSERT — they are deduplicated at the file level via UploadedFile.file_hash_sha256.
+        """
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        rows_with_key    = [r for r in batch if r.external_event_id]
+        rows_without_key = [r for r in batch if not r.external_event_id]
+        written = 0
+
+        # Idempotent path: rows with an external_event_id key
+        if rows_with_key:
+            stmt = pg_insert(IngestionLedger).values(
+                [
+                    {
+                        c.key: getattr(row, c.key)
+                        for c in IngestionLedger.__table__.columns
+                    }
+                    for row in rows_with_key
+                ]
+            ).on_conflict_do_nothing(
+                index_elements=["uploaded_file_id", "external_event_id"]
+            )
+            result = await db.execute(stmt)
+            written += result.rowcount if result.rowcount >= 0 else len(rows_with_key)
+
+        # Legacy path: no external_event_id (manual uploads before v1.1)
+        for row in rows_without_key:
             db.add(row)
+        written += len(rows_without_key)
+
         await db.commit()
         logger.debug(
             "LedgerSyncExecutor batch flushed",
-            extra={"count": len(batch), "uploaded_file_id": fid},
+            extra={
+                "count":           len(batch),
+                "idempotent":      len(rows_with_key),
+                "legacy":          len(rows_without_key),
+                "uploaded_file_id": fid,
+            },
         )
-        return len(batch)
+        return written

@@ -126,6 +126,12 @@ class IngestionLedger(Base):
     # ── Provenance (migration 036) ─────────────────────────────────────────────
     # manual_upload | amazon_api | flipkart_api | meesho_api | shopify_api | …
     source_type  = Column(String(30), nullable=True, index=True, server_default="manual_upload")
+    # Event schema version — "1.0" for original rows, "1.1" for rows with external_event_id
+    event_version = Column(String(10), nullable=True, server_default="1.0")
+    # Platform-native event identifier.  UNIQUE per (uploaded_file_id, external_event_id).
+    # Set by all API connectors.  Manual uploads use "row_{source_row_number}".
+    # NULL for legacy rows (pre-1.1).  Used for idempotent INSERT ON CONFLICT DO NOTHING.
+    external_event_id = Column(String(500), nullable=True)
     # FK to marketplace_connections.id (null for manual uploads)
     connection_id = Column(PG_UUID(as_uuid=True),
                            ForeignKey("marketplace_connections.id", ondelete="SET NULL"),
