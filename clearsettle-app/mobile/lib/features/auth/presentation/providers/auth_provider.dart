@@ -70,7 +70,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       final socialDS = ref.read(socialAuthDataSourceProvider);
       final result   = await socialDS.loginWithGoogle();
       await _persistSocialSession(result);
-      return SocialAuthResult(needsEmail: result.needsEmail, placeholderEmail: result.placeholderEmail);
+      return SocialAuthResult(
+        needsEmail:       result.needsEmail,
+        placeholderEmail: result.placeholderEmail,
+        isNewUser:        result.isNewUser,
+      );
     } catch (e, st) {
       CsLogger.error('AuthProvider', 'Google login failed', error: e, stack: st);
       state = const AsyncValue.data(AuthUnauthenticated());
@@ -84,7 +88,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       final socialDS = ref.read(socialAuthDataSourceProvider);
       final result   = await socialDS.loginWithInstagram();
       await _persistSocialSession(result);
-      return SocialAuthResult(needsEmail: result.needsEmail, placeholderEmail: result.placeholderEmail);
+      return SocialAuthResult(
+        needsEmail:       result.needsEmail,
+        placeholderEmail: result.placeholderEmail,
+        isNewUser:        result.isNewUser,
+      );
     } catch (e, st) {
       CsLogger.error('AuthProvider', 'Instagram login failed', error: e, stack: st);
       state = const AsyncValue.data(AuthUnauthenticated());
@@ -109,12 +117,14 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authProvider).valueOrNull?.isAuthenticated ?? false;
 });
 
-/// Returned from social login — tells the caller whether to prompt for email.
+/// Returned from social login — tells the caller how to route after login.
 class SocialAuthResult {
   const SocialAuthResult({
     required this.needsEmail,
+    required this.isNewUser,
     this.placeholderEmail = '',
   });
   final bool needsEmail;
+  final bool isNewUser;
   final String placeholderEmail;
 }

@@ -9,6 +9,7 @@ import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
+import '../features/auth/presentation/screens/social_onboarding_screen.dart';
 import '../features/auth/presentation/screens/splash_screen.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../features/disputes/presentation/screens/disputes_screen.dart';
@@ -42,7 +43,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isPublic = loc == RouteConstants.splash ||
           loc == RouteConstants.login ||
           loc == RouteConstants.register ||
-          loc == RouteConstants.forgotPassword;
+          loc == RouteConstants.forgotPassword ||
+          loc == RouteConstants.socialOnboarding;
 
       if (!isAuthenticated && !isPublic) return RouteConstants.login;
       if (isAuthenticated && loc == RouteConstants.login) {
@@ -69,6 +71,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteConstants.forgotPassword,
         builder: (_, __) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: RouteConstants.socialOnboarding,
+        builder: (_, __) => const SocialOnboardingScreen(),
       ),
 
       // ── Full-screen modals (no bottom nav / shell) ────────────────────────
