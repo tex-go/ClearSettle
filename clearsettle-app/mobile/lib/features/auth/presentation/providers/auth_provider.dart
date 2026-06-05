@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/cs_logger.dart';
 import '../../../../services/secure_storage/secure_storage_service.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/datasources/social_auth_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/entities/auth_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -59,6 +61,43 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     await AsyncValue.guard(_logout.call);
     state = const AsyncValue.data(AuthUnauthenticated());
   }
+
+  // ── Social login ──────────────────────────────────────────────────────────
+
+  Future<SocialAuthResult> loginWithGoogle() async {
+    state = const AsyncValue.loading();
+    try {
+      final socialDS = ref.read(socialAuthDataSourceProvider);
+      final result   = await socialDS.loginWithGoogle();
+      await _persistSocialSession(result);
+      return SocialAuthResult(needsEmail: result.needsEmail, placeholderEmail: result.placeholderEmail);
+    } catch (e, st) {
+      CsLogger.error('AuthProvider', 'Google login failed', error: e, stack: st);
+      state = const AsyncValue.data(AuthUnauthenticated());
+      rethrow;
+    }
+  }
+
+  Future<SocialAuthResult> loginWithInstagram() async {
+    state = const AsyncValue.loading();
+    try {
+      final socialDS = ref.read(socialAuthDataSourceProvider);
+      final result   = await socialDS.loginWithInstagram();
+      await _persistSocialSession(result);
+      return SocialAuthResult(needsEmail: result.needsEmail, placeholderEmail: result.placeholderEmail);
+    } catch (e, st) {
+      CsLogger.error('AuthProvider', 'Instagram login failed', error: e, stack: st);
+      state = const AsyncValue.data(AuthUnauthenticated());
+      rethrow;
+    }
+  }
+
+  Future<void> _persistSocialSession(SocialAuthResponse result) async {
+    final localDS   = ref.read(authLocalDataSourceProvider);
+    final authState = result.auth.toAuthState();
+    await localDS.saveSession(authState, refreshToken: result.auth.refreshToken);
+    state = AsyncValue.data(authState);
+  }
 }
 
 final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(
@@ -69,3 +108,13 @@ final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(
 final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authProvider).valueOrNull?.isAuthenticated ?? false;
 });
+
+/// Returned from social login — tells the caller whether to prompt for email.
+class SocialAuthResult {
+  const SocialAuthResult({
+    required this.needsEmail,
+    this.placeholderEmail = '',
+  });
+  final bool needsEmail;
+  final String placeholderEmail;
+}

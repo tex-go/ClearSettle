@@ -27,7 +27,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
 
     id               = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     email            = Column(String(255), unique=True, nullable=False, index=True)
-    hashed_password  = Column(String(255), nullable=False)
+    hashed_password  = Column(String(255), nullable=True)  # nullable: social-only accounts have no password
     name             = Column(String(255))
     phone            = Column(String(20), index=True)
     role             = Column(String(50), default="admin", nullable=False)
@@ -36,5 +36,6 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     is_superadmin    = Column(Boolean, default=False, nullable=False)
 
     # Relationships
-    companies      = relationship("Company",      back_populates="user", cascade="all, delete-orphan", lazy="selectin")
-    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+    companies       = relationship("Company",       back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+    refresh_tokens  = relationship("RefreshToken",  back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+    social_accounts = relationship("SocialAccount", back_populates="user", cascade="all, delete-orphan", lazy="raise")
