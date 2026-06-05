@@ -178,7 +178,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     try {
       final result = await ref.read(authProvider.notifier).loginWithGoogle();
       if (!mounted) return;
-      if (result.needsEmail) _showNeedsEmailDialog(result.placeholderEmail);
+      if (result.isNewUser) {
+        context.go(RouteConstants.socialOnboarding);
+      } else if (result.needsEmail) {
+        _showNeedsEmailDialog(result.placeholderEmail);
+      }
+      // returning user — router redirects to dashboard automatically
     } catch (e) {
       if (!mounted) return;
       final msg = _parseError(e);
@@ -193,7 +198,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     try {
       final result = await ref.read(authProvider.notifier).loginWithInstagram();
       if (!mounted) return;
-      if (result.needsEmail) _showNeedsEmailDialog(result.placeholderEmail);
+      if (result.isNewUser) {
+        context.go(RouteConstants.socialOnboarding);
+      } else if (result.needsEmail) {
+        _showNeedsEmailDialog(result.placeholderEmail);
+      }
+      // returning user — router redirects to dashboard automatically
     } catch (e) {
       if (!mounted) return;
       final msg = _parseError(e);
