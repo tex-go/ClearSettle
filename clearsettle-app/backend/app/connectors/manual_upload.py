@@ -153,32 +153,42 @@ class ManualUploadConnector(IngestionConnector):
         plat = (pipeline_result.platform or "unknown").lower()
 
         for lr in parse_result.ledger_records:
+            row_num = lr.source_row_number
+            # external_event_id is "row_{N}" for manual uploads.
+            # This makes LedgerSyncExecutor idempotent: reprocessing the same file
+            # first deletes old rows (reprocess endpoint), then re-inserts with the
+            # same key — no duplicates even if the conflict path triggers.
+            ext_id = f"row_{row_num}" if row_num is not None else None
+
             yield CanonicalLedgerEvent(
                 # Provenance
-                source_type       = SourceType.MANUAL_UPLOAD,
-                platform          = plat,
-                uploaded_file_id  = self._uploaded_file_id,
-                connection_id     = None,
-                sync_job_id       = None,
+                source_type        = SourceType.MANUAL_UPLOAD,
+                platform           = plat,
+                event_version      = "1.1",
+                uploaded_file_id   = self._uploaded_file_id,
+                connection_id      = None,
+                sync_job_id        = None,
+                # Idempotency
+                external_event_id  = ext_id,
                 # Frozen financial fields
-                transaction_type  = lr.transaction_type or "adjustment",
-                amount            = Decimal(str(lr.amount)) if lr.amount is not None else Decimal("0"),
-                order_id          = lr.order_id,
-                shipment_id       = lr.shipment_id,
-                settlement_id     = lr.settlement_id,
-                invoice_id        = getattr(lr, "invoice_id", None),
-                currency          = lr.currency or "INR",
-                transaction_date  = lr.transaction_date,
-                settlement_date   = lr.settlement_date,
+                transaction_type   = lr.transaction_type or "adjustment",
+                amount             = Decimal(str(lr.amount)) if lr.amount is not None else Decimal("0"),
+                order_id           = lr.order_id,
+                shipment_id        = lr.shipment_id,
+                settlement_id      = lr.settlement_id,
+                invoice_id         = getattr(lr, "invoice_id", None),
+                currency           = lr.currency or "INR",
+                transaction_date   = lr.transaction_date,
+                settlement_date    = lr.settlement_date,
                 # Extended
-                sku               = lr.sku,
-                product_title     = lr.product_title,
-                category          = lr.category,
-                fee_type          = lr.fee_type,
-                tax_amount        = Decimal(str(lr.tax_amount)) if lr.tax_amount is not None else None,
-                return_status     = lr.return_status,
-                payout_status     = lr.payout_status,
-                report_type       = pipeline_result.report_type,
-                source_row_number = lr.source_row_number,
-                lineage_metadata  = lr.lineage_metadata,
+                sku                = lr.sku,
+                product_title      = lr.product_title,
+                category           = lr.category,
+                fee_type           = lr.fee_type,
+                tax_amount         = Decimal(str(lr.tax_amount)) if lr.tax_amount is not None else None,
+                return_status      = lr.return_status,
+                payout_status      = lr.payout_status,
+                report_type        = pipeline_result.report_type,
+                source_row_number  = lr.source_row_number,
+                lineage_metadata   = lr.lineage_metadata,
             )
