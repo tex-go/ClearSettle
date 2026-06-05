@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../shared/widgets/cs_logo.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/social_login_button.dart';
 
@@ -25,7 +26,6 @@ abstract final class _C {
   // Teal accent — web CTA: linear-gradient(135deg,#0ABFCA,#088F99)
   static const teal   = Color(0xFF0ABFCA);
   static const teal2  = Color(0xFF088F99);
-  static const tealLt = Color(0xFF7FE4EC); // gradient text end
   static const purple = Color(0xFF7B52E8); // orb #2
 
   // Glassmorphism card — web: rgba(255,255,255,.05) / rgba(255,255,255,.1)
@@ -52,10 +52,6 @@ abstract final class _C {
 abstract final class _T {
   static const _f = 'Roboto';
 
-  static const brand = TextStyle(
-    fontFamily: _f, fontSize: 22,
-    fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5,
-  );
   static const heading = TextStyle(
     fontFamily: _f, fontSize: 20,
     fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.3,
@@ -278,23 +274,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Logo + wordmark row
-        Row(
-          children: [
-            const _LogoBadge(),
-            const SizedBox(width: 12),
-            ShaderMask(
-              shaderCallback: (b) => const LinearGradient(
-                colors: [_C.teal, _C.tealLt],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ).createShader(b),
-              child: const Text('ClearSettle', style: _T.brand),
-            ),
-          ],
-        ),
+        const CsWordmark(logoSize: 44, fontSize: 22, spacing: 12),
         const SizedBox(height: 28),
-        // Page heading + subtitle
         const Text('Sign in to ClearSettle', style: _T.heading),
         const SizedBox(height: 6),
         const Text('Manage your eCommerce settlements', style: _T.subtitle),
@@ -570,21 +551,6 @@ class _Orbs extends StatelessWidget {
     width: size, height: size,
     decoration: BoxDecoration(shape: BoxShape.circle, color: color),
   );
-}
-
-// Logo badge — transparent PNG floats on dark card background
-class _LogoBadge extends StatelessWidget {
-  const _LogoBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/images/clear_settle_logo_fintech_v4.png',
-      width: 44,
-      height: 44,
-      fit: BoxFit.contain,
-    );
-  }
 }
 
 // Input field label — matches web: 12px / 600 / #8FA5BD

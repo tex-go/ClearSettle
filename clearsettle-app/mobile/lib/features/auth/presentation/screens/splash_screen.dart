@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/route_constants.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/cs_logo.dart';
 import '../providers/auth_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -132,17 +132,7 @@ class _LogoCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.asset(
-          'assets/images/clear_settle_logo_fintech_v4.png',
-          width: 160,
-          height: 160,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(
-            Icons.account_balance_outlined,
-            color: AppColors.accent,
-            size: 80,
-          ),
-        ),
+        const CsLogoSplash(size: 140),
         const SizedBox(height: 24),
         ShaderMask(
           shaderCallback: (b) => const LinearGradient(
