@@ -107,9 +107,14 @@ services:
       ALLOWED_ORIGINS:    ${ALLOWED_ORIGINS:-https://clearsettle.in}
       SUPER_ADMIN_EMAIL:  ${SUPER_ADMIN_EMAIL:-Admin@clearsettle.com}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
-      GCS_UPLOADS_BUCKET: ${GCS_UPLOADS_BUCKET:-}
-      UPLOAD_DIR:         /app/uploads/ingestion
-      PORT:               8000
+      GCS_UPLOADS_BUCKET:    ${GCS_UPLOADS_BUCKET:-}
+      UPLOAD_DIR:            /app/uploads/ingestion
+      GOOGLE_CLIENT_ID:      ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET:  ${GOOGLE_CLIENT_SECRET:-}
+      INSTAGRAM_APP_ID:      ${INSTAGRAM_APP_ID:-}
+      INSTAGRAM_APP_SECRET:  ${INSTAGRAM_APP_SECRET:-}
+      INSTAGRAM_REDIRECT_URI: ${INSTAGRAM_REDIRECT_URI:-clearsettle://oauth/instagram/callback}
+      PORT:                  8000
     depends_on:
       postgres:
         condition: service_healthy
