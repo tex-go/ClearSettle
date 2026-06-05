@@ -1,120 +1,115 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_text_styles.dart';
 
-/// Premium floating pill bottom navigation.
+/// Spec-aligned bottom navigation bar.
 ///
-/// Selected tab: accent-filled pill background + white icon/label.
-/// Unselected: transparent background, muted icon/label.
+/// Tabs: Home | Issues | Reconcile | Analytics | More
+/// Height: 64dp (spec token AppSpacing.bottomNavHeight)
+/// Active: teal icon + teal label, no pill background
+/// Badge: red circle on Issues tab
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.alertBadgeCount = 0,
+    this.issueBadgeCount = 0,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
-  final int alertBadgeCount;
+  final int issueBadgeCount;
 
   static const _items = [
-    _NavItem(icon: Icons.grid_view_rounded, label: 'Dashboard'),
-    _NavItem(icon: Icons.receipt_long_outlined, label: 'Settlements'),
-    _NavItem(icon: Icons.notifications_outlined, label: 'Alerts'),
-    _NavItem(icon: Icons.gavel_outlined, label: 'Disputes'),
-    _NavItem(icon: Icons.settings_outlined, label: 'Settings'),
+    _NavItem(icon: Icons.home_outlined,         activeIcon: Icons.home_rounded,              label: 'Home'),
+    _NavItem(icon: Icons.warning_amber_outlined, activeIcon: Icons.warning_amber_rounded,     label: 'Issues'),
+    _NavItem(icon: Icons.sync_outlined,          activeIcon: Icons.sync_rounded,              label: 'Reconcile'),
+    _NavItem(icon: Icons.bar_chart_outlined,     activeIcon: Icons.bar_chart_rounded,         label: 'Analytics'),
+    _NavItem(icon: Icons.grid_view_outlined,     activeIcon: Icons.grid_view_rounded,         label: 'More'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? AppColors.surfaceDark : AppColors.surface;
+    final isDark    = Theme.of(context).brightness == Brightness.dark;
+    final bgColor   = isDark ? AppColors.surfaceDark : AppColors.surface;
+    final topBorder = isDark ? AppColors.borderDark  : AppColors.border;
 
     return Container(
+      height: 64 + MediaQuery.of(context).padding.bottom,
       decoration: BoxDecoration(
         color: bgColor,
-        border: Border(
-          top: BorderSide(color: AppColors.divider.withValues(alpha: isDark ? 0.15 : 1.0)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        border: Border(top: BorderSide(color: topBorder)),
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: SizedBox(
+          height: 64,
           child: Row(
-            children: List.generate(_items.length, (index) {
-              final item = _items[index];
-              final isSelected = index == currentIndex;
-              final showBadge = index == 2 && alertBadgeCount > 0;
+            children: List.generate(_items.length, (i) {
+              final item      = _items[i];
+              final isActive  = i == currentIndex;
+              final showBadge = i == 1 && issueBadgeCount > 0; // Issues tab
 
               return Expanded(
-                child: GestureDetector(
-                  onTap: () => onTap(index),
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSelected ? 12 : 0,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.accent.withValues(alpha: 0.12)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(
-                              isSelected
-                                  ? _activeIcon(item.icon)
-                                  : item.icon,
-                              size: 22,
-                              color: isSelected
-                                  ? AppColors.accent
-                                  : isDark
-                                      ? AppColors.textSecondaryDark
-                                      : AppColors.textSecondary,
-                            ),
-                            if (showBadge)
-                              Positioned(
-                                top: -4,
-                                right: -8,
-                                child: _Badge(count: alertBadgeCount),
+                child: Semantics(
+                  label: i == 1 && issueBadgeCount > 0
+                      ? '${item.label}, $issueBadgeCount unresolved'
+                      : item.label,
+                  selected: isActive,
+                  child: GestureDetector(
+                    onTap: () => onTap(i),
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: Icon(
+                                  isActive ? item.activeIcon : item.icon,
+                                  key: ValueKey(isActive),
+                                  size: 22,
+                                  color: isActive
+                                      ? AppColors.teal500
+                                      : isDark
+                                          ? AppColors.textMutedDark
+                                          : AppColors.textMuted,
+                                ),
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
-                        AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 200),
-                          style: AppTextStyles.labelSmall.copyWith(
-                            fontSize: 10,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: isSelected
-                                ? AppColors.accent
-                                : isDark
-                                    ? AppColors.textSecondaryDark
-                                    : AppColors.textSecondary,
+                              if (showBadge)
+                                Positioned(
+                                  top: -5,
+                                  right: -10,
+                                  child: _Badge(count: issueBadgeCount),
+                                ),
+                            ],
                           ),
-                          child: Text(item.label, maxLines: 1),
-                        ),
-                      ],
+                          const SizedBox(height: 3),
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 10,
+                              fontWeight: isActive
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              color: isActive
+                                  ? AppColors.teal500
+                                  : isDark
+                                      ? AppColors.textMutedDark
+                                      : AppColors.textMuted,
+                            ),
+                            child: Text(item.label, maxLines: 1),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -125,23 +120,15 @@ class AppBottomNav extends StatelessWidget {
       ),
     );
   }
-
-  IconData _activeIcon(IconData base) {
-    // IconData overrides == so cannot be a const-map key
-    final map = <IconData, IconData>{
-      Icons.grid_view_rounded:      Icons.grid_view_rounded,
-      Icons.receipt_long_outlined:  Icons.receipt_long,
-      Icons.notifications_outlined: Icons.notifications,
-      Icons.gavel_outlined:         Icons.gavel,
-      Icons.settings_outlined:      Icons.settings,
-    };
-    return map[base] ?? base;
-  }
 }
 
 class _NavItem {
-  const _NavItem({required this.icon, required this.label});
-  final IconData icon;
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
+  final IconData icon, activeIcon;
   final String label;
 }
 
@@ -153,17 +140,18 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
       decoration: BoxDecoration(
-        color: AppColors.error,
+        color: AppColors.danger,
         borderRadius: BorderRadius.circular(8),
       ),
-      constraints: const BoxConstraints(minWidth: 16),
       child: Text(
         count > 99 ? '99+' : '$count',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 9,
           fontWeight: FontWeight.w700,
+          fontFamily: 'Inter',
         ),
         textAlign: TextAlign.center,
       ),

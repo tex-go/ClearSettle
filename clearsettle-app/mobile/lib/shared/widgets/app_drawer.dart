@@ -15,7 +15,11 @@ import 'cs_logo.dart';
 /// Sections: Overview | Finance | Operations | Coming Soon
 /// Colors: #061B3A background, #00C2D1 active highlight.
 class AppDrawer extends ConsumerWidget {
-  const AppDrawer({super.key});
+  const AppDrawer({super.key, this.embedded = false});
+
+  /// When [embedded] is true the widget renders as a plain Column (no Drawer
+  /// wrapper) so it can be placed directly inside a Row for tablet layout.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,128 +28,80 @@ class AppDrawer extends ConsumerWidget {
         auth is AuthAuthenticated ? auth.sellerName : 'Seller';
     final location = GoRouterState.of(context).matchedLocation;
 
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _DrawerHeader(sellerName: sellerName),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(top: 4, bottom: 16),
+            children: [
+              // ── Overview ────────────────────────────────────────────────
+              const _NavGroup(label: 'Overview'),
+              _NavItem(icon: Icons.home_outlined,      label: 'Dashboard',
+                  route: RouteConstants.dashboard,     location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.warning_amber_outlined, label: 'Issues',
+                  route: RouteConstants.issues,        location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.sync_outlined,      label: 'Reconcile',
+                  route: RouteConstants.reconcile,     location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.bar_chart_outlined, label: 'Analytics',
+                  route: RouteConstants.analytics,     location: location, context: context, embedded: embedded),
+
+              const _NavDivider(),
+
+              // ── Tools ───────────────────────────────────────────────────
+              const _NavGroup(label: 'Tools'),
+              _NavItem(icon: Icons.smart_toy_outlined,       label: 'AI Copilot',
+                  route: RouteConstants.copilot,        location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.account_balance_outlined, label: 'Payouts',
+                  route: RouteConstants.payouts,        location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.notifications_outlined,   label: 'Notifications',
+                  route: RouteConstants.notifications,  location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.description_outlined,     label: 'Reports',
+                  route: RouteConstants.reports,        location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.receipt_long_outlined,    label: 'Settlements',
+                  route: RouteConstants.settlements,    location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.gavel_outlined,           label: 'Disputes',
+                  route: RouteConstants.disputes,       location: location, context: context, embedded: embedded),
+              _NavItem(icon: Icons.electrical_services_outlined, label: 'Platforms',
+                  route: RouteConstants.connectedPlatforms, location: location, context: context, embedded: embedded),
+
+              const _NavDivider(),
+
+              // ── Coming Soon ─────────────────────────────────────────────
+              const _NavGroup(label: 'Coming Soon'),
+              _NavItemComingSoon(icon: Icons.receipt_outlined,    label: 'GST Filing',
+                  context: context, route: RouteConstants.gst, embedded: embedded),
+              _NavItemComingSoon(icon: Icons.inventory_2_outlined, label: 'Inventory',
+                  context: context, route: RouteConstants.inventorySync, embedded: embedded),
+
+              const _NavDivider(),
+
+              // ── Account ─────────────────────────────────────────────────
+              const _NavGroup(label: 'Account'),
+              _NavItem(icon: Icons.settings_outlined, label: 'Settings',
+                  route: RouteConstants.settings, location: location, context: context, embedded: embedded),
+              _NavLogout(ref: ref, context: context, embedded: embedded),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Text(
+            'ClearSettle v${AppConfig.appVersion}',
+            style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMutedDark),
+          ),
+        ),
+      ],
+    );
+
+    if (embedded) return body;
+
     return Drawer(
       backgroundColor: AppColors.darkNavy,
       surfaceTintColor: Colors.transparent,
-      width: 288,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _DrawerHeader(sellerName: sellerName),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(top: 4, bottom: 16),
-                children: [
-                  // ── Overview ──────────────────────────────────────────────
-                  const _NavGroup(label: 'Overview'),
-                  _NavItem(
-                    icon: Icons.dashboard_outlined,
-                    label: 'Dashboard',
-                    route: RouteConstants.dashboard,
-                    location: location,
-                    context: context,
-                  ),
-                  _NavItem(
-                    icon: Icons.electrical_services_outlined,
-                    label: 'Connected Platforms',
-                    route: RouteConstants.connectedPlatforms,
-                    location: location,
-                    context: context,
-                  ),
-
-                  const _NavDivider(),
-
-                  // ── Operations ────────────────────────────────────────────
-                  const _NavGroup(label: 'Operations'),
-                  _NavItem(
-                    icon: Icons.upload_file_outlined,
-                    label: 'Upload Center',
-                    route: RouteConstants.uploadCenter,
-                    location: location,
-                    context: context,
-                  ),
-                  _NavItem(
-                    icon: Icons.compare_arrows_outlined,
-                    label: 'Reconciliation',
-                    route: RouteConstants.reports,
-                    location: location,
-                    context: context,
-                  ),
-                  _NavItem(
-                    icon: Icons.receipt_long_outlined,
-                    label: 'Settlements',
-                    route: RouteConstants.settlements,
-                    location: location,
-                    context: context,
-                  ),
-                  _NavItem(
-                    icon: Icons.gavel_outlined,
-                    label: 'Disputes',
-                    route: RouteConstants.disputes,
-                    location: location,
-                    context: context,
-                  ),
-                  _NavItem(
-                    icon: Icons.notifications_outlined,
-                    label: 'Alerts',
-                    route: RouteConstants.alerts,
-                    location: location,
-                    context: context,
-                  ),
-                  _NavItem(
-                    icon: Icons.description_outlined,
-                    label: 'Reports',
-                    route: RouteConstants.reports,
-                    location: location,
-                    context: context,
-                  ),
-
-                  const _NavDivider(),
-
-                  // ── Coming Soon ───────────────────────────────────────────
-                  const _NavGroup(label: 'Coming Soon'),
-                  _NavItemComingSoon(
-                    icon: Icons.receipt_outlined,
-                    label: 'GST Filing',
-                    context: context,
-                    route: RouteConstants.gst,
-                  ),
-                  _NavItemComingSoon(
-                    icon: Icons.inventory_2_outlined,
-                    label: 'Inventory',
-                    context: context,
-                    route: RouteConstants.inventorySync,
-                  ),
-
-                  const _NavDivider(),
-
-                  // ── Account ───────────────────────────────────────────────
-                  const _NavGroup(label: 'Account'),
-                  _NavItem(
-                    icon: Icons.settings_outlined,
-                    label: 'Settings',
-                    route: RouteConstants.settings,
-                    location: location,
-                    context: context,
-                  ),
-                  _NavLogout(ref: ref, context: context),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Text(
-                'ClearSettle v${AppConfig.appVersion}',
-                style: AppTextStyles.labelSmall.copyWith(
-                  color: AppColors.textMutedDark,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      width: 280,
+      child: SafeArea(child: body),
     );
   }
 }
@@ -210,6 +166,7 @@ class _NavItem extends StatelessWidget {
     required this.route,
     required this.location,
     required this.context,
+    this.embedded = false,
   });
 
   final IconData icon;
@@ -217,6 +174,7 @@ class _NavItem extends StatelessWidget {
   final String route;
   final String location;
   final BuildContext context;
+  final bool embedded;
 
   bool get _isActive => location == route || location.startsWith('$route/');
 
@@ -226,15 +184,15 @@ class _NavItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
       child: Material(
         color: _isActive
-            ? AppColors.primary.withValues(alpha: 0.14)
+            ? AppColors.teal500.withValues(alpha: 0.12)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          splashColor: AppColors.primary.withValues(alpha: 0.1),
-          highlightColor: AppColors.primary.withValues(alpha: 0.06),
+          splashColor: AppColors.teal500.withValues(alpha: 0.1),
+          highlightColor: AppColors.teal500.withValues(alpha: 0.06),
           onTap: () {
-            Navigator.of(context).pop();
+            if (!embedded) Navigator.of(context).pop();
             context.go(route);
           },
           child: Padding(
@@ -245,7 +203,7 @@ class _NavItem extends StatelessWidget {
                   icon,
                   size: 18,
                   color: _isActive
-                      ? AppColors.primary
+                      ? AppColors.teal500
                       : AppColors.textSecondaryDark,
                 ),
                 const SizedBox(width: 12),
@@ -254,7 +212,7 @@ class _NavItem extends StatelessWidget {
                     label,
                     style: AppTextStyles.bodySmall.copyWith(
                       color: _isActive
-                          ? AppColors.primary
+                          ? AppColors.teal500
                           : AppColors.textSecondaryDark,
                       fontWeight:
                           _isActive ? FontWeight.w600 : FontWeight.w500,
@@ -263,11 +221,9 @@ class _NavItem extends StatelessWidget {
                 ),
                 if (_isActive)
                   Container(
-                    width: 4,
-                    height: 4,
+                    width: 4, height: 4,
                     decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
+                      color: AppColors.teal500, shape: BoxShape.circle,
                     ),
                   ),
               ],
@@ -287,12 +243,14 @@ class _NavItemComingSoon extends StatelessWidget {
     required this.label,
     required this.context,
     required this.route,
+    this.embedded = false,
   });
 
   final IconData icon;
   final String label;
   final BuildContext context;
   final String route;
+  final bool embedded;
 
   @override
   Widget build(BuildContext _) {
@@ -303,9 +261,9 @@ class _NavItemComingSoon extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          splashColor: AppColors.primary.withValues(alpha: 0.06),
+          splashColor: AppColors.teal500.withValues(alpha: 0.06),
           onTap: () {
-            Navigator.of(context).pop();
+            if (!embedded) Navigator.of(context).pop();
             context.go(route);
           },
           child: Padding(
@@ -393,9 +351,14 @@ class _NavDivider extends StatelessWidget {
 // ── Logout ────────────────────────────────────────────────────────────────────
 
 class _NavLogout extends StatelessWidget {
-  const _NavLogout({required this.ref, required this.context});
+  const _NavLogout({
+    required this.ref,
+    required this.context,
+    this.embedded = false,
+  });
   final WidgetRef ref;
   final BuildContext context;
+  final bool embedded;
 
   @override
   Widget build(BuildContext _) {
@@ -408,7 +371,7 @@ class _NavLogout extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           splashColor: AppColors.error.withValues(alpha: 0.1),
           onTap: () async {
-            Navigator.of(context).pop();
+            if (!embedded) Navigator.of(context).pop();
             await ref.read(authProvider.notifier).logout();
             if (context.mounted) context.go('/login');
           },
