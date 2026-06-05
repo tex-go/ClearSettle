@@ -40,6 +40,7 @@ from app.schemas.auth import (
     RefreshRequest,
     RegisterRequest,
     ResetPasswordRequest,
+    SocialCompleteProfileRequest,
     TokenResponse,
     VerifyEmailRequest,
 )
@@ -509,6 +510,54 @@ async def list_social_accounts(
     svc = SocialAuthService()
     providers = await svc.list_linked_providers(user.id, db)
     return {"providers": providers}
+
+
+@router.post("/social/complete-profile", status_code=200)
+async def social_complete_profile(
+    req:  SocialCompleteProfileRequest,
+    db:   AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Called by first-time social-login users to fill in business details.
+
+    Social login creates a placeholder company ('{Name}'s Company') and no phone.
+    This endpoint updates:
+      - user.phone, user.role
+      - company.name, company.state, company.city, company.gstin
+    """
+    from sqlalchemy import select
+    from app.db.models.company import Company
+
+    # Update user fields
+    user.phone = req.phone
+    user.role  = req.role
+
+    # Update the user's primary company
+    result = await db.execute(
+        select(Company).where(Company.user_id == user.id).limit(1)
+    )
+    company = result.scalar_one_or_none()
+    if company:
+        company.name  = req.company_name
+        company.state = req.state
+        if req.city:
+            company.city  = req.city
+        if req.gstin:
+            company.gstin = req.gstin
+    else:
+        company = Company(
+            id=__import__("uuid").uuid4(),
+            user_id=user.id,
+            name=req.company_name,
+            state=req.state,
+            city=req.city,
+            gstin=req.gstin,
+        )
+        db.add(company)
+
+    await db.commit()
+    return {"detail": "Profile updated successfully."}
 
 
 @router.delete("/social/{provider}", status_code=200)

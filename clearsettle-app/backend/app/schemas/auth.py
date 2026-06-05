@@ -163,3 +163,45 @@ class AcceptInviteRequest(BaseModel):
         if errors:
             raise ValueError("; ".join(errors))
         return v
+
+
+class SocialCompleteProfileRequest(BaseModel):
+    """Sent by first-time social-login users to fill in business details."""
+    phone:        str
+    company_name: str
+    state:        str
+    role:         str = "company_admin"
+    city:         Optional[str] = None
+    gstin:        Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def phone_format(cls, v: str) -> str:
+        digits = re.sub(r"[\s\-\(\)\+]", "", v)
+        if not digits.isdigit() or len(digits) < 10:
+            raise ValueError("Invalid phone number")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def valid_role(cls, v: str) -> str:
+        allowed = {
+            "company_admin", "business_owner", "finance_manager", "accountant",
+            "reconciliation_analyst", "gst_consultant", "auditor",
+            "ca_admin", "ca_reviewer", "ca_staff", "ca_viewer",
+            "branch_manager", "branch_accountant", "branch_viewer",
+            "admin", "member", "finance", "seller", "viewer",
+        }
+        if v not in allowed:
+            raise ValueError(f"Invalid role: {v}")
+        return v
+
+    @field_validator("gstin")
+    @classmethod
+    def gstin_format(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        pattern = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
+        if not re.match(pattern, v.upper()):
+            raise ValueError("Invalid GSTIN format (expected: 22AAAAA0000A1Z5)")
+        return v.upper()

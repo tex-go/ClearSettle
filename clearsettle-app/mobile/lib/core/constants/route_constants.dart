@@ -1,9 +1,10 @@
 abstract final class RouteConstants {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  static const String splash         = '/';
-  static const String login          = '/login';
-  static const String register       = '/register';
-  static const String forgotPassword = '/forgot-password';
+  static const String splash            = '/';
+  static const String login             = '/login';
+  static const String register          = '/register';
+  static const String forgotPassword    = '/forgot-password';
+  static const String socialOnboarding  = '/social-onboarding';
 
   // ── Shell (bottom-nav) tabs ───────────────────────────────────────────────
   static const String dashboard   = '/dashboard';
