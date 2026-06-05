@@ -478,8 +478,7 @@ class _OrderCard extends StatelessWidget {
             _DetailRow('Commission Rate', '${order.rawCommissionRate!.toStringAsFixed(1)}%'),
           if (order.totalFees > 0)
             _DetailRow('Marketplace Fees', CurrencyFormatter.format(order.totalFees)),
-          if (order.orderDate != null)
-            _DetailRow('Order Date', DateFormatter.formatShort(order.orderDate!)),
+          _DetailRow('Order Date', DateFormatter.formatShortString(order.orderDate)),
         ]);
 
       case FinancialDetailType.returns:
@@ -488,16 +487,14 @@ class _OrderCard extends StatelessWidget {
             _DetailRow('Qty Returned', '${order.quantity}'),
           if (order.reverseShippingFee != 0)
             _DetailRow('Reverse Shipping', CurrencyFormatter.format(order.reverseShippingFee.abs())),
-          if (order.orderDate != null)
-            _DetailRow('Return Date', DateFormatter.formatShort(order.orderDate!)),
+          _DetailRow('Return Date', DateFormatter.formatShortString(order.orderDate)),
           if (order.status != null)
             _DetailRow('Status', order.status!),
         ]);
 
       case FinancialDetailType.cancellations:
         rows.addAll([
-          if (order.orderDate != null)
-            _DetailRow('Date', DateFormatter.formatShort(order.orderDate!)),
+          _DetailRow('Date', DateFormatter.formatShortString(order.orderDate)),
           if (order.status != null)
             _DetailRow('Reason', order.status!),
         ]);
@@ -509,16 +506,14 @@ class _OrderCard extends StatelessWidget {
             _DetailRow('Total Fees', '− ${CurrencyFormatter.format(order.totalFees)}'),
           _DetailRow('Net', CurrencyFormatter.format(order.grossAmount - order.totalFees),
               highlight: true),
-          if (order.orderDate != null)
-            _DetailRow('Date', DateFormatter.formatShort(order.orderDate!)),
+          _DetailRow('Date', DateFormatter.formatShortString(order.orderDate)),
         ]);
 
       case FinancialDetailType.netSettlement:
         rows.addAll([
           if (order.settlementId != null)
             _DetailRow('Settlement ID', order.settlementId!),
-          if (order.settlementDate != null)
-            _DetailRow('Settlement Date', DateFormatter.formatShort(order.settlementDate!)),
+          _DetailRow('Settlement Date', DateFormatter.formatShortString(order.settlementDate)),
           if (order.grossAmount != 0)
             _DetailRow('Sale Amount', CurrencyFormatter.format(order.grossAmount)),
           if (order.totalFees > 0)

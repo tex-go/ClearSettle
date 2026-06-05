@@ -3,30 +3,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/constants/route_constants.dart';
-import '../features/alerts/presentation/providers/alerts_provider.dart';
+import '../core/theme/app_colors.dart';
+import '../features/issues/presentation/providers/issues_provider.dart';
 import '../shared/widgets/app_bottom_nav.dart';
 import '../shared/widgets/app_drawer.dart';
 
-/// Global key used by child screens (e.g. DashboardScreen) to
-/// programmatically open the navigation drawer without needing a BuildContext
-/// that reaches the AppShell Scaffold.
 final _shellScaffoldKey = GlobalKey<ScaffoldState>();
+
+/// Breakpoint at which sidebar becomes persistent and bottom nav is hidden.
+const _tabletBreakpoint = 768.0;
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
 
   final Widget child;
 
+  /// Spec-aligned shell tabs — matches AppBottomNav order exactly.
   static const _routes = [
     RouteConstants.dashboard,
-    RouteConstants.settlements,
-    RouteConstants.alerts,
-    RouteConstants.disputes,
-    RouteConstants.settings,
+    RouteConstants.issues,
+    RouteConstants.reconcile,
+    RouteConstants.analytics,
+    RouteConstants.more,
   ];
 
-  /// Open the side drawer from any screen within the shell.
-  static void openDrawer() => _shellScaffoldKey.currentState?.openDrawer();
+  static void openDrawer() =>
+      _shellScaffoldKey.currentState?.openDrawer();
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
@@ -36,7 +38,18 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(unreadAlertCountProvider);
+    final issueCount  = ref.watch(issueCountProvider);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet    = screenWidth >= _tabletBreakpoint;
+
+    if (isTablet) {
+      return _TabletShell(
+        currentIndex: _currentIndex(context),
+        issueCount: issueCount,
+        onNavTap: (i) => context.go(_routes[i]),
+        child: child,
+      );
+    }
 
     return Scaffold(
       key: _shellScaffoldKey,
@@ -44,8 +57,51 @@ class AppShell extends ConsumerWidget {
       body: child,
       bottomNavigationBar: AppBottomNav(
         currentIndex: _currentIndex(context),
-        alertBadgeCount: unread,
-        onTap: (index) => context.go(_routes[index]),
+        issueBadgeCount: issueCount,
+        onTap: (i) => context.go(_routes[i]),
+      ),
+    );
+  }
+}
+
+// ── Tablet layout — persistent sidebar + no bottom nav ────────────────────────
+
+class _TabletShell extends StatelessWidget {
+  const _TabletShell({
+    required this.child,
+    required this.currentIndex,
+    required this.issueCount,
+    required this.onNavTap,
+  });
+
+  final Widget child;
+  final int currentIndex;
+  final int issueCount;
+  final ValueChanged<int> onNavTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark    = Theme.of(context).brightness == Brightness.dark;
+    final sidebarBg = isDark ? AppColors.surfaceDark : AppColors.surface;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.border;
+
+    return Scaffold(
+      body: Row(
+        children: [
+          // Persistent sidebar (280dp spec width)
+          SizedBox(
+            width: 280,
+            child: Container(
+              decoration: BoxDecoration(
+                color: sidebarBg,
+                border: Border(right: BorderSide(color: borderColor)),
+              ),
+              child: const AppDrawer(embedded: true),
+            ),
+          ),
+          // Main content
+          Expanded(child: child),
+        ],
       ),
     );
   }

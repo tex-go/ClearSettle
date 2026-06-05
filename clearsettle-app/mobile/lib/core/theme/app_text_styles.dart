@@ -244,21 +244,25 @@ abstract final class AppTextStyles {
   static const TextStyle mono = monoMedium;
 }
 
-/// 8-point spacing grid.
+/// 8-point spacing grid — matches spec exactly.
 abstract final class AppSpacing {
   static const double s1 =  4;
   static const double s2 =  8;
   static const double s3 = 12;
   static const double s4 = 16;  // Default page padding
   static const double s5 = 20;
-  static const double s6 = 24;  // Card padding
-  static const double s7 = 32;  // Section spacing
-  static const double s8 = 40;  // Page top padding
-  static const double s9 = 48;  // Hero spacing
+  static const double s6 = 24;
+  static const double s7 = 32;
+  static const double s8 = 40;
+  static const double s9 = 48;
 
-  static const double pageHorizontal = 16;
-  static const double cardPadding    = 20;
-  static const double sectionGap     = 24;
+  // Named layout tokens (spec-aligned)
+  static const double pageHorizontal   = 16; // screen H padding — all screens
+  static const double cardPadding      = 16; // card internal padding — all sides
+  static const double cardGap          = 12; // card-to-card gap
+  static const double sectionGap       = 24; // between major sections
+  static const double bottomNavHeight  = 64; // bottom nav bar height
+  static const double appBarHeight     = 56; // top app bar height
 }
 
 /// Border-radius tokens.

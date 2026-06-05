@@ -5,8 +5,19 @@ abstract final class DateFormatter {
   static final DateFormat _dateTime = DateFormat('dd MMM yyyy, hh:mm a');
   static final DateFormat _time = DateFormat('hh:mm a');
   static final DateFormat _relative = DateFormat('dd MMM');
+  static final DateFormat _short = DateFormat('d MMM');
 
   static String formatDate(DateTime date) => _date.format(date);
+
+  /// Day + short month, no year. e.g. "5 Jan"
+  static String formatShort(DateTime date) => _short.format(date);
+
+  /// Parse an ISO date string then format short. Returns the raw string on failure.
+  static String formatShortString(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '—';
+    final dt = DateTime.tryParse(dateStr);
+    return dt != null ? _short.format(dt) : dateStr;
+  }
 
   static String formatDateTime(DateTime date) => _dateTime.format(date);
 
