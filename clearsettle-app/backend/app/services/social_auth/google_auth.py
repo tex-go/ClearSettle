@@ -66,11 +66,27 @@ async def verify_google_token(id_token: str) -> GoogleProfile:
 
     try:
         from google.oauth2 import id_token as google_id_token
-        from google.auth.transport import requests as google_requests
+        import urllib.request
     except ImportError:
         raise RuntimeError(
             "google-auth is not installed. Run: pip install google-auth>=2.0.0"
         )
+
+    # Use stdlib urllib transport — avoids requiring the `requests` package.
+    # google-auth's transport interface expects __call__ to return a response
+    # object with .status (int), .headers (dict), and .data (bytes).
+    class _Response:
+        def __init__(self, status, headers, data):
+            self.status = status
+            self.headers = headers
+            self.data = data
+
+    class _UrllibRequest:
+        """Minimal google-auth transport using stdlib urllib (no extra deps)."""
+        def __call__(self, url, method="GET", body=None, headers=None, timeout=30, **_):
+            req = urllib.request.Request(url, data=body, headers=headers or {}, method=method)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return _Response(resp.status, dict(resp.headers), resp.read())
 
     # Try each client ID (handles web + Android + iOS client IDs)
     last_exc: Exception = ValueError("No client IDs configured")
@@ -78,7 +94,7 @@ async def verify_google_token(id_token: str) -> GoogleProfile:
         try:
             idinfo = google_id_token.verify_oauth2_token(
                 id_token,
-                google_requests.Request(),
+                _UrllibRequest(),
                 client_id,
             )
 
