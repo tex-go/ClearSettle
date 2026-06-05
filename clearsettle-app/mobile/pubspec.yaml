@@ -44,6 +44,9 @@ dependencies:
   # OAuth — browser-based OAuth 2.0 with Chrome Custom Tabs
   flutter_web_auth_2: ^4.0.0
 
+  # Social Login
+  google_sign_in: ^6.2.1
+
   # Firebase — FCM push notifications + App Distribution
   firebase_core: ^3.6.0
   firebase_messaging: ^15.1.4
