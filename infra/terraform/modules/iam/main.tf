@@ -1,70 +1,128 @@
-# ── VM Service Account ─────────────────────────────────────────────────────────
-resource "google_service_account" "vm" {
-  account_id   = "${var.project_name}-${var.env}-vm-sa"
-  display_name = "ClearSettle ${var.env} VM Service Account"
+# ── Service Accounts ──────────────────────────────────────────────────────────
+
+resource "google_service_account" "api" {
+  account_id   = "${var.project_name}-${var.env}-api-sa"
+  display_name = "ClearSettle ${var.env} API Service Account"
+  description  = "Identity for Cloud Run API service"
   project      = var.project_id
 }
 
-# VM needs: Secret Manager read, Cloud SQL, Storage, Logging, Monitoring
-resource "google_project_iam_member" "vm_secret_accessor" {
-  project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${google_service_account.vm.email}"
-}
-resource "google_project_iam_member" "vm_sql_client" {
-  project = var.project_id
-  role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.vm.email}"
-}
-resource "google_project_iam_member" "vm_log_writer" {
-  project = var.project_id
-  role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.vm.email}"
-}
-resource "google_project_iam_member" "vm_metric_writer" {
-  project = var.project_id
-  role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${google_service_account.vm.email}"
-}
-resource "google_project_iam_member" "vm_artifact_reader" {
-  project = var.project_id
-  role    = "roles/artifactregistry.reader"
-  member  = "serviceAccount:${google_service_account.vm.email}"
+resource "google_service_account" "worker" {
+  account_id   = "${var.project_name}-${var.env}-worker-sa"
+  display_name = "ClearSettle ${var.env} Worker Service Account"
+  description  = "Identity for Cloud Run worker service"
+  project      = var.project_id
 }
 
-# ── CI/CD Service Account (GitHub Actions) ────────────────────────────────────
+resource "google_service_account" "scheduler" {
+  account_id   = "${var.project_name}-${var.env}-scheduler-sa"
+  display_name = "ClearSettle ${var.env} Scheduler Service Account"
+  description  = "Identity for Cloud Scheduler (publishes Pub/Sub messages)"
+  project      = var.project_id
+}
+
+resource "google_service_account" "job" {
+  account_id   = "${var.project_name}-${var.env}-job-sa"
+  display_name = "ClearSettle ${var.env} Job Service Account"
+  description  = "Identity for Cloud Run Jobs (batch processing)"
+  project      = var.project_id
+}
+
 resource "google_service_account" "ci" {
   account_id   = "${var.project_name}-ci-sa"
   display_name = "ClearSettle CI/CD Service Account"
+  description  = "Identity for GitHub Actions — push images, deploy Cloud Run"
   project      = var.project_id
 }
 
-# CI needs: push to Artifact Registry, SSH via IAP to VM
-resource "google_project_iam_member" "ci_artifact_writer" {
-  project = var.project_id
-  role    = "roles/artifactregistry.writer"
-  member  = "serviceAccount:${google_service_account.ci.email}"
-}
-resource "google_project_iam_member" "ci_iap_tunnel" {
-  project = var.project_id
-  role    = "roles/iap.tunnelResourceAccessor"
-  member  = "serviceAccount:${google_service_account.ci.email}"
-}
-resource "google_project_iam_member" "ci_compute_viewer" {
-  project = var.project_id
-  role    = "roles/compute.viewer"
-  member  = "serviceAccount:${google_service_account.ci.email}"
-}
-resource "google_project_iam_member" "ci_oslogin" {
-  project = var.project_id
-  role    = "roles/compute.osLogin"
-  member  = "serviceAccount:${google_service_account.ci.email}"
+# ── API Service Account — least-privilege roles ───────────────────────────────
+
+locals {
+  api_roles = [
+    "roles/secretmanager.secretAccessor",
+    "roles/cloudsql.client",
+    "roles/storage.objectAdmin",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/pubsub.publisher",
+    "roles/cloudtrace.agent",
+  ]
+
+  worker_roles = [
+    "roles/secretmanager.secretAccessor",
+    "roles/cloudsql.client",
+    "roles/storage.objectAdmin",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/pubsub.subscriber",
+    "roles/pubsub.publisher",
+    "roles/cloudtrace.agent",
+  ]
+
+  scheduler_roles = [
+    "roles/pubsub.publisher",
+    "roles/run.invoker",
+    "roles/logging.logWriter",
+  ]
+
+  job_roles = [
+    "roles/secretmanager.secretAccessor",
+    "roles/cloudsql.client",
+    "roles/storage.objectAdmin",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/cloudtrace.agent",
+  ]
+
+  ci_roles = [
+    "roles/artifactregistry.writer",
+    "roles/run.admin",
+    "roles/iam.serviceAccountUser",
+    "roles/storage.objectAdmin",
+  ]
 }
 
-# ── Workload Identity Federation for GitHub Actions (no key files) ────────────
+resource "google_project_iam_member" "api" {
+  for_each = toset(local.api_roles)
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.api.email}"
+}
+
+resource "google_project_iam_member" "worker" {
+  for_each = toset(local.worker_roles)
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.worker.email}"
+}
+
+resource "google_project_iam_member" "scheduler" {
+  for_each = toset(local.scheduler_roles)
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.scheduler.email}"
+}
+
+resource "google_project_iam_member" "job" {
+  for_each = toset(local.job_roles)
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.job.email}"
+}
+
+resource "google_project_iam_member" "ci" {
+  for_each = toset(local.ci_roles)
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.ci.email}"
+}
+
+# ── Workload Identity Federation (GitHub Actions — keyless auth) ───────────────
+
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "${var.project_name}-github-pool"
   display_name              = "GitHub Actions Pool"
+  description               = "OIDC pool for keyless GitHub Actions authentication"
   project                   = var.project_id
 }
 
@@ -82,6 +140,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "google.subject"       = "assertion.sub"
     "attribute.actor"      = "assertion.actor"
     "attribute.repository" = "assertion.repository"
+    "attribute.ref"        = "assertion.ref"
   }
 
   attribute_condition = "attribute.repository == \"${var.github_repo}\""
