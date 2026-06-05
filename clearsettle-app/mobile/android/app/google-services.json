@@ -12,7 +12,20 @@
           "package_name": "com.clearsettle.mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "584187700377-686fclmdpb985d9tn1kld7e988l70mok.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.clearsettle.mobile",
+            "certificate_hash": "c9fe61519d1ed548f0db911cf82dd3fb04cd59a6"
+          }
+        },
+        {
+          "client_id": "584187700377-ugjucd6hcbne74kc2c9171hh71vrisjt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCF-MGq7sSc89l6mEEoPheM6jE3Ml-QBOo"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "584187700377-ugjucd6hcbne74kc2c9171hh71vrisjt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
