@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import io
 import json
 import logging
 import os
@@ -22,6 +23,11 @@ import re
 import sys
 import time
 import uuid
+
+# Force UTF-8 on Windows terminals so Unicode ✅/❌/═ render correctly
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
