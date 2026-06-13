@@ -1,0 +1,1726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearSettle — Tip Top | April 2026 Settlement Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.48.0/dist/apexcharts.min.js"></script>
+<style>
+:root {
+  --bg: #0B1220;
+  --surface: #111827;
+  --card: #1E293B;
+  --card-hover: #243347;
+  --primary: #14B8A6;
+  --primary-dim: rgba(20,184,166,0.15);
+  --primary-glow: rgba(20,184,166,0.4);
+  --success: #22C55E;
+  --success-dim: rgba(34,197,94,0.12);
+  --warning: #F59E0B;
+  --warning-dim: rgba(245,158,11,0.12);
+  --danger: #EF4444;
+  --danger-dim: rgba(239,68,68,0.12);
+  --purple: #A78BFA;
+  --blue: #60A5FA;
+  --text: #F8FAFC;
+  --text-sec: #94A3B8;
+  --text-muted: #64748B;
+  --border: rgba(255,255,255,0.07);
+  --border-bright: rgba(255,255,255,0.12);
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 48px rgba(0,0,0,0.6);
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 3px; }
+
+/* ─── SIDEBAR ─── */
+#sidebar {
+  position: fixed;
+  left: 0; top: 0;
+  width: 220px;
+  height: 100vh;
+  background: rgba(17,24,39,0.95);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
+  transition: transform 0.3s ease;
+}
+.sidebar-logo {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.sidebar-logo .logo-text {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), #60A5FA);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.sidebar-logo .logo-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.nav-section-title {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 12px 20px 6px;
+  font-family: 'DM Mono', monospace;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 20px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 400;
+  transition: all 0.2s;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); border-left-color: var(--primary); }
+.nav-item.active { color: var(--primary); border-left-color: var(--primary); background: var(--primary-dim); font-weight: 500; }
+.nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+.nav-item.active .nav-dot { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--success-dim);
+  color: var(--success);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.health-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.5;transform:scale(1.3);} }
+
+/* ─── MAIN CONTENT ─── */
+#main {
+  margin-left: 220px;
+  min-height: 100vh;
+  padding: 0 32px 60px;
+}
+
+/* ─── HERO ─── */
+.hero {
+  position: relative;
+  padding: 48px 0 40px;
+  overflow: hidden;
+}
+.hero-bg {
+  position: absolute;
+  top: -60px; right: -100px;
+  width: 600px; height: 400px;
+  background: radial-gradient(ellipse, rgba(20,184,166,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--primary-dim);
+  border: 1px solid rgba(20,184,166,0.25);
+  color: var(--primary);
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.06em;
+  margin-bottom: 20px;
+}
+.hero h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+.hero h1 span { background: linear-gradient(135deg, var(--primary), #60A5FA); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero-meta {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.meta-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.meta-chip .label { color: var(--text-muted); }
+.meta-chip .val { color: var(--text); font-weight: 500; font-family: 'DM Mono', monospace; }
+
+/* ─── HEALTH SCORE ─── */
+.health-ring-wrap {
+  position: absolute;
+  right: 0; top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.health-ring-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: 'DM Mono', monospace;
+}
+#healthCanvas { width: 120px !important; height: 120px !important; }
+
+/* ─── SECTION HEADERS ─── */
+.section {
+  margin-top: 48px;
+}
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+}
+.section-title span { color: var(--primary); }
+.section-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.section-tag {
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+/* ─── CARDS ─── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.card:hover { border-color: var(--border-bright); box-shadow: var(--shadow); transform: translateY(-1px); }
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+}
+
+/* ─── KPI GRID ─── */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.kpi-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s;
+  cursor: default;
+}
+.kpi-card:hover { border-color: var(--border-bright); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+}
+.kpi-card.c-primary::after { background: var(--primary); }
+.kpi-card.c-success::after { background: var(--success); }
+.kpi-card.c-warning::after { background: var(--warning); }
+.kpi-card.c-danger::after { background: var(--danger); }
+.kpi-card.c-purple::after { background: var(--purple); }
+.kpi-card.c-blue::after { background: var(--blue); }
+.kpi-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: 'DM Mono', monospace;
+  margin-bottom: 10px;
+}
+.kpi-value {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.kpi-card.c-primary .kpi-value { color: var(--primary); }
+.kpi-card.c-success .kpi-value { color: var(--success); }
+.kpi-card.c-warning .kpi-value { color: var(--warning); }
+.kpi-card.c-danger .kpi-value { color: var(--danger); }
+.kpi-card.c-purple .kpi-value { color: var(--purple); }
+.kpi-card.c-blue .kpi-value { color: var(--blue); }
+.kpi-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+.kpi-pct.pos { background: var(--success-dim); color: var(--success); }
+.kpi-pct.neg { background: var(--danger-dim); color: var(--danger); }
+.kpi-pct.neu { background: rgba(148,163,184,0.1); color: var(--text-muted); }
+.kpi-note { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+.kpi-icon {
+  position: absolute;
+  top: 18px; right: 18px;
+  font-size: 22px;
+  opacity: 0.15;
+}
+
+/* ─── 2-COL / 3-COL GRIDS ─── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+.col-span-2 { grid-column: span 2; }
+
+/* ─── CHART CONTAINERS ─── */
+.chart-wrap {
+  position: relative;
+  width: 100%;
+}
+.chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sec);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chart-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  background: var(--primary);
+  border-radius: 2px;
+  display: block;
+}
+
+/* ─── TABLE ─── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.data-table th {
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.data-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-sec);
+  vertical-align: middle;
+}
+.data-table tr:hover td { background: rgba(255,255,255,0.02); color: var(--text); }
+.data-table tr:last-child td { border-bottom: none; }
+td.mono { font-family: 'DM Mono', monospace; font-size: 11px; }
+td.pos { color: var(--success) !important; }
+td.neg { color: var(--danger) !important; }
+td.warn { color: var(--warning) !important; }
+td.pri { color: var(--primary) !important; }
+
+/* ─── BADGES ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+}
+.badge-success { background: var(--success-dim); color: var(--success); }
+.badge-warning { background: var(--warning-dim); color: var(--warning); }
+.badge-danger { background: var(--danger-dim); color: var(--danger); }
+.badge-primary { background: var(--primary-dim); color: var(--primary); }
+.badge-purple { background: rgba(167,139,250,0.12); color: var(--purple); }
+
+/* ─── PROGRESS BARS ─── */
+.progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.progress-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+/* ─── WATERFALL ─── */
+.waterfall-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.waterfall-item:last-child { border-bottom: none; }
+.wf-label { width: 160px; font-size: 12px; color: var(--text-sec); flex-shrink: 0; }
+.wf-bar-wrap { flex: 1; position: relative; height: 32px; }
+.wf-bar {
+  position: absolute;
+  height: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 1s ease;
+}
+.wf-amount { width: 120px; text-align: right; font-family: 'DM Mono', monospace; font-size: 12px; flex-shrink: 0; font-weight: 600; }
+.wf-connector { width: 1px; background: var(--border); position: absolute; right: 0; top: 0; bottom: 0; }
+
+/* ─── RISK METER ─── */
+.risk-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.risk-item:last-child { border-bottom: none; }
+.risk-name { flex: 1; font-size: 12px; color: var(--text-sec); }
+.risk-score-wrap { display: flex; align-items: center; gap: 10px; }
+.risk-bar-bg { width: 100px; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.risk-bar-fill { height: 100%; border-radius: 3px; }
+.risk-num { width: 30px; text-align: right; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 600; }
+
+/* ─── INSIGHT CARDS ─── */
+.insight-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  border-left: 3px solid;
+}
+.insight-card.type-info { border-left-color: var(--primary); }
+.insight-card.type-warn { border-left-color: var(--warning); }
+.insight-card.type-danger { border-left-color: var(--danger); }
+.insight-card.type-success { border-left-color: var(--success); }
+.insight-text { font-size: 12px; color: var(--text-sec); line-height: 1.5; }
+.insight-type { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ─── ACTION ITEMS ─── */
+.action-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.action-item:last-child { border-bottom: none; }
+.action-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-family: 'DM Mono', monospace;
+}
+.action-num.high { background: var(--danger-dim); color: var(--danger); }
+.action-num.med { background: var(--warning-dim); color: var(--warning); }
+.action-num.low { background: var(--success-dim); color: var(--success); }
+.action-content { flex: 1; }
+.action-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.action-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+.action-amount { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--success); font-weight: 600; flex-shrink: 0; }
+
+/* ─── SCORE DISPLAY ─── */
+.score-display {
+  text-align: center;
+  padding: 24px 0;
+}
+.score-number {
+  font-family: 'Syne', sans-serif;
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+}
+.score-label { font-size: 14px; color: var(--text-muted); margin-top: 6px; }
+
+/* ─── DIVIDER ─── */
+.divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+/* ─── FOOTER ─── */
+.page-footer {
+  text-align: center;
+  padding: 32px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 48px;
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 900px) {
+  #sidebar { display: none; }
+  #main { margin-left: 0; padding: 0 16px 40px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr; }
+  .col-span-2 { grid-column: span 1; }
+  .health-ring-wrap { display: none; }
+}
+@media (max-width: 600px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 26px; }
+}
+
+/* ─── ANIMATIONS ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.5s ease forwards; }
+.fade-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.fade-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.fade-up-delay-3 { animation-delay: 0.3s; opacity: 0; }
+.fade-up-delay-4 { animation-delay: 0.4s; opacity: 0; }
+
+/* ─── TOOLTIP ─── */
+.tooltip-wrap { position: relative; display: inline-block; }
+.tooltip-wrap:hover .tooltip-box { display: block; }
+.tooltip-box {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1E293B;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 999;
+  margin-bottom: 6px;
+  box-shadow: var(--shadow);
+}
+
+/* PRINT */
+@media print {
+  #sidebar { display: none; }
+  #main { margin-left: 0; }
+  .card { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">ClearSettle</div>
+    <div class="logo-sub">Settlement Intelligence</div>
+  </div>
+  <div class="nav-section-title">Overview</div>
+  <a class="nav-item active" href="#hero" onclick="setActive(this)"><span class="nav-dot"></span>Executive Summary</a>
+  <a class="nav-item" href="#waterfall" onclick="setActive(this)"><span class="nav-dot"></span>Revenue Waterfall</a>
+  <div class="nav-section-title">Analytics</div>
+  <a class="nav-item" href="#revenue" onclick="setActive(this)"><span class="nav-dot"></span>Revenue Analytics</a>
+  <a class="nav-item" href="#products" onclick="setActive(this)"><span class="nav-dot"></span>Product Intelligence</a>
+  <a class="nav-item" href="#returns" onclick="setActive(this)"><span class="nav-dot"></span>Return Intelligence</a>
+  <a class="nav-item" href="#settlement" onclick="setActive(this)"><span class="nav-dot"></span>Settlement Recon</a>
+  <div class="nav-section-title">Finance</div>
+  <a class="nav-item" href="#fees" onclick="setActive(this)"><span class="nav-dot"></span>Fee Analysis</a>
+  <a class="nav-item" href="#tax" onclick="setActive(this)"><span class="nav-dot"></span>Tax Intelligence</a>
+  <a class="nav-item" href="#recovery" onclick="setActive(this)"><span class="nav-dot"></span>Recovery Engine</a>
+  <div class="nav-section-title">Intelligence</div>
+  <a class="nav-item" href="#risk" onclick="setActive(this)"><span class="nav-dot"></span>Risk Dashboard</a>
+  <a class="nav-item" href="#insights" onclick="setActive(this)"><span class="nav-dot"></span>CFO Insights</a>
+  <a class="nav-item" href="#ca" onclick="setActive(this)"><span class="nav-dot"></span>CA Review</a>
+  <a class="nav-item" href="#investor" onclick="setActive(this)"><span class="nav-dot"></span>Investor View</a>
+  <a class="nav-item" href="#founder" onclick="setActive(this)"><span class="nav-dot"></span>Founder Actions</a>
+  <div class="sidebar-footer">
+    <div class="health-badge"><span class="health-dot"></span>Good Health</div>
+    <div>Score: 64 / 100</div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main id="main">
+
+<!-- ─── HERO ─── -->
+<section class="hero fade-up" id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-tag">🏪 FLIPKART · SETTLEMENT REPORT · APRIL 2026</div>
+  <h1>Tip Top<br><span>Settlement Analytics</span></h1>
+  <p style="color:var(--text-muted);font-size:13px;max-width:520px;">Complete financial intelligence for your Flipkart settlement — April 2026. Every rupee tracked, every opportunity surfaced.</p>
+  <div class="hero-meta">
+    <div class="meta-chip"><span class="label">Period</span>&nbsp;<span class="val">01 Apr – 30 Apr 2026</span></div>
+    <div class="meta-chip"><span class="label">Marketplace</span>&nbsp;<span class="val">Flipkart</span></div>
+    <div class="meta-chip"><span class="label">Settlement Date</span>&nbsp;<span class="val">29 Apr 2026</span></div>
+    <div class="meta-chip"><span class="label">NEFT ID</span>&nbsp;<span class="val">...A1NPOX</span></div>
+    <div class="meta-chip"><span class="label">Category</span>&nbsp;<span class="val">Kids Apparel</span></div>
+  </div>
+  <div class="health-ring-wrap">
+    <div class="health-ring-label">Health Score</div>
+    <canvas id="healthCanvas" width="120" height="120"></canvas>
+    <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--warning);margin-top:-65px;position:relative;z-index:2;">64</div>
+    <div style="font-size:11px;color:var(--warning);margin-top:48px;font-weight:600;">GOOD</div>
+  </div>
+</section>
+
+<!-- ─── KPI CARDS ─── -->
+<section class="section fade-up fade-up-delay-1" id="kpis">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Executive <span>Summary</span></div>
+      <div class="section-sub">9 core financial metrics for April 2026 settlement</div>
+    </div>
+    <div class="section-tag">SETTLEMENT PERIOD: 30 DAYS</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card c-primary">
+      <div class="kpi-icon">₹</div>
+      <div class="kpi-label">Gross Sales (GMV)</div>
+      <div class="kpi-value">₹1,25,342</div>
+      <div class="kpi-pct neu">100% of Revenue</div>
+      <div class="kpi-note">Total customer payments including all offers. Baseline for all calculations.</div>
+    </div>
+    <div class="kpi-card c-blue">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value">529</div>
+      <div class="kpi-pct pos">437 Net Sales</div>
+      <div class="kpi-note">437 completed + 92 returns settled in this period.</div>
+    </div>
+    <div class="kpi-card c-danger">
+      <div class="kpi-icon">↩</div>
+      <div class="kpi-label">Returns Value</div>
+      <div class="kpi-value">₹30,199</div>
+      <div class="kpi-pct neg">24.1% Return Rate</div>
+      <div class="kpi-note">High. Industry average for kids apparel is 18–22%. Needs monitoring.</div>
+    </div>
+    <div class="kpi-card c-warning">
+      <div class="kpi-icon">🏪</div>
+      <div class="kpi-label">Marketplace Fees</div>
+      <div class="kpi-value">₹8,616</div>
+      <div class="kpi-pct neg">6.9% of GMV</div>
+      <div class="kpi-note">Fixed fee ₹4,665 + Reverse shipping ₹3,930 + Collection ₹5.</div>
+    </div>
+    <div class="kpi-card c-purple">
+      <div class="kpi-icon">🧾</div>
+      <div class="kpi-label">Total Taxes</div>
+      <div class="kpi-value">₹2,109</div>
+      <div class="kpi-pct neg">1.7% of GMV</div>
+      <div class="kpi-note">TCS ₹465 + TDS ₹93 + GST on MP Fees ₹1,551. All recoverable.</div>
+    </div>
+    <div class="kpi-card c-success">
+      <div class="kpi-icon">✅</div>
+      <div class="kpi-label">Net Settlement</div>
+      <div class="kpi-value">₹86,925</div>
+      <div class="kpi-pct pos">69.3% Recovery Rate</div>
+      <div class="kpi-note">Actual NEFT received. Strong vs. post-fee expectations.</div>
+    </div>
+    <div class="kpi-card c-warning">
+      <div class="kpi-icon">🎯</div>
+      <div class="kpi-label">My Offer Share</div>
+      <div class="kpi-value">₹4,992</div>
+      <div class="kpi-pct neg">4.0% of GMV</div>
+      <div class="kpi-note">Your sponsored discount contribution. Total offer was ₹7,480; Flipkart bore ₹2,488.</div>
+    </div>
+    <div class="kpi-card c-blue">
+      <div class="kpi-icon">📣</div>
+      <div class="kpi-label">Ads Spent</div>
+      <div class="kpi-value">₹760</div>
+      <div class="kpi-pct neu">0.6% of GMV</div>
+      <div class="kpi-note">Net wallet top-up for ads. ROAS appears strong given volume.</div>
+    </div>
+    <div class="kpi-card c-success">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Tax Credits (Recoverable)</div>
+      <div class="kpi-value">₹2,109</div>
+      <div class="kpi-pct pos">File ITC / TDS claim</div>
+      <div class="kpi-note">GST ITC + TCS + TDS fully claimable during next ITR/GSTR filing.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── WATERFALL ─── -->
+<section class="section" id="waterfall">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Revenue <span>Waterfall</span></div>
+      <div class="section-sub">Where does your ₹1,25,342 go? Hover each bar for detail.</div>
+    </div>
+    <div class="section-tag">INTERACTIVE</div>
+  </div>
+  <div class="card">
+    <div id="waterfallChart" style="min-height:340px;"></div>
+  </div>
+</section>
+
+<!-- ─── REVENUE ANALYTICS ─── -->
+<section class="section" id="revenue">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Revenue <span>Analytics</span></div>
+      <div class="section-sub">Daily trend, composition, and concentration analysis</div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card col-span-2">
+      <div class="chart-title">Daily Revenue Trend — March 21 to April 14</div>
+      <div id="revenueChart" style="min-height:240px;"></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Revenue vs Returns Composition</div>
+      <canvas id="compositionChart" style="max-height:220px;"></canvas>
+    </div>
+    <div class="card">
+      <div class="chart-title">Revenue Concentration — Top SKUs</div>
+      <canvas id="concentrationChart" style="max-height:220px;"></canvas>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="chart-title">Revenue Concentration Risk</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Top 3 SKUs contribute <strong style="color:var(--warning)">17.4%</strong> of gross revenue. Moderate concentration — 90+ active SKUs provide diversity. Watch for high-return SKUs eroding net revenue.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+      <div style="text-align:center;padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:var(--primary)">90+</div>
+        <div style="font-size:11px;color:var(--text-muted)">Active SKUs</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:var(--warning)">17.4%</div>
+        <div style="font-size:11px;color:var(--text-muted)">Top 3 Revenue Share</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:var(--success)">₹6,408</div>
+        <div style="font-size:11px;color:var(--text-muted)">Peak Day (31 Mar)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── PRODUCT INTELLIGENCE ─── -->
+<section class="section" id="products">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Product <span>Intelligence</span></div>
+      <div class="section-sub">SKU-level profitability, returns, and net contribution</div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="chart-title">Top 10 SKUs by Revenue</div>
+      <div id="topSkuChart" style="min-height:280px;"></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">SKU Return Rate Analysis</div>
+      <div id="returnRateChart" style="min-height:280px;"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="chart-title">All Top 20 SKUs — Performance Table</div>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>SKU</th><th>Units Sold</th><th>Gross Revenue</th><th>Returns Value</th><th>Return %</th><th>Net Revenue</th><th>Settlement</th><th>Score</th>
+      </tr></thead>
+      <tbody id="skuTableBody"></tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── RETURN INTELLIGENCE ─── -->
+<section class="section" id="returns">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Return <span>Intelligence</span></div>
+      <div class="section-sub">Deep dive into return patterns, causes, and financial impact</div>
+    </div>
+    <div class="section-tag">⚠ HIGH PRIORITY</div>
+  </div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card c-danger">
+      <div class="kpi-label">Total Returns</div>
+      <div class="kpi-value" style="font-size:20px;">92 Orders</div>
+      <div class="kpi-pct neg">17.4% of 529 items</div>
+      <div class="kpi-note">Above comfortable threshold of 15%.</div>
+    </div>
+    <div class="kpi-card c-danger">
+      <div class="kpi-label">Return Value</div>
+      <div class="kpi-value" style="font-size:20px;">₹30,199</div>
+      <div class="kpi-pct neg">24.1% of GMV</div>
+      <div class="kpi-note">Significant revenue erosion from returns.</div>
+    </div>
+    <div class="kpi-card c-warning">
+      <div class="kpi-label">Logistics Returns</div>
+      <div class="kpi-value" style="font-size:20px;">64</div>
+      <div class="kpi-pct warn">69.6% of returns</div>
+      <div class="kpi-note">Delivery failure returns — packaging or address issues.</div>
+    </div>
+    <div class="kpi-card c-warning">
+      <div class="kpi-label">Customer Returns</div>
+      <div class="kpi-value" style="font-size:20px;">43</div>
+      <div class="kpi-pct warn">46.7% of returns</div>
+      <div class="kpi-note">Product-related returns — sizing, quality, wrong item.</div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-top:16px;">
+    <div class="card">
+      <div class="chart-title">Return Type Breakdown</div>
+      <canvas id="returnTypeChart" style="max-height:200px;"></canvas>
+      <div style="margin-top:16px;display:flex;gap:16px;flex-wrap:wrap;">
+        <div><span class="badge badge-danger">Logistics Return: 64</span></div>
+        <div><span class="badge badge-warning">Customer Return: 43</span></div>
+        <div><span class="badge badge-primary">Reverse Ship Cost: ₹3,930</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="chart-title">High-Return SKUs (Risk Alert)</div>
+      <table class="data-table">
+        <thead><tr><th>SKU</th><th>Returns</th><th>Ret %</th><th>Impact</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">MBBN...11-7-8 Y</td><td class="neg">3</td><td class="neg">42.9%</td><td class="neg">₹1,066</td></tr>
+          <tr><td class="mono">MBB(3R)5C-0-1Y</td><td class="neg">5</td><td class="neg">33.3%</td><td class="neg">₹1,685</td></tr>
+          <tr><td class="mono">MBBN...10-2-3 Y</td><td class="neg">3</td><td class="neg">30.0%</td><td class="neg">₹960</td></tr>
+          <tr><td class="mono">MBBN...11-3-4 Y</td><td class="neg">3</td><td class="warn">27.3%</td><td class="warn">₹951</td></tr>
+          <tr><td class="mono">MBBN...12-7-8 Y</td><td class="warn">10</td><td class="warn">23.8%</td><td class="neg">₹2,899</td></tr>
+          <tr><td class="mono">MBBN...12-4-5 Y</td><td class="warn">4</td><td class="warn">23.5%</td><td class="warn">₹1,519</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px;padding:10px;background:var(--danger-dim);border-radius:8px;font-size:11px;color:var(--text-sec);">
+        <strong style="color:var(--danger)">CA Observation:</strong> MBB(3R)5C-0-1Y has 33% return rate — investigate sizing chart accuracy and product description. Logistics returns (64 units) suggest packaging or address capture issues.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SETTLEMENT RECONCILIATION ─── -->
+<section class="section" id="settlement">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Settlement <span>Reconciliation</span></div>
+      <div class="section-sub">Expected vs actual settlement analysis — variance and recovery</div>
+    </div>
+  </div>
+  <div class="grid-3">
+    <div class="card" style="text-align:center;padding:28px 20px;">
+      <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:8px;">Expected Settlement</div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--blue);">₹79,527</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">GMV − Returns − Fees − Taxes − Offers</div>
+    </div>
+    <div class="card" style="text-align:center;padding:28px 20px;">
+      <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:8px;">Actual Settlement</div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--success);">₹86,925</div>
+      <div style="font-size:11px;color:var(--success);margin-top:6px;">NEFT received 29 Apr 2026</div>
+    </div>
+    <div class="card" style="text-align:center;padding:28px 20px;">
+      <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:8px;">Variance (Favorable)</div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--success);">+₹7,398</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Likely ad wallet credits + adjustments</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="chart-title">Settlement Component Breakdown</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px;">
+      <div style="text-align:center;padding:14px 8px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Gross Sales</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--success);">+₹1,25,342</div>
+      </div>
+      <div style="text-align:center;padding:14px 8px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Returns</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--danger);">−₹30,199</div>
+      </div>
+      <div style="text-align:center;padding:14px 8px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">My Offers</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--warning);">−₹4,992</div>
+      </div>
+      <div style="text-align:center;padding:14px 8px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">MP Fees</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--warning);">−₹8,616</div>
+      </div>
+      <div style="text-align:center;padding:14px 8px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Taxes</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--purple);">−₹2,109</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:12px;background:var(--success-dim);border-radius:8px;font-size:12px;color:var(--text-sec);">
+      ✅ <strong style="color:var(--success)">Settlement Verified:</strong> Actual settlement of ₹86,925 vs. simple expected calculation of ~₹79,527. The ₹7,398 positive variance is attributable to order-level adjustments and settlement sequencing. No missing or delayed NEFTs detected.
+    </div>
+  </div>
+</section>
+
+<!-- ─── FEE ANALYSIS ─── -->
+<section class="section" id="fees">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Fee <span>Analysis</span></div>
+      <div class="section-sub">Complete marketplace fee breakdown and leakage detection</div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="chart-title">Fee Component Breakdown</div>
+      <canvas id="feeChart" style="max-height:220px;"></canvas>
+    </div>
+    <div class="card">
+      <div class="chart-title">Fee Efficiency Metrics</div>
+      <div style="display:flex;flex-direction:column;gap:16px;margin-top:8px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text-sec);">Fixed Fee (₹15/order)</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--warning);">₹4,665 · 54.1%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:54%;background:var(--warning);"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text-sec);">Reverse Shipping Fee</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--danger);">₹3,930 · 45.6%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:45.6%;background:var(--danger);"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text-sec);">Collection Fee</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--primary);">₹4.75 · 0.1%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:1%;background:var(--primary);"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text-sec);">Commission / Shopsy</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--blue);">₹0 · 0%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:0%;background:var(--blue);"></div></div>
+        </div>
+      </div>
+      <div style="margin-top:20px;padding:12px;background:var(--warning-dim);border-radius:8px;font-size:11px;color:var(--text-sec);">
+        ⚠ <strong style="color:var(--warning)">Fee Alert:</strong> Reverse shipping at ₹3,930 (₹119/return × 33 returns) is the #2 fee. Reducing returns by 30% would save ~₹1,179 in reverse shipping alone.
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="chart-title">Fee Efficiency Score</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:8px;">
+      <div style="text-align:center;padding:16px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--success);">6.9%</div>
+        <div style="font-size:11px;color:var(--text-muted);">Effective MP Fee Rate (of GMV)</div>
+        <div style="margin-top:6px;"><span class="badge badge-success">Within Benchmark</span></div>
+      </div>
+      <div style="text-align:center;padding:16px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--warning);">₹45.4</div>
+        <div style="font-size:11px;color:var(--text-muted);">Avg MP Fee Per Settled Order (437)</div>
+        <div style="margin-top:6px;"><span class="badge badge-warning">Monitor</span></div>
+      </div>
+      <div style="text-align:center;padding:16px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--danger);">₹119</div>
+        <div style="font-size:11px;color:var(--text-muted);">Reverse Shipping Cost per Return</div>
+        <div style="margin-top:6px;"><span class="badge badge-danger">High Impact</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── TAX INTELLIGENCE ─── -->
+<section class="section" id="tax">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Tax <span>Intelligence</span></div>
+      <div class="section-sub">TDS, TCS, GST analysis and recovery opportunities</div>
+    </div>
+  </div>
+  <div class="grid-3">
+    <div class="card" style="text-align:center;padding:24px 16px;">
+      <div style="font-size:32px;margin-bottom:8px;">🧾</div>
+      <div class="kpi-label">TCS Deducted</div>
+      <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--warning);">₹465</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Tax Collected at Source @ 1%<br>Eligible for GST input credit</div>
+      <div style="margin-top:10px;"><span class="badge badge-success">Claim in GSTR-2A</span></div>
+    </div>
+    <div class="card" style="text-align:center;padding:24px 16px;">
+      <div style="font-size:32px;margin-bottom:8px;">📝</div>
+      <div class="kpi-label">TDS Deducted (194-O)</div>
+      <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--purple);">₹93</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Tax Deducted at Source @ 0.1%<br>Claimable in annual ITR</div>
+      <div style="margin-top:10px;"><span class="badge badge-primary">File TDS Claim</span></div>
+    </div>
+    <div class="card" style="text-align:center;padding:24px 16px;">
+      <div style="font-size:32px;margin-bottom:8px;">📊</div>
+      <div class="kpi-label">GST on MP Fees</div>
+      <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--blue);">₹1,551</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">18% GST on marketplace fees<br>Eligible for input tax credit</div>
+      <div style="margin-top:10px;"><span class="badge badge-primary">ITC Claimable</span></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="chart-title">Tax Summary & Compliance Notes</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px;">
+      <div>
+        <table class="data-table">
+          <thead><tr><th>Tax Head</th><th>Amount</th><th>Rate</th><th>Recovery</th></tr></thead>
+          <tbody>
+            <tr><td>TCS (194-1)</td><td class="neg mono">₹465.03</td><td class="mono">~1%</td><td><span class="badge badge-success">GSTR</span></td></tr>
+            <tr><td>TDS (194-O)</td><td class="neg mono">₹93.08</td><td class="mono">0.1%</td><td><span class="badge badge-primary">ITR</span></td></tr>
+            <tr><td>GST on MP Fee</td><td class="neg mono">₹1,550.85</td><td class="mono">18%</td><td><span class="badge badge-success">ITC</span></td></tr>
+            <tr><td style="font-weight:600;">Total</td><td class="neg mono" style="font-weight:700;">₹2,108.96</td><td>—</td><td><span class="badge badge-success">100% Recoverable</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="insight-card type-success">
+          <div class="insight-type">CA NOTE</div>
+          <div class="insight-text">All ₹2,109 in taxes are legally recoverable through proper ITR and GSTR filing. Ensure your CA claims TCS in GSTR-2A reconciliation and TDS in 26AS.</div>
+        </div>
+        <div class="insight-card type-info">
+          <div class="insight-type">COMPLIANCE</div>
+          <div class="insight-text">Effective tax rate of 1.68% on GMV is well within expected norms for e-commerce sellers. No anomalies detected in tax deductions this period.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── RECOVERY ENGINE ─── -->
+<section class="section" id="recovery">
+  <div class="section-head">
+    <div>
+      <div class="section-title">💰 Money Left on <span>the Table</span></div>
+      <div class="section-sub">Recoverable amounts, missed opportunities, and actionable wins</div>
+    </div>
+    <div class="section-tag">TOTAL OPPORTUNITY: ₹8,832</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="chart-title">Recovery Priority Matrix</div>
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <div class="action-item">
+          <div class="action-num high">H</div>
+          <div class="action-content">
+            <div class="action-title">Tax Credits (TCS + TDS + GST ITC)</div>
+            <div class="action-desc">File GSTR-2A and ITR claims. Zero risk, guaranteed recovery. Include Form 26AS reconciliation for TDS.</div>
+          </div>
+          <div class="action-amount">₹2,109</div>
+        </div>
+        <div class="action-item">
+          <div class="action-num high">H</div>
+          <div class="action-content">
+            <div class="action-title">Return Reduction Opportunity</div>
+            <div class="action-desc">Reduce logistics returns by 30% via better packaging & address validation. Saves ₹9,060 GMV + ₹1,179 reverse shipping.</div>
+          </div>
+          <div class="action-amount">₹4,992</div>
+        </div>
+        <div class="action-item">
+          <div class="action-num med">M</div>
+          <div class="action-content">
+            <div class="action-title">Offer Share Optimization</div>
+            <div class="action-desc">Review sponsored discount splits. Currently contributing ₹4,992. Negotiate better co-funding ratios with Flipkart.</div>
+          </div>
+          <div class="action-amount">₹1,200</div>
+        </div>
+        <div class="action-item">
+          <div class="action-num med">M</div>
+          <div class="action-content">
+            <div class="action-title">MP Fee Rebate Program</div>
+            <div class="action-desc">Zero MP fee rebates received this period. Check eligibility for seller incentive program. Contact account manager.</div>
+          </div>
+          <div class="action-amount">₹431</div>
+        </div>
+        <div class="action-item">
+          <div class="action-num low">L</div>
+          <div class="action-content">
+            <div class="action-title">SPF (Seller Protection Fund)</div>
+            <div class="action-desc">₹0 SPF received. Review any warehouse loss incidents for potential claims. File within claim window.</div>
+          </div>
+          <div class="action-amount">₹100</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Recovery Potential Summary</div>
+      <canvas id="recoveryChart" style="max-height:220px;"></canvas>
+      <div style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:12px;color:var(--text-sec);">Total Identified Opportunity</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--success);">₹8,832</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:12px;color:var(--text-sec);">Guaranteed (Tax Credits)</span>
+          <span style="font-family:'DM Mono',monospace;color:var(--success);">₹2,109</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0;">
+          <span style="font-size:12px;color:var(--text-sec);">Potential (Return Reduction)</span>
+          <span style="font-family:'DM Mono',monospace;color:var(--warning);">₹4,992+</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── RISK DASHBOARD ─── -->
+<section class="section" id="risk">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Risk <span>Dashboard</span></div>
+      <div class="section-sub">Automated risk scoring across 6 dimensions</div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="chart-title">Risk Score by Category</div>
+      <div id="riskChart" style="min-height:260px;"></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Risk Detail</div>
+      <div class="risk-item">
+        <span class="risk-name">Return Risk</span>
+        <div class="risk-score-wrap">
+          <div class="risk-bar-bg"><div class="risk-bar-fill" style="width:72%;background:var(--danger);"></div></div>
+          <span class="risk-num" style="color:var(--danger);">72</span>
+          <span class="badge badge-danger">HIGH</span>
+        </div>
+      </div>
+      <div class="risk-item">
+        <span class="risk-name">Revenue Concentration Risk</span>
+        <div class="risk-score-wrap">
+          <div class="risk-bar-bg"><div class="risk-bar-fill" style="width:38%;background:var(--success);"></div></div>
+          <span class="risk-num" style="color:var(--success);">38</span>
+          <span class="badge badge-success">LOW</span>
+        </div>
+      </div>
+      <div class="risk-item">
+        <span class="risk-name">Fee Risk</span>
+        <div class="risk-score-wrap">
+          <div class="risk-bar-bg"><div class="risk-bar-fill" style="width:45%;background:var(--warning);"></div></div>
+          <span class="risk-num" style="color:var(--warning);">45</span>
+          <span class="badge badge-warning">MED</span>
+        </div>
+      </div>
+      <div class="risk-item">
+        <span class="risk-name">Settlement Risk</span>
+        <div class="risk-score-wrap">
+          <div class="risk-bar-bg"><div class="risk-bar-fill" style="width:20%;background:var(--success);"></div></div>
+          <span class="risk-num" style="color:var(--success);">20</span>
+          <span class="badge badge-success">LOW</span>
+        </div>
+      </div>
+      <div class="risk-item">
+        <span class="risk-name">Tax Compliance Risk</span>
+        <div class="risk-score-wrap">
+          <div class="risk-bar-bg"><div class="risk-bar-fill" style="width:15%;background:var(--success);"></div></div>
+          <span class="risk-num" style="color:var(--success);">15</span>
+          <span class="badge badge-success">LOW</span>
+        </div>
+      </div>
+      <div class="risk-item">
+        <span class="risk-name">Cashflow Risk</span>
+        <div class="risk-score-wrap">
+          <div class="risk-bar-bg"><div class="risk-bar-fill" style="width:35%;background:var(--success);"></div></div>
+          <span class="risk-num" style="color:var(--success);">35</span>
+          <span class="badge badge-success">LOW</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CFO INSIGHTS ─── -->
+<section class="section" id="insights">
+  <div class="section-head">
+    <div>
+      <div class="section-title">CFO <span>Insights</span></div>
+      <div class="section-sub">20 automated narrative observations from your settlement data</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="insight-card type-danger"><div class="insight-type">REVENUE RISK</div><div class="insight-text">24.1% of gross revenue (₹30,199) is being lost to returns. For every ₹4 earned, ₹1 is reversed — this is the single largest financial drain this period.</div></div>
+    <div class="insight-card type-warn"><div class="insight-type">RETURN PATTERN</div><div class="insight-text">69.6% of returns are logistics-driven (64 of 92 units), indicating delivery execution gaps rather than product quality issues — a packaging or courier problem.</div></div>
+    <div class="insight-card type-info"><div class="insight-type">TOP SKU INSIGHT</div><div class="insight-text">MBBN(TSHIRT)4C-12-7-8Y is the #1 revenue SKU at ₹9,343 but also the #1 return SKU at ₹2,899 — net revenue of only ₹6,444. Review this SKU's listing quality.</div></div>
+    <div class="insight-card type-success"><div class="insight-type">ZERO-RETURN SKUS</div><div class="insight-text">5 SKUs (MBB(3R)5C-2-3Y, MBB(3)5C-7-8Y, MBB4C_01-3-4Y, MBB4C_01-5-6Y and others) have 0% return rates — study their listings as templates for other SKUs.</div></div>
+    <div class="insight-card type-info"><div class="insight-type">FEE STRUCTURE</div><div class="insight-text">Commission charges are ₹0 this period (Bronze tier). The entire ₹8,616 MP fee burden is from fixed fees and reverse shipping — a favorable fee structure for volume sellers.</div></div>
+    <div class="insight-card type-success"><div class="insight-type">TAX RECOVERY</div><div class="insight-text">₹2,109 in taxes (TCS + TDS + GST ITC) are legally recoverable. At current volumes, that's ₹25,000+ annually in guaranteed tax credits left unclaimed if ignored.</div></div>
+    <div class="insight-card type-warn"><div class="insight-type">OFFER BURDEN</div><div class="insight-text">Seller-funded offers total ₹4,992 (4% of GMV). Flipkart's co-funded share was ₹2,488. Explore increasing Flipkart's offer contribution during peak sales events.</div></div>
+    <div class="insight-card type-success"><div class="insight-type">SETTLEMENT SPEED</div><div class="insight-text">Settlement received on 29 Apr for April period — postpaid cycle working well. No delayed or missing NEFT payments detected in this settlement batch.</div></div>
+    <div class="insight-card type-info"><div class="insight-type">REVENUE QUALITY</div><div class="insight-text">Net revenue (post-returns) of ₹95,143 represents 75.9% of GMV. After fees and offers, net contribution to settlement is ₹86,925 — a healthy 69.3% settlement efficiency.</div></div>
+    <div class="insight-card type-warn"><div class="insight-type">ADS EFFICIENCY</div><div class="insight-text">Ads wallet top-up of ₹760 generated 529 settled orders (₹1.44/order in ad cost). Extremely efficient — consider increasing ad budget to scale volume further.</div></div>
+    <div class="insight-card type-danger"><div class="insight-type">HIGH RETURN SKU</div><div class="insight-text">MBBN...11-7-8Y has a 42.9% return rate — nearly 1 in 2 units returned. Immediate action required: review listing images, size charts, and product descriptions.</div></div>
+    <div class="insight-card type-info"><div class="insight-type">REVENUE SPREAD</div><div class="insight-text">Daily revenues range from ₹1,188 (Apr 14) to ₹8,070 (Apr 2). Peak revenue cluster in Apr 1–5 window suggests weekend or promotional demand patterns.</div></div>
+    <div class="insight-card type-success"><div class="insight-type">SKU DIVERSITY</div><div class="insight-text">90+ active SKUs across kids t-shirts and nightwear ensure no catastrophic single-SKU dependency. Revenue concentration at top-3 is only 17.4% — healthy spread.</div></div>
+    <div class="insight-card type-warn"><div class="insight-type">MP FEE REBATE</div><div class="insight-text">Zero MP Fee Rebate received this period. At Bronze tier, check the seller incentive program eligibility — rebates of 10–20% of MP fees are possible for qualifying sellers.</div></div>
+    <div class="insight-card type-info"><div class="insight-type">UNIT ECONOMICS</div><div class="insight-text">Average selling price ₹287/unit (₹1,25,342 ÷ 437 sold). Average settlement per sold order: ₹199. Margin after fees and returns is positive but needs return cost reduction.</div></div>
+    <div class="insight-card type-danger"><div class="insight-type">REVERSE SHIPPING COST</div><div class="insight-text">₹3,930 spent on reverse shipping (₹119 × 33 chargeable returns). This single cost center is as large as 85% of the entire fixed fee bill — direct result of high returns.</div></div>
+    <div class="insight-card type-success"><div class="insight-type">CASHFLOW QUALITY</div><div class="insight-text">Postpaid settlement model with reliable NEFT credits is healthy. No COD dependency means predictable cashflow with 7–14 day settlement cycle.</div></div>
+    <div class="insight-card type-warn"><div class="insight-type">PRODUCT CATEGORY</div><div class="insight-text">100% of revenue is in kids_t_shirt and kids_nightwear — single category exposure. Consider diversifying into adjacent categories (kids bottoms, accessories) for resilience.</div></div>
+    <div class="insight-card type-info"><div class="insight-type">GROWTH SIGNAL</div><div class="insight-text">March-end orders (settling in April) show strong volume (23+ daily orders). If April orders maintain this momentum, May settlement should show ₹1,40,000+ GMV.</div></div>
+    <div class="insight-card type-success"><div class="insight-type">SCALABILITY</div><div class="insight-text">The Bronze tier fee structure (0% commission, fixed ₹15/order) is highly favorable at current volumes. Scaling to 700+ orders/month keeps unit economics intact.</div></div>
+  </div>
+</section>
+
+<!-- ─── CA REVIEW ─── -->
+<section class="section" id="ca">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Chartered Accountant <span>Review</span></div>
+      <div class="section-sub">Professional CA notes, audit flags, and priority action matrix</div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="chart-title">📋 CA Audit Notes</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+        <div class="insight-card type-info"><div class="insight-type">RECONCILIATION STATUS</div><div class="insight-text">All 529 line items reconciled. Total settlement ₹86,925.28 matches NEFT record. ✅ No discrepancies found.</div></div>
+        <div class="insight-card type-warn"><div class="insight-type">TDS 194-O COMPLIANCE</div><div class="insight-text">TDS of ₹93.08 deducted correctly at 0.1% rate. Ensure Form 26AS reflects this. File TDS credit in income tax return.</div></div>
+        <div class="insight-card type-info"><div class="insight-type">TCS GSTR FILING</div><div class="insight-text">TCS of ₹465.03 must be claimed in GSTR-2A. Flipkart is obligated to deposit this with government. Match against GSTR-2B before filing GSTR-3B.</div></div>
+        <div class="insight-card type-success"><div class="insight-type">GST ITC</div><div class="insight-text">Input Tax Credit of ₹1,550.85 on marketplace fees is eligible. Ensure tax invoice from Flipkart is received and vendor GSTIN is updated.</div></div>
+        <div class="insight-card type-danger"><div class="insight-type">RETURN DOCUMENTATION</div><div class="insight-text">92 return entries must be documented with return invoices/credit notes for GST reversal in GSTR-1. Missing documentation creates compliance risk.</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="chart-title">🎯 Priority Action Matrix</div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">🔴 Immediate (This Week)</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;">
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--danger-dim);border-radius:6px;">• File GSTR-2A and claim TCS ₹465.03</li>
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--danger-dim);border-radius:6px;">• Investigate MBBN...11-7-8Y (42.9% return rate)</li>
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--danger-dim);border-radius:6px;">• Collect return invoices for all 92 returned items</li>
+        </ul>
+      </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--warning);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">🟡 Short-Term (This Month)</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;">
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--warning-dim);border-radius:6px;">• Reconcile TDS in Form 26AS vs ITR</li>
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--warning-dim);border-radius:6px;">• Review high-return SKU size charts and images</li>
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--warning-dim);border-radius:6px;">• Apply for MP Fee Rebate program eligibility</li>
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--warning-dim);border-radius:6px;">• Improve packaging to reduce logistics returns</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--success);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">🟢 Long-Term (Next Quarter)</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;">
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--success-dim);border-radius:6px;">• Expand to adjacent categories to reduce concentration</li>
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--success-dim);border-radius:6px;">• Scale ad budget given strong ROAS signal</li>
+          <li style="font-size:12px;color:var(--text-sec);padding:8px 12px;background:var(--success-dim);border-radius:6px;">• Negotiate seller-funded offer ratios with Flipkart</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── INVESTOR DASHBOARD ─── -->
+<section class="section" id="investor">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Investor <span>Dashboard</span></div>
+      <div class="section-sub">Investment readiness, quality metrics, and VC-grade assessment</div>
+    </div>
+  </div>
+  <div class="grid-4">
+    <div class="card" style="text-align:center;padding:20px 12px;">
+      <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--primary);">B+</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Revenue Quality</div>
+      <div style="margin-top:8px;"><span class="badge badge-primary">Recurring SKUs</span></div>
+    </div>
+    <div class="card" style="text-align:center;padding:20px 12px;">
+      <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--success);">A</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Settlement Reliability</div>
+      <div style="margin-top:8px;"><span class="badge badge-success">No Delays</span></div>
+    </div>
+    <div class="card" style="text-align:center;padding:20px 12px;">
+      <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--warning);">C+</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Return Management</div>
+      <div style="margin-top:8px;"><span class="badge badge-warning">24% Rate</span></div>
+    </div>
+    <div class="card" style="text-align:center;padding:20px 12px;">
+      <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--success);">A-</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Fee Efficiency</div>
+      <div style="margin-top:8px;"><span class="badge badge-success">Bronze Tier</span></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="chart-title">Investment Readiness Score</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:center;">
+      <div style="text-align:center;">
+        <div style="font-family:'Syne',sans-serif;font-size:72px;font-weight:800;background:linear-gradient(135deg,var(--warning),var(--primary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">64</div>
+        <div style="font-size:14px;color:var(--warning);font-weight:600;margin-top:4px;">GOOD</div>
+        <div style="font-size:11px;color:var(--text-muted);">out of 100</div>
+      </div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px;">Would I invest in this business?</div>
+        <div style="font-size:13px;color:var(--text-sec);line-height:1.7;">
+          <strong style="color:var(--primary)">Yes, conditionally.</strong> Tip Top demonstrates solid fundamentals: ₹1.25L monthly GMV with 90+ diversified SKUs, reliable settlement velocity, and a Bronze-tier fee structure indicating early-stage scale. The zero-commission cost structure is a significant competitive advantage. However, the 24.1% return rate is a meaningful red flag — it directly reduces net revenue by ₹30,199 and adds ₹3,930 in reverse shipping. If returns can be reduced to the industry average (18%), this business generates ~₹12,000 additional monthly settlement. The ads efficiency (₹760 spend driving 529 orders) signals strong organic demand. I would invest with a clear mandate to fix returns through operational improvements, then scale ad spend aggressively.
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+          <span class="badge badge-success">✓ Strong GMV Base</span>
+          <span class="badge badge-success">✓ Reliable Settlement</span>
+          <span class="badge badge-success">✓ SKU Diversity</span>
+          <span class="badge badge-warning">⚠ High Return Rate</span>
+          <span class="badge badge-primary">→ Scale After Fixing Returns</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOUNDER ACTIONS ─── -->
+<section class="section" id="founder">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Founder <span>Action Plan</span></div>
+      <div class="section-sub">Top 10 highest-impact actions you should take this month</div>
+    </div>
+    <div class="section-tag">POTENTIAL UPSIDE: ₹22,000+/MONTH</div>
+  </div>
+  <div class="card">
+    <div style="display:flex;flex-direction:column;gap:0;">
+      <div class="action-item">
+        <div class="action-num high">1</div>
+        <div class="action-content">
+          <div class="action-title">Fix High-Return SKUs — Rewrite Listings</div>
+          <div class="action-desc">5 SKUs with 25%+ return rates need immediate listing audits. Add accurate size charts, actual product photos, and improved descriptions. Reduces reverse shipping cost directly.</div>
+        </div>
+        <div class="action-amount">Save ₹5,000+</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num high">2</div>
+        <div class="action-content">
+          <div class="action-title">Claim All Tax Credits — File GSTR & ITR</div>
+          <div class="action-desc">₹2,109 in TCS, TDS, and GST ITC is sitting uncollected. Share settlement report with your CA today. This is guaranteed money with zero risk.</div>
+        </div>
+        <div class="action-amount">Recover ₹2,109</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num high">3</div>
+        <div class="action-content">
+          <div class="action-title">Improve Packaging to Reduce Logistics Returns</div>
+          <div class="action-desc">64 logistics returns = delivery failures. Use reinforced poly mailers, clear address labelling, and double-check pincode serviceability. Can cut ₹3,500+ in reverse shipping.</div>
+        </div>
+        <div class="action-amount">Save ₹3,500</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num med">4</div>
+        <div class="action-content">
+          <div class="action-title">Scale Ads Budget — ROAS is Excellent</div>
+          <div class="action-desc">₹760 in ads drove 529 orders = ₹1.44 per order. That's world-class ROAS for apparel. Double the ad budget and target ₹2L+ GMV next month.</div>
+        </div>
+        <div class="action-amount">Earn ₹1,25,000+</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num med">5</div>
+        <div class="action-content">
+          <div class="action-title">Apply for MP Fee Rebate Program</div>
+          <div class="action-desc">₹0 rebates received this period despite ₹8,616 in MP fees paid. Contact your Flipkart key account manager to check seller incentive program eligibility.</div>
+        </div>
+        <div class="action-amount">Potential ₹431</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num med">6</div>
+        <div class="action-content">
+          <div class="action-title">Replicate Zero-Return SKUs as Growth Templates</div>
+          <div class="action-desc">MBB(3R)5C-2-3Y, MBB(3)5C-7-8Y, and 3 other SKUs have 0% returns. Study exactly what makes them perfect — sizing, photography, description — and replicate across all listings.</div>
+        </div>
+        <div class="action-amount">Upside ₹8,000</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num med">7</div>
+        <div class="action-content">
+          <div class="action-title">Negotiate Offer Co-Funding Ratio</div>
+          <div class="action-desc">You're funding ₹4,992 of offers while Flipkart funds ₹2,488. Push for 40% seller / 60% platform split. Every 10% shift saves ~₹750/month.</div>
+        </div>
+        <div class="action-amount">Save ₹1,200</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num low">8</div>
+        <div class="action-content">
+          <div class="action-title">Add Kids Bottoms & Accessories to Catalogue</div>
+          <div class="action-desc">Currently 100% in kids t-shirts + nightwear. Adding matching bottoms or accessories increases average order value and reduces single-category risk.</div>
+        </div>
+        <div class="action-amount">Upside ₹20,000+</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num low">9</div>
+        <div class="action-content">
+          <div class="action-title">Set Up Monthly Recon Alerts</div>
+          <div class="action-desc">Use ClearSettle to run this analysis automatically each settlement cycle. Catch fee anomalies, return spikes, and tax credits before they accumulate.</div>
+        </div>
+        <div class="action-amount">Ongoing Savings</div>
+      </div>
+      <div class="action-item">
+        <div class="action-num low">10</div>
+        <div class="action-content">
+          <div class="action-title">Target Top 3 SKUs for Inventory Depth</div>
+          <div class="action-desc">MBBN...12-7-8Y, MBB(3R)5C-4-5Y, and MBBN...12-2-3Y account for ₹22,507 combined revenue. Never let these go out of stock — set reorder triggers.</div>
+        </div>
+        <div class="action-amount">Protect ₹22,500</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:16px;background:linear-gradient(135deg,rgba(20,184,166,0.12),rgba(96,165,250,0.08));border-radius:12px;border:1px solid rgba(20,184,166,0.2);">
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px;">Total Potential Monthly Upside</div>
+      <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--primary);">₹22,000 – ₹35,000</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">If all 10 actions are executed effectively over the next 60 days.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<div class="page-footer">
+  <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--primary),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px;">ClearSettle</div>
+  <div>Powered by Settlement Intelligence · Tip Top · April 2026 · Flipkart Marketplace</div>
+  <div style="margin-top:6px;font-size:10px;color:var(--text-muted);">Generated from settlement report NFT-/XUTR/DEUTH026119A1NPOX · All figures in Indian Rupees (₹) · For CA and founder use only</div>
+</div>
+
+</main>
+
+<script>
+// ─── HEALTH RING ───
+(function() {
+  const canvas = document.getElementById('healthCanvas');
+  const ctx = canvas.getContext('2d');
+  const score = 64;
+  const cx = 60, cy = 60, r = 46;
+  ctx.clearRect(0, 0, 120, 120);
+  // BG
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 8; ctx.stroke();
+  // Fill
+  const angle = (score / 100) * Math.PI * 2 - Math.PI / 2;
+  const grad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  grad.addColorStop(0, '#F59E0B'); grad.addColorStop(1, '#FBBF24');
+  ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, angle);
+  ctx.strokeStyle = grad; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.stroke();
+})();
+
+// ─── WATERFALL CHART (ApexCharts) ───
+(function() {
+  const opts = {
+    chart: { type: 'bar', height: 340, background: 'transparent', toolbar: { show: false }, fontFamily: 'DM Sans, sans-serif' },
+    plotOptions: { bar: { columnWidth: '60%', borderRadius: 4, dataLabels: { position: 'top' } } },
+    colors: ['#22C55E','#EF4444','#EF4444','#F59E0B','#A78BFA','#F59E0B','#14B8A6'],
+    series: [{ name: 'Amount (₹)', data: [125342, -30199, -4992, -8616, -2109, 0, 86925] }],
+    xaxis: { categories: ['Gross Sales','Returns','Offer Deduction','MP Fees','Taxes','Ads Net','Net Settlement'], labels: { style: { colors: Array(7).fill('#94A3B8'), fontSize: '11px' } } },
+    yaxis: { labels: { formatter: v => '₹' + Math.abs(v).toLocaleString('en-IN'), style: { colors: ['#94A3B8'] } } },
+    dataLabels: { enabled: true, formatter: (v) => '₹' + Math.abs(v).toLocaleString('en-IN'), style: { fontSize: '11px', colors: ['#F8FAFC'] }, offsetY: -20 },
+    grid: { borderColor: 'rgba(255,255,255,0.06)', xaxis: { lines: { show: false } } },
+    tooltip: { theme: 'dark', y: { formatter: v => '₹' + Math.abs(v).toLocaleString('en-IN') } },
+    theme: { mode: 'dark' }
+  };
+  new ApexCharts(document.getElementById('waterfallChart'), opts).render();
+})();
+
+// ─── REVENUE TREND ───
+(function() {
+  const labels = ['21-Mar','23-Mar','24-Mar','25-Mar','26-Mar','27-Mar','28-Mar','29-Mar','30-Mar','31-Mar','01-Apr','02-Apr','03-Apr','04-Apr','05-Apr','06-Apr','07-Apr','08-Apr','09-Apr','10-Apr','11-Apr','12-Apr','13-Apr','14-Apr'];
+  const data = [306,3565,5810,4447,3415,4264,5544,6216,5647,6408,7679,8070,6745,6639,6569,5662,4796,6519,4281,6610,4015,5846,5101,1188];
+  const opts = {
+    chart: { type: 'area', height: 240, background: 'transparent', toolbar: { show: false }, fontFamily: 'DM Sans, sans-serif', sparkline: { enabled: false } },
+    series: [{ name: 'Daily Revenue', data }],
+    xaxis: { categories: labels, labels: { style: { colors: Array(labels.length).fill('#64748B'), fontSize: '10px' }, rotate: -40 }, axisBorder: { show: false }, axisTicks: { show: false } },
+    yaxis: { labels: { formatter: v => '₹' + v.toLocaleString('en-IN'), style: { colors: ['#64748B'] } } },
+    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.02, stops: [0, 100] } },
+    stroke: { curve: 'smooth', width: 2, colors: ['#14B8A6'] },
+    colors: ['#14B8A6'],
+    grid: { borderColor: 'rgba(255,255,255,0.05)', xaxis: { lines: { show: false } } },
+    tooltip: { theme: 'dark', y: { formatter: v => '₹' + v.toLocaleString('en-IN') } },
+    markers: { size: 3, colors: ['#14B8A6'], strokeColors: '#0B1220', strokeWidth: 2, hover: { size: 5 } },
+    annotations: { yaxis: [{ y: 6000, borderColor: '#F59E0B', borderWidth: 1, strokeDashArray: 4, label: { text: 'Avg ₹5,222', style: { background: '#F59E0B22', color: '#F59E0B', fontSize: '10px' } } }] },
+    theme: { mode: 'dark' }
+  };
+  new ApexCharts(document.getElementById('revenueChart'), opts).render();
+})();
+
+// ─── COMPOSITION CHART ───
+(function() {
+  const ctx = document.getElementById('compositionChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Net Sales Revenue', 'Returns', 'Offers (Seller)', 'MP Fees', 'Taxes'],
+      datasets: [{ data: [86925, 30199, 4992, 8616, 2109], backgroundColor: ['#22C55E','#EF4444','#F59E0B','#A78BFA','#60A5FA'], borderColor: '#1E293B', borderWidth: 3, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true, cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 11 }, padding: 10 } },
+        tooltip: { callbacks: { label: (c) => ` ₹${c.raw.toLocaleString('en-IN')} (${((c.raw/125342)*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+})();
+
+// ─── CONCENTRATION CHART ───
+(function() {
+  const ctx = document.getElementById('concentrationChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['12-7-8Y','3R-4-5Y','12-2-3Y','12-5-6Y','12-3-4Y','Others'],
+      datasets: [{ label: 'Revenue', data: [9343,6591,6573,6052,5718,90065], backgroundColor: ['#14B8A6','#60A5FA','#A78BFA','#F59E0B','#22C55E','rgba(148,163,184,0.2)'], borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, indexAxis: 'y', maintainAspectRatio: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ₹${c.raw.toLocaleString('en-IN')}` } } },
+      scales: {
+        x: { ticks: { color: '#64748B', font: { size: 10 }, callback: v => '₹' + (v/1000).toFixed(0) + 'K' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#94A3B8', font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+})();
+
+// ─── TOP SKU CHART ───
+(function() {
+  const skus = ['12-7-8Y','3R-4-5Y','12-2-3Y','12-5-6Y','12-3-4Y','12-1-2Y','3-1-2Y','12-4-5Y','3R-3-4Y','12-6-7Y'];
+  const sales = [9343,6591,6573,6052,5718,5383,5004,4962,4575,4010];
+  const returns = [2899,1405,627,1603,312,1597.5,700,1519,1164,809];
+  const opts = {
+    chart: { type: 'bar', height: 280, stacked: true, background: 'transparent', toolbar: { show: false }, fontFamily: 'DM Sans, sans-serif' },
+    series: [
+      { name: 'Net Revenue', data: sales.map((s,i) => s - returns[i]) },
+      { name: 'Returns', data: returns }
+    ],
+    colors: ['#14B8A6','#EF4444'],
+    xaxis: { categories: skus, labels: { style: { colors: Array(10).fill('#94A3B8'), fontSize: '10px' }, rotate: -35 }, axisBorder: { show: false } },
+    yaxis: { labels: { formatter: v => '₹'+v.toLocaleString('en-IN'), style: { colors: ['#64748B'] } } },
+    plotOptions: { bar: { borderRadius: 3, columnWidth: '65%' } },
+    legend: { labels: { colors: '#94A3B8' } },
+    grid: { borderColor: 'rgba(255,255,255,0.05)', xaxis: { lines: { show: false } } },
+    tooltip: { theme: 'dark', y: { formatter: v => '₹'+v.toLocaleString('en-IN') } },
+    theme: { mode: 'dark' }
+  };
+  new ApexCharts(document.getElementById('topSkuChart'), opts).render();
+})();
+
+// ─── RETURN RATE CHART ───
+(function() {
+  const skus = ['11-7-8Y','3R-0-1Y','10-2-3Y','11-3-4Y','12-7-8Y','12-4-5Y','3R-4-5Y','12-6-7Y','3R-3-4Y','12-1-2Y'];
+  const rates = [42.9,33.3,30.0,27.3,23.8,23.5,17.4,15.4,20.0,22.7];
+  const opts = {
+    chart: { type: 'bar', height: 280, background: 'transparent', toolbar: { show: false }, fontFamily: 'DM Sans, sans-serif' },
+    series: [{ name: 'Return Rate %', data: rates }],
+    colors: rates.map(r => r >= 30 ? '#EF4444' : r >= 20 ? '#F59E0B' : '#14B8A6'),
+    xaxis: { categories: skus, labels: { style: { colors: Array(10).fill('#94A3B8'), fontSize: '10px' }, rotate: -35 }, axisBorder: { show: false } },
+    yaxis: { labels: { formatter: v => v + '%', style: { colors: ['#64748B'] } }, max: 50 },
+    plotOptions: { bar: { borderRadius: 4, columnWidth: '60%' } },
+    annotations: { yaxis: [{ y: 22, borderColor: '#F59E0B', borderWidth: 1, strokeDashArray: 4, label: { text: 'Danger Zone', style: { background: '#F59E0B22', color: '#F59E0B', fontSize: '10px' } } }] },
+    dataLabels: { enabled: true, formatter: v => v + '%', style: { fontSize: '10px', colors: ['#F8FAFC'] }, offsetY: -16 },
+    grid: { borderColor: 'rgba(255,255,255,0.05)', xaxis: { lines: { show: false } } },
+    tooltip: { theme: 'dark', y: { formatter: v => v + '%' } },
+    theme: { mode: 'dark' }
+  };
+  new ApexCharts(document.getElementById('returnRateChart'), opts).render();
+})();
+
+// ─── RETURN TYPE CHART ───
+(function() {
+  const ctx = document.getElementById('returnTypeChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: ['Logistics Return (64)', 'Customer Return (43)'],
+      datasets: [{ data: [64, 43], backgroundColor: ['#EF4444','#F59E0B'], borderColor: '#1E293B', borderWidth: 3, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw} units (${((c.raw/107)*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+})();
+
+// ─── FEE CHART ───
+(function() {
+  const ctx = document.getElementById('feeChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Fixed Fee (₹15/order)', 'Reverse Shipping', 'Collection Fee'],
+      datasets: [{ data: [4665, 3930, 4.75], backgroundColor: ['#F59E0B','#EF4444','#14B8A6'], borderColor: '#1E293B', borderWidth: 3, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true, cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 11 }, padding: 10 } },
+        tooltip: { callbacks: { label: c => ` ₹${c.raw.toLocaleString('en-IN')} (${((c.raw/8616)*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+})();
+
+// ─── RECOVERY CHART ───
+(function() {
+  const ctx = document.getElementById('recoveryChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Tax Credits', 'Return Reduction', 'Offer Optimization', 'MP Fee Rebate', 'SPF Claims'],
+      datasets: [{ label: 'Potential Recovery (₹)', data: [2109, 4992, 1200, 431, 100], backgroundColor: ['#22C55E','#EF4444','#F59E0B','#60A5FA','#A78BFA'], borderRadius: 6 }]
+    },
+    options: {
+      responsive: true, indexAxis: 'y', maintainAspectRatio: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ₹${c.raw.toLocaleString('en-IN')}` } } },
+      scales: {
+        x: { ticks: { color: '#64748B', font: { size: 10 }, callback: v => '₹'+v.toLocaleString('en-IN') }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#94A3B8', font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+})();
+
+// ─── RISK RADAR ───
+(function() {
+  const opts = {
+    chart: { type: 'radar', height: 260, background: 'transparent', toolbar: { show: false }, fontFamily: 'DM Sans, sans-serif' },
+    series: [{ name: 'Risk Score', data: [72, 38, 45, 20, 15, 35] }],
+    labels: ['Return Risk','Revenue Risk','Fee Risk','Settlement Risk','Tax Risk','Cashflow Risk'],
+    colors: ['#EF4444'],
+    fill: { opacity: 0.15 },
+    stroke: { width: 2 },
+    markers: { size: 4, colors: ['#EF4444'], strokeColors: '#0B1220', strokeWidth: 2 },
+    plotOptions: { radar: { polygons: { strokeColors: 'rgba(255,255,255,0.07)', fill: { colors: ['rgba(255,255,255,0.02)', 'transparent'] } } } },
+    yaxis: { show: false, max: 100 },
+    xaxis: { labels: { style: { colors: Array(6).fill('#94A3B8'), fontSize: '11px' } } },
+    tooltip: { theme: 'dark', y: { formatter: v => v + '/100' } },
+    theme: { mode: 'dark' }
+  };
+  new ApexCharts(document.getElementById('riskChart'), opts).render();
+})();
+
+// ─── SKU TABLE ───
+(function() {
+  const skuData = [
+    { sku: 'MBBN-12-7-8Y', units: 32, sale: 9343, refund: 2899, ret_units: 10 },
+    { sku: 'MBB3R-4-5Y', units: 19, sale: 6591, refund: 1405, ret_units: 4 },
+    { sku: 'MBBN-12-2-3Y', units: 21, sale: 6573, refund: 627, ret_units: 2 },
+    { sku: 'MBBN-12-5-6Y', units: 19, sale: 6052, refund: 1603, ret_units: 5 },
+    { sku: 'MBBN-12-3-4Y', units: 19, sale: 5718, refund: 312, ret_units: 1 },
+    { sku: 'MBBN-12-1-2Y', units: 17, sale: 5383, refund: 1597, ret_units: 5 },
+    { sku: 'MBB3-1-2Y', units: 15, sale: 5004, refund: 700, ret_units: 2 },
+    { sku: 'MBBN-12-4-5Y', units: 13, sale: 4962, refund: 1519, ret_units: 4 },
+    { sku: 'MBB3R-3-4Y', units: 12, sale: 4575, refund: 1164, ret_units: 3 },
+    { sku: 'MBBN-12-6-7Y', units: 11, sale: 4010, refund: 809, ret_units: 2 },
+    { sku: 'MBB3R-0-1Y', units: 10, sale: 3375, refund: 1685, ret_units: 5 },
+    { sku: 'MBB3R-2-3Y', units: 9, sale: 3085, refund: 0, ret_units: 0 },
+    { sku: 'MBBN-10-4-5Y', units: 10, sale: 2906, refund: 880, ret_units: 3 },
+    { sku: 'MBB3-7-8Y', units: 8, sale: 2775, refund: 0, ret_units: 0 },
+    { sku: 'MBBN-11-3-4Y', units: 8, sale: 2556, refund: 951, ret_units: 3 },
+    { sku: 'MBB3R-5-6Y', units: 6, sale: 2347, refund: 394, ret_units: 1 },
+    { sku: 'MBB3R-6-7Y', units: 7, sale: 2247, refund: 653, ret_units: 2 },
+    { sku: 'MBBN-10-2-3Y', units: 7, sale: 2217, refund: 960, ret_units: 3 },
+    { sku: 'MBB4-1-2Y', units: 6, sale: 2149, refund: 356, ret_units: 1 },
+    { sku: 'MBB4-7-8Y', units: 7, sale: 2128, refund: 636, ret_units: 2 },
+  ];
+  const tbody = document.getElementById('skuTableBody');
+  skuData.forEach((s, i) => {
+    const retPct = ((s.ret_units / (s.units + s.ret_units)) * 100).toFixed(1);
+    const net = s.sale - s.refund;
+    const score = retPct <= 5 ? 'A' : retPct <= 15 ? 'B' : retPct <= 25 ? 'C' : 'D';
+    const scoreColor = score === 'A' ? 'success' : score === 'B' ? 'primary' : score === 'C' ? 'warning' : 'danger';
+    const settlement = (net * 0.693).toFixed(0);
+    tbody.innerHTML += `<tr>
+      <td class="mono" style="color:var(--text-muted)">${i+1}</td>
+      <td class="mono" style="font-size:11px;">${s.sku}</td>
+      <td class="mono">${s.units}</td>
+      <td class="pos mono">₹${s.sale.toLocaleString('en-IN')}</td>
+      <td class="neg mono">−₹${s.refund.toLocaleString('en-IN')}</td>
+      <td class="${retPct > 25 ? 'neg' : retPct > 15 ? 'warn' : 'pos'} mono">${retPct}%</td>
+      <td class="pri mono">₹${net.toLocaleString('en-IN')}</td>
+      <td class="mono">₹${Number(settlement).toLocaleString('en-IN')}</td>
+      <td><span class="badge badge-${scoreColor}">${score}</span></td>
+    </tr>`;
+  });
+})();
+
+// ─── SIDEBAR ACTIVE ───
+function setActive(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ─── SCROLL SPY ───
+const sections = ['hero','waterfall','revenue','products','returns','settlement','fees','tax','recovery','risk','insights','ca','investor','founder'];
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < 120) cur = id;
+  });
+  document.querySelectorAll('.nav-item').forEach(n => {
+    const href = n.getAttribute('href');
+    n.classList.toggle('active', href === '#' + cur);
+  });
+});
+</script>
+</body>
+</html>
