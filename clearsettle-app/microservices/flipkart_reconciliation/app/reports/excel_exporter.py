@@ -7,7 +7,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 # ── Colour palette ─────────────────────────────────────────────────────────────
-_HDR_FILL   = PatternFill("solid", fgColor="1F3864")   # dark navy
+_HDR_FILL   = PatternFill("solid", fgColor="1F3864")
 _HDR_FONT   = Font(bold=True, color="FFFFFF", size=10)
 _TITLE_FONT = Font(bold=True, size=13, color="1F3864")
 
@@ -15,6 +15,7 @@ _STATUS_FILL = {
     "MATCHED":            PatternFill("solid", fgColor="C6EFCE"),
     "SHORT_PAID":         PatternFill("solid", fgColor="FFCCCC"),
     "OVER_PAID":          PatternFill("solid", fgColor="FFEB9C"),
+    "RETURN_RECOVERY":    PatternFill("solid", fgColor="DAE8FC"),
     "MISSING_SETTLEMENT": PatternFill("solid", fgColor="F2DCDB"),
     "MISSING_ORDER":      PatternFill("solid", fgColor="DDDDDD"),
     "MISSING_FEE_RECORD": PatternFill("solid", fgColor="FFF2CC"),
@@ -44,71 +45,73 @@ def generate_april_report(rows: list[dict], period_label: str = "April 2026") ->
     ws_sum["A2"].font = Font(italic=True, size=9, color="666666")
 
     status_counts: dict[str, int] = {}
-    status_amounts: dict[str, Decimal] = {}
+    status_diffs: dict[str, Decimal] = {}
     for r in rows:
         s = r["reconciliation_status"]
         status_counts[s] = status_counts.get(s, 0) + 1
         diff = r.get("difference") or Decimal("0")
-        status_amounts[s] = status_amounts.get(s, Decimal("0")) + diff
+        status_diffs[s] = status_diffs.get(s, Decimal("0")) + diff
+
+    net_leakage = abs(float(status_diffs.get("SHORT_PAID", Decimal("0"))))
+    net_overpaid = float(status_diffs.get("OVER_PAID", Decimal("0")))
 
     summary_rows = [
-        ("Status", "Count", "Net Amount (Rs.)"),
-        ("MATCHED",            status_counts.get("MATCHED", 0),            float(status_amounts.get("MATCHED", 0))),
-        ("SHORT_PAID",         status_counts.get("SHORT_PAID", 0),         float(status_amounts.get("SHORT_PAID", 0))),
-        ("OVER_PAID",          status_counts.get("OVER_PAID", 0),          float(status_amounts.get("OVER_PAID", 0))),
-        ("MISSING_SETTLEMENT", status_counts.get("MISSING_SETTLEMENT", 0), "—"),
-        ("MISSING_FEE_RECORD", status_counts.get("MISSING_FEE_RECORD", 0), float(status_amounts.get("MISSING_FEE_RECORD", 0))),
-        ("MISSING_ORDER",      status_counts.get("MISSING_ORDER", 0),      "—"),
-        ("TOTAL",              len(rows),                                   ""),
+        ("Status", "Count", "Net Difference (Rs.)", "Interpretation"),
+        ("MATCHED",            status_counts.get("MATCHED", 0),            "0.00",                          "Fee matches invoice exactly"),
+        ("SHORT_PAID",         status_counts.get("SHORT_PAID", 0),         float(status_diffs.get("SHORT_PAID", 0)),      "Flipkart deducted more fees than invoiced"),
+        ("OVER_PAID",          status_counts.get("OVER_PAID", 0),          float(status_diffs.get("OVER_PAID", 0)),       "Flipkart deducted fewer fees than invoiced"),
+        ("RETURN_RECOVERY",    status_counts.get("RETURN_RECOVERY", 0),    float(status_diffs.get("RETURN_RECOVERY", 0)), "Return/refund recovery — not a leakage"),
+        ("MISSING_SETTLEMENT", status_counts.get("MISSING_SETTLEMENT", 0), "—",                             "Order not yet settled"),
+        ("MISSING_FEE_RECORD", status_counts.get("MISSING_FEE_RECORD", 0), "—",                             "Settlement has fees but no invoice entry"),
+        ("MISSING_ORDER",      status_counts.get("MISSING_ORDER", 0),      "—",                             "No order/settlement record"),
+        ("TOTAL",              len(rows),                                   "",                              ""),
+        ("NET LEAKAGE (Short-paid only)", "",  abs(net_leakage),    "Amount Flipkart owes seller"),
+        ("NET OVER-PAID",                 "",  net_overpaid,         "Amount settled above invoice — verify with Flipkart"),
     ]
 
-    net_leakage = sum(
-        float(r.get("difference") or 0)
-        for r in rows
-        if r["reconciliation_status"] == "SHORT_PAID"
-    )
-    summary_rows.append(("NET LEAKAGE (Short-paid only)", "", abs(net_leakage)))
-
     start_row = 4
-    for i, (label, count, amount) in enumerate(summary_rows):
+    for i, row_data in enumerate(summary_rows):
         row = start_row + i
-        ws_sum.cell(row=row, column=1, value=label)
-        ws_sum.cell(row=row, column=2, value=count)
-        ws_sum.cell(row=row, column=3, value=amount)
-        if i == 0:
-            for col in range(1, 4):
-                cell = ws_sum.cell(row=row, column=col)
+        for col, val in enumerate(row_data, 1):
+            cell = ws_sum.cell(row=row, column=col, value=val)
+            if i == 0:
                 cell.fill = _HDR_FILL
                 cell.font = _HDR_FONT
-        elif label in _STATUS_FILL:
-            for col in range(1, 4):
-                ws_sum.cell(row=row, column=col).fill = _STATUS_FILL[label]
-        if label in ("NET LEAKAGE (Short-paid only)", "TOTAL"):
-            for col in range(1, 4):
+            elif row_data[0] in _STATUS_FILL:
+                cell.fill = _STATUS_FILL[row_data[0]]
+        if row_data[0] in ("NET LEAKAGE (Short-paid only)", "TOTAL", "NET OVER-PAID"):
+            for col in range(1, 5):
                 ws_sum.cell(row=row, column=col).font = Font(bold=True)
 
-    ws_sum.column_dimensions["A"].width = 30
+    ws_sum.column_dimensions["A"].width = 36
     ws_sum.column_dimensions["B"].width = 10
-    ws_sum.column_dimensions["C"].width = 20
+    ws_sum.column_dimensions["C"].width = 22
+    ws_sum.column_dimensions["D"].width = 45
 
     # ── Detail sheet ───────────────────────────────────────────────────────────
     ws_det = wb.create_sheet("Detail")
 
     headers = [
         "Order Item ID", "Order ID", "SKU", "Product Title",
-        "Order Date", "Delivery Date",
-        "Selling Price", "Commission Fee", "Shipping Fee",
-        "Tax Amount", "Other Fee",
-        "Expected Settlement", "Actual Settlement", "Difference",
-        "Status", "Settlement Date", "NEFT ID",
+        "Order Date", "Settlement Date",
+        "Sale Amount (Rs.)",
+        "Total Offer Amount (Rs.)", "My Share (Rs.)",
+        "Invoice Fee (Rs.)", "Invoice GST (Rs.)",
+        "Commission Fee", "Shipping Fee", "Other Fee",
+        "TCS (Rs.)", "TDS (Rs.)", "GST on MP Fees",
+        "Expected Settlement (Rs.)", "Actual Settlement (Rs.)", "Difference (Rs.)",
+        "Status", "NEFT ID", "NEFT Type",
     ]
     field_keys = [
         "order_item_id", "order_id", "sku", "product_title",
-        "order_date", "delivery_date",
-        "selling_price", "commission_fee", "shipping_fee",
-        "tax_amount", "other_fee",
+        "order_date", "settlement_date",
+        "sale_amount",
+        "total_offer_amount", "my_share",
+        "invoice_fee_total", "invoice_gst_total",
+        "commission_fee", "shipping_fee", "other_fee",
+        "tcs", "tds", "gst_on_mp_fees",
         "expected_settlement", "settlement_amount", "difference",
-        "reconciliation_status", "settlement_date", "neft_id",
+        "reconciliation_status", "neft_id", "neft_type",
     ]
 
     for col, hdr in enumerate(headers, 1):
@@ -123,11 +126,16 @@ def generate_april_report(rows: list[dict], period_label: str = "April 2026") ->
         for c_idx, key in enumerate(field_keys, 1):
             val = _fmt(row.get(key))
             cell = ws_det.cell(row=r_idx, column=c_idx, value=val)
-            if fill and c_idx == len(field_keys):  # colour status column
+            if fill and field_keys[c_idx - 1] == "reconciliation_status":
                 cell.fill = fill
+            # Highlight difference column red/green
+            if key == "difference" and isinstance(val, (int, float)):
+                if val < -0.5:
+                    cell.font = Font(color="CC0000", bold=True)
+                elif val > 0.5:
+                    cell.font = Font(color="006100", bold=True)
 
-    # Auto-width
-    col_widths = [22, 22, 18, 45, 12, 12, 14, 15, 13, 12, 10, 18, 17, 12, 20, 15, 22]
+    col_widths = [22, 22, 18, 40, 12, 14, 14, 18, 14, 16, 14, 14, 13, 12, 12, 12, 14, 20, 20, 14, 20, 30, 12]
     for col, width in enumerate(col_widths, 1):
         ws_det.column_dimensions[get_column_letter(col)].width = width
 

@@ -1,9 +1,9 @@
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from io import BytesIO
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -114,6 +114,11 @@ async def run_full_reconciliation(session: AsyncSession = Depends(get_session)):
         for r in results
         if r.difference and r.reconciliation_status == ReconciliationStatus.SHORT_PAID.value
     )
+    total_overpaid = sum(
+        abs(r.difference)
+        for r in results
+        if r.difference and r.reconciliation_status == ReconciliationStatus.OVER_PAID.value
+    )
 
     return ReconciliationSummary(
         total_items=len(results),
@@ -123,5 +128,7 @@ async def run_full_reconciliation(session: AsyncSession = Depends(get_session)):
         missing_settlement=sum(1 for r in results if r.reconciliation_status == ReconciliationStatus.MISSING_SETTLEMENT.value),
         missing_order=sum(1 for r in results if r.reconciliation_status == ReconciliationStatus.MISSING_ORDER.value),
         missing_fee_record=sum(1 for r in results if r.reconciliation_status == ReconciliationStatus.MISSING_FEE_RECORD.value),
+        return_recovery=sum(1 for r in results if r.reconciliation_status == ReconciliationStatus.RETURN_RECOVERY.value),
         total_leakage=total_leakage or Decimal("0"),
+        total_overpaid=total_overpaid or Decimal("0"),
     )
