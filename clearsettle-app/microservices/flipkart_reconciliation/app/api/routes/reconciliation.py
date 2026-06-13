@@ -2,6 +2,8 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from io import BytesIO
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +11,8 @@ from app.api.deps import get_session
 from app.api.routes.orders import _to_response
 from app.engine.reconciler import get_all_order_item_ids, reconcile_batch, reconcile_order_item
 from app.models.business import OrderFinancials, ReconciliationStatus
+from app.models.etl import OrdersEtl
+from app.reports.excel_exporter import generate_april_report
 from app.schemas.reconciliation import OrderFinancialsResponse, ReconciliationSummary
 
 router = APIRouter()
@@ -47,6 +51,41 @@ async def reconcile_batch_endpoint(
         raise HTTPException(400, "Provide at least one order_item_id")
     results = await reconcile_batch(session, order_item_ids)
     return [_to_response(r) for r in results]
+
+
+@router.get("/export")
+async def export_reconciliation_report(
+    period: str = Query("April 2026", description="Period label for the report header"),
+    filter_to_orders: bool = Query(True, description="When true, only include order_item_ids present in orders_etl"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Download a formatted Excel reconciliation report."""
+    stmt = select(OrderFinancials)
+    if filter_to_orders:
+        order_ids_result = await session.execute(
+            select(OrdersEtl.order_item_id).where(OrdersEtl.is_valid.is_(True)).distinct()
+        )
+        april_ids = {r[0] for r in order_ids_result.all()}
+        if not april_ids:
+            raise HTTPException(404, "No orders found — upload orders file first")
+        stmt = stmt.where(OrderFinancials.order_item_id.in_(april_ids))
+
+    rows = (await session.execute(stmt.order_by(OrderFinancials.reconciliation_status))).scalars().all()
+    if not rows:
+        raise HTTPException(404, "No reconciliation data — run /reconciliation/run-all first")
+
+    row_dicts = [
+        {c.key: getattr(r, c.key) for c in r.__table__.columns}
+        for r in rows
+    ]
+    xlsx_bytes = generate_april_report(row_dicts, period_label=period)
+
+    filename = f"flipkart_reconciliation_{period.replace(' ', '_')}.xlsx"
+    return StreamingResponse(
+        BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/run-all", response_model=ReconciliationSummary)
