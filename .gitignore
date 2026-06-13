@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# Google OAuth credentials
+inputs/web_creds/
+client_secret_*.json
+
 # Coverage reports (generated, not source)
 coverage/
 *.coverage
