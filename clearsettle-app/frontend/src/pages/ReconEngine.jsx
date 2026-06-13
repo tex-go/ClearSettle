@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import api from '../utils/api'
+import { FlipkartReconGate, FlipkartReconTable } from './FlipkartReconView'
 
 // ── Palette ────────────────────────────────────────────────────────────────────
 const P = {
@@ -1389,6 +1390,10 @@ function ReconEngine() {
   const [processingFilename, setProcessingFilename] = useState('')
   const [managingDocs, setManagingDocs]   = useState(false)
 
+  // Flipkart microservice reconciliation state
+  const [fkReconSummary, setFkReconSummary] = useState(null)
+  const [fkReconItems,   setFkReconItems]   = useState([])
+
   const pollRef = useRef(null)
 
   const fetchReports = useCallback(function() {
@@ -1511,9 +1516,35 @@ function ReconEngine() {
             reports={reports}
             loading={loadingReports}
             onSelectReport={function(r) { setSelectedReport(r); setView('analytics') }}
-            onNewUpload={function() { setManagingDocs(false); setView('docs_gate') }}
-            onManageDocs={function() { setManagingDocs(true); setView('docs_gate') }}
+            onNewUpload={function() {
+              if (platform.id === 'flipkart') { setView('fk_gate') }
+              else { setManagingDocs(false); setView('docs_gate') }
+            }}
+            onManageDocs={function() {
+              if (platform.id === 'flipkart') { setView('fk_gate') }
+              else { setManagingDocs(true); setView('docs_gate') }
+            }}
             onBack={function() { setPlatform(null); setView('platform_select') }}
+          />
+        )}
+
+        {view === 'fk_gate' && platform?.id === 'flipkart' && (
+          <FlipkartReconGate
+            onBack={function() { setView('platform_landing') }}
+            onResults={function(summary, items) {
+              setFkReconSummary(summary)
+              setFkReconItems(items)
+              setView('fk_results')
+            }}
+          />
+        )}
+
+        {view === 'fk_results' && platform?.id === 'flipkart' && (
+          <FlipkartReconTable
+            summary={fkReconSummary}
+            items={fkReconItems}
+            onBack={function() { setView('platform_landing') }}
+            onNewUpload={function() { setView('fk_gate') }}
           />
         )}
 

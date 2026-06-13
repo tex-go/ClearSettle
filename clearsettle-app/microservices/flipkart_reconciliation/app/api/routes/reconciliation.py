@@ -53,6 +53,19 @@ async def reconcile_batch_endpoint(
     return [_to_response(r) for r in results]
 
 
+@router.get("/results", response_model=list[OrderFinancialsResponse])
+async def get_results(
+    status: str | None = Query(None, description="Filter by reconciliation_status"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return all reconciliation records as JSON (used by the UI table)."""
+    stmt = select(OrderFinancials).order_by(OrderFinancials.reconciliation_status)
+    if status:
+        stmt = stmt.where(OrderFinancials.reconciliation_status == status)
+    rows = (await session.execute(stmt)).scalars().all()
+    return [_to_response(r) for r in rows]
+
+
 @router.get("/export")
 async def export_reconciliation_report(
     period: str = Query("April 2026", description="Period label for the report header"),
