@@ -14,7 +14,9 @@ async def transform_orders(session: AsyncSession, batch_id: uuid.UUID) -> int:
     rows = []
     for raw in raws:
         j = raw.raw_json
-        order_item_id = parse_str(j.get("order_item_id"))
+        raw_oi = parse_str(j.get("order_item_id"))
+        # Flipkart orders prefix IDs with "OI:" — strip for cross-table join compatibility
+        order_item_id = raw_oi.removeprefix("OI:") if raw_oi else None
         errors: dict = {}
         if not order_item_id:
             errors["order_item_id"] = "missing"

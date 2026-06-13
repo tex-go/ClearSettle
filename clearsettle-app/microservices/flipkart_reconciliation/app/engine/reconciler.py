@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.business import OrderFinancials, ReconciliationStatus
 from app.models.etl import FeesEtl, OrdersEtl, SettlementsEtl
 
-_COMMISSION_KEYWORDS = ("commission",)
-_SHIPPING_KEYWORDS = ("shipping", "courier", "delivery", "logistics")
+_COMMISSION_KEYWORDS = ("commission", "fixed fee", "marketplace fee", "platform fee")
+_SHIPPING_KEYWORDS = ("shipping", "courier", "delivery", "logistics", "sdd fee")
 
 
 def _classify_fee(fee_name: str | None) -> str:
@@ -59,8 +59,9 @@ async def reconcile_order_item(session: AsyncSession, order_item_id: str) -> Ord
     selling_price = settlement.selling_price if settlement else None
     settlement_amount = settlement.settlement_amount if settlement else None
 
+    # Flipkart fee amounts are already negative (deductions), so add them
     expected_settlement = (
-        selling_price - commission_fee - shipping_fee - other_fee - tax_amount
+        selling_price + commission_fee + shipping_fee + other_fee + tax_amount
         if selling_price is not None
         else None
     )
