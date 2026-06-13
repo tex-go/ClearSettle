@@ -9,19 +9,34 @@ from app.models.business import ReconciliationStatus
 class OrderFinancialsResponse(BaseModel):
     order_item_id: str
     order_id: str | None
+    neft_id: str | None
+    neft_type: str | None
     sku: str | None
     fsn: str | None
     product_title: str | None
     order_date: date | None
     delivery_date: date | None
-    selling_price: Decimal | None
+    settlement_date: date | None
+
+    # Settlement components
+    sale_amount: Decimal | None
+    total_offer_amount: Decimal
+    my_share: Decimal
     marketplace_fee: Decimal
+    tcs: Decimal
+    tds: Decimal
+    gst_on_mp_fees: Decimal
+    refund: Decimal
+
+    # Invoice components
+    invoice_fee_total: Decimal
+    invoice_gst_total: Decimal
     commission_fee: Decimal
     shipping_fee: Decimal
-    tax_amount: Decimal
     other_fee: Decimal
+
+    # Reconciliation
     settlement_amount: Decimal | None
-    settlement_date: date | None
     expected_settlement: Decimal | None
     difference: Decimal | None
     status: ReconciliationStatus
@@ -44,4 +59,6 @@ class ReconciliationSummary(BaseModel):
     missing_settlement: int
     missing_order: int
     missing_fee_record: int
+    return_recovery: int
     total_leakage: Decimal
+    total_overpaid: Decimal

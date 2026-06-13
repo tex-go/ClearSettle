@@ -9,6 +9,7 @@ const SC = {
   MATCHED:            { rowBg: '#F0FDF4', border: '#BBF7D0', badge: '#10B981', badgeBg: 'rgba(16,185,129,.15)', text: 'Matched' },
   SHORT_PAID:         { rowBg: '#FFF1F2', border: '#FECDD3', badge: '#E8344A', badgeBg: 'rgba(232,52,74,.12)',  text: 'Short Paid' },
   OVER_PAID:          { rowBg: '#FFFBEB', border: '#FDE68A', badge: '#D97706', badgeBg: 'rgba(217,119,6,.12)',  text: 'Over Paid' },
+  RETURN_RECOVERY:    { rowBg: '#EFF6FF', border: '#BFDBFE', badge: '#2563EB', badgeBg: 'rgba(37,99,235,.12)', text: 'Return' },
   MISSING_SETTLEMENT: { rowBg: '#FFF7ED', border: '#FED7AA', badge: '#F97316', badgeBg: 'rgba(249,115,22,.12)', text: 'No Settlement' },
   MISSING_ORDER:      { rowBg: '#F8FAFC', border: '#E2E8F0', badge: '#6B7280', badgeBg: 'rgba(107,114,128,.1)', text: 'No Order' },
   MISSING_FEE_RECORD: { rowBg: '#FEFCE8', border: '#FEF08A', badge: '#CA8A04', badgeBg: 'rgba(202,138,4,.12)',  text: 'No Fee Record' },
@@ -210,14 +211,15 @@ const COLS = [
   { key: 'order_item_id',      label: 'Order Item ID',  w: 185, mono: true },
   { key: 'order_id',           label: 'Order ID',       w: 185, mono: true },
   { key: 'sku',                label: 'SKU',            w: 150 },
-  { key: 'selling_price',      label: 'Selling (₹)',    w: 100, num: true },
-  { key: 'commission_fee',     label: 'Commission',     w: 100, num: true },
-  { key: 'shipping_fee',       label: 'Shipping',       w: 85,  num: true },
-  { key: 'tax_amount',         label: 'Tax',            w: 75,  num: true },
+  { key: 'sale_amount',        label: 'Sale (₹)',       w: 95,  num: true },
+  { key: 'invoice_fee_total',  label: 'Inv Fee (₹)',    w: 95,  num: true },
+  { key: 'invoice_gst_total',  label: 'Inv GST (₹)',    w: 85,  num: true },
+  { key: 'tcs',                label: 'TCS (₹)',        w: 75,  num: true },
+  { key: 'tds',                label: 'TDS (₹)',        w: 75,  num: true },
   { key: 'expected_settlement',label: 'Expected (₹)',   w: 115, num: true },
   { key: 'settlement_amount',  label: 'Actual (₹)',     w: 105, num: true },
   { key: 'difference',         label: 'Diff (₹)',       w: 90,  num: true },
-  { key: 'reconciliation_status', label: 'Status',      w: 130 },
+  { key: 'reconciliation_status', label: 'Status',      w: 140 },
 ]
 
 export function FlipkartReconTable({ summary, items, onBack, onNewUpload }) {
@@ -260,6 +262,7 @@ export function FlipkartReconTable({ summary, items, onBack, onNewUpload }) {
     { key: 'SHORT_PAID',        label: 'Short Paid',   count: summary?.short_paid        ?? 0, color: '#E8344A' },
     { key: 'OVER_PAID',         label: 'Over Paid',    count: summary?.over_paid         ?? 0, color: '#D97706' },
     { key: 'MATCHED',           label: 'Matched',      count: summary?.matched           ?? 0, color: '#10B981' },
+    { key: 'RETURN_RECOVERY',   label: 'Returns',      count: summary?.return_recovery   ?? 0, color: '#2563EB' },
     { key: 'MISSING_SETTLEMENT',label: 'No Settlement',count: summary?.missing_settlement ?? 0, color: '#F97316' },
     { key: 'MISSING_FEE_RECORD',label: 'No Fee Record',count: summary?.missing_fee_record ?? 0, color: '#CA8A04' },
   ]
@@ -268,7 +271,7 @@ export function FlipkartReconTable({ summary, items, onBack, onNewUpload }) {
     { label: 'Short Paid',       value: inr(shortTotal), sub: `${summary?.short_paid ?? 0} orders`,         color: '#E8344A', bg: '#FFF1F2' },
     { label: 'Over Paid',        value: inr(overTotal),  sub: `${summary?.over_paid ?? 0} orders`,          color: '#D97706', bg: '#FFFBEB' },
     { label: 'Net Underpayment', value: inr(netLeak),    sub: netLeak > 0 ? 'Flipkart owes you'  : 'You owe Flipkart', color: netLeak > 0 ? '#E8344A' : '#10B981', bg: netLeak > 0 ? '#FFF1F2' : '#F0FDF4' },
-    { label: 'Missing Settlement',value: String(summary?.missing_settlement ?? 0), sub: 'orders pending payout', color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Returns',           value: String(summary?.return_recovery ?? 0), sub: 'return/refund orders', color: '#2563EB', bg: '#EFF6FF' },
   ]
 
   return (
