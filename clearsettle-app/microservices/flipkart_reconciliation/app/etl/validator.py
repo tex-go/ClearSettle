@@ -10,11 +10,15 @@ def parse_date(value) -> date | None:
     s = str(value).strip()
     if not s or s.lower() in ("none", "nan", "nat"):
         return None
-    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d %b %Y"):
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S",
+                "%d/%m/%Y", "%m/%d/%Y", "%d %b %Y"):
         try:
             return datetime.strptime(s, fmt).date()
         except ValueError:
             continue
+    # Last resort: strip time component if present
+    if " " in s:
+        return parse_date(s.split(" ")[0])
     return None
 
 
