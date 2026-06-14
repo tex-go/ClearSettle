@@ -219,18 +219,29 @@ class ReconDbClient:
             cur.execute(sql, params)
             return [dict(r) for r in cur.fetchall()]
 
-    def all_order_item_ids(self) -> list[str]:
-        """Union of all order_item_ids across orders, fees, settlements."""
-        rows = self._q("""
-            SELECT DISTINCT oid FROM (
-                SELECT order_item_id AS oid FROM orders_etl WHERE is_valid = true
-                UNION
-                SELECT order_item_id AS oid FROM fees_etl WHERE is_valid = true
-                UNION
-                SELECT order_item_id AS oid FROM settlements_etl WHERE is_valid = true
-            ) sub
-            ORDER BY oid
-        """)
+    def all_order_item_ids(self, settlements_batch_id: str | None = None) -> list[str]:
+        """
+        Returns order_item_ids to reconcile.
+        Base: orders_etl (the canonical list of orders for this period).
+        If settlements_batch_id is given, also include any settlement-only rows
+        from that specific batch that have no matching order (edge cases).
+        """
+        if settlements_batch_id:
+            rows = self._q("""
+                SELECT DISTINCT oid FROM (
+                    SELECT order_item_id AS oid FROM orders_etl WHERE is_valid = true
+                    UNION
+                    SELECT order_item_id AS oid FROM settlements_etl
+                    WHERE is_valid = true AND batch_id = %s
+                ) sub
+                ORDER BY oid
+            """, (settlements_batch_id,))
+        else:
+            rows = self._q("""
+                SELECT DISTINCT order_item_id AS oid FROM orders_etl
+                WHERE is_valid = true
+                ORDER BY oid
+            """)
         return [r["oid"] for r in rows]
 
     def order(self, oid: str) -> dict | None:
@@ -253,17 +264,29 @@ class ReconDbClient:
         """, (oid,))
         return [r for r in rows if (r.get("fee_name") or "").lower() not in _EXCLUDE_FEE_NAMES]
 
-    def settlement(self, oid: str) -> dict | None:
-        rows = self._q("""
-            SELECT id, order_item_id, order_id, neft_id, neft_type, settlement_date,
-                   settlement_amount, sale_amount, total_offer_amount, my_share,
-                   customer_addons_amount, marketplace_fee, tcs, tds, gst_on_mp_fees,
-                   offer_adjustments, protection_fund, refund,
-                   fixed_fee, collection_fee, reverse_shipping_fee
-            FROM settlements_etl
-            WHERE order_item_id = %s AND is_valid = true
-            ORDER BY id LIMIT 1
-        """, (oid,))
+    def settlement(self, oid: str, batch_id: str | None = None) -> dict | None:
+        if batch_id:
+            rows = self._q("""
+                SELECT id, order_item_id, order_id, neft_id, neft_type, settlement_date,
+                       settlement_amount, sale_amount, total_offer_amount, my_share,
+                       customer_addons_amount, marketplace_fee, tcs, tds, gst_on_mp_fees,
+                       offer_adjustments, protection_fund, refund,
+                       fixed_fee, collection_fee, reverse_shipping_fee
+                FROM settlements_etl
+                WHERE order_item_id = %s AND is_valid = true AND batch_id = %s
+                ORDER BY id LIMIT 1
+            """, (oid, batch_id))
+        else:
+            rows = self._q("""
+                SELECT id, order_item_id, order_id, neft_id, neft_type, settlement_date,
+                       settlement_amount, sale_amount, total_offer_amount, my_share,
+                       customer_addons_amount, marketplace_fee, tcs, tds, gst_on_mp_fees,
+                       offer_adjustments, protection_fund, refund,
+                       fixed_fee, collection_fee, reverse_shipping_fee
+                FROM settlements_etl
+                WHERE order_item_id = %s AND is_valid = true
+                ORDER BY id LIMIT 1
+            """, (oid,))
         return rows[0] if rows else None
 
     def order_financials(self, oid: str) -> dict | None:
@@ -388,7 +411,7 @@ def _explain_difference(
     return f"Status: {status}. Difference: Rs.{difference:.2f if difference else 0:.2f}. No automatic root cause identified."
 
 
-def reconcile_order(db: ReconDbClient, oid: str) -> ReconResult:
+def reconcile_order(db: ReconDbClient, oid: str, settlements_batch_id: str | None = None) -> ReconResult:
     """
     Full 10-test reconciliation audit for a single order_item_id.
     Re-derives the formula independently — does NOT read from order_financials.
@@ -396,7 +419,7 @@ def reconcile_order(db: ReconDbClient, oid: str) -> ReconResult:
     # T1–T3: Existence
     order = db.order(oid)
     fees_list = db.fees(oid)
-    settlement = db.settlement(oid)
+    settlement = db.settlement(oid, batch_id=settlements_batch_id)
 
     has_order      = order is not None
     has_fee        = len(fees_list) > 0
