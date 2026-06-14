@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
 from app.models.business import OrderFinancials
+from app.models.etl import FeesEtl, OrdersEtl, SettlementsEtl
 from app.schemas.reconciliation import OrderFinancialsResponse
 
 router = APIRouter()
@@ -53,3 +54,41 @@ async def get_order(
     if not rows:
         raise HTTPException(404, f"Order {order_id!r} not found in reconciled data")
     return [_to_response(r) for r in rows]
+
+
+def _row_to_dict(row) -> dict:
+    return {c.key: (str(getattr(row, c.key)) if getattr(row, c.key) is not None else None)
+            for c in row.__table__.columns}
+
+
+@router.get("/order-item/{order_item_id}/lifecycle")
+async def get_order_lifecycle(
+    order_item_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Full lifecycle for one order_item_id: order metadata + fees + settlement."""
+    order = (await session.execute(
+        select(OrdersEtl)
+        .where(OrdersEtl.order_item_id == order_item_id, OrdersEtl.is_valid.is_(True))
+        .order_by(OrdersEtl.id)
+        .limit(1)
+    )).scalar_one_or_none()
+
+    fees = (await session.execute(
+        select(FeesEtl)
+        .where(FeesEtl.order_item_id == order_item_id, FeesEtl.is_valid.is_(True))
+        .order_by(FeesEtl.fee_date)
+    )).scalars().all()
+
+    settlement = (await session.execute(
+        select(SettlementsEtl)
+        .where(SettlementsEtl.order_item_id == order_item_id, SettlementsEtl.is_valid.is_(True))
+        .order_by(SettlementsEtl.id)
+        .limit(1)
+    )).scalar_one_or_none()
+
+    return {
+        "order":      _row_to_dict(order) if order else None,
+        "fees":       [_row_to_dict(f) for f in fees],
+        "settlement": _row_to_dict(settlement) if settlement else None,
+    }
