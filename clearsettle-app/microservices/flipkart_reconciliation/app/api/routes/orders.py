@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,10 +10,22 @@ from app.schemas.reconciliation import OrderFinancialsResponse
 
 router = APIRouter()
 
+# These schema fields are declared Decimal (non-nullable) but may be NULL in the DB
+# when a row was inserted without the Python-side default being applied (e.g. via raw SQL).
+_NON_OPTIONAL_DECIMAL_FIELDS = frozenset({
+    "total_offer_amount", "my_share", "marketplace_fee",
+    "tcs", "tds", "gst_on_mp_fees", "refund",
+    "invoice_fee_total", "invoice_gst_total",
+    "commission_fee", "shipping_fee", "other_fee",
+})
+
 
 def _to_response(record: OrderFinancials) -> OrderFinancialsResponse:
     data = {c.key: getattr(record, c.key) for c in record.__table__.columns}
     data["status"] = data.pop("reconciliation_status")
+    for field in _NON_OPTIONAL_DECIMAL_FIELDS:
+        if data.get(field) is None:
+            data[field] = Decimal("0")
     return OrderFinancialsResponse.model_validate(data)
 
 
