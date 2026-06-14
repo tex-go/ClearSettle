@@ -1,7 +1,7 @@
 name: clearsettle_mobile
 description: ClearSettle — eCommerce Settlement Intelligence for Indian Sellers
 publish_to: 'none'
-version: 1.24.4+82
+version: 1.25.0+83
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
