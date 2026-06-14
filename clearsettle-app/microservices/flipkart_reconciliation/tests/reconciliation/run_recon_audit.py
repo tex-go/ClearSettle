@@ -387,22 +387,53 @@ def _build_test_suite_report(
 # Main
 # ---------------------------------------------------------------------------
 
+def _detect_april_settlements_batch(db: ReconDbClient) -> str | None:
+    """
+    Auto-detect the April settlements batch: the batch whose settlement_date
+    values fall in April (i.e. the earliest month in settlements_etl).
+    Returns the batch_id string, or None if not found.
+    """
+    rows = db._q("""
+        SELECT batch_id,
+               TO_CHAR(MIN(settlement_date), 'YYYY-MM') AS month,
+               COUNT(*) AS row_count
+        FROM settlements_etl
+        WHERE is_valid = true AND settlement_date IS NOT NULL
+        GROUP BY batch_id
+        ORDER BY MIN(settlement_date)
+    """)
+    if not rows:
+        return None
+    # Return the batch whose earliest settlement date is in April 2026
+    for r in rows:
+        if r["month"] == "2026-04":
+            print(f"  [INFO] April settlements batch: {r['batch_id']} ({r['row_count']} rows)")
+            return str(r["batch_id"])
+    # Fallback: return the earliest batch
+    earliest = rows[0]
+    print(f"  [WARN] No April batch found. Using earliest: {earliest['batch_id']} ({earliest['month']}, {earliest['row_count']} rows)")
+    return str(earliest["batch_id"])
+
+
 def main() -> None:
-    print("\nPhase 3: Reconciliation Engine Audit")
+    print("\nPhase 3: Reconciliation Engine Audit -- April 2026")
     print("=" * 60)
     print(f"  Connecting to: {DSN}")
 
     db = ReconDbClient(DSN)
     try:
-        oids = db.all_order_item_ids()
+        # Scope to April settlements batch only
+        apr_batch = _detect_april_settlements_batch(db)
+
+        oids = db.all_order_item_ids(settlements_batch_id=apr_batch)
         total = len(oids)
-        print(f"  Found {total} distinct order_item_ids across all ETL tables")
+        print(f"  Found {total} order_item_ids for April 2026 (orders + April settlements)")
 
         report = ReconAuditReport()
         print(f"  Reconciling {total} orders ...")
 
         for i, oid in enumerate(oids, 1):
-            result = reconcile_order(db, oid)
+            result = reconcile_order(db, oid, settlements_batch_id=apr_batch)
             report.add(result)
             if i % 100 == 0 or i == total:
                 pct = 100 * i // total
