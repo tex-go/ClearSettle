@@ -219,18 +219,18 @@ const COLS = [
   { key: 'expected_settlement',label: 'Expected (₹)',   w: 115, num: true },
   { key: 'settlement_amount',  label: 'Actual (₹)',     w: 105, num: true },
   { key: 'difference',         label: 'Diff (₹)',       w: 90,  num: true },
-  { key: 'reconciliation_status', label: 'Status',      w: 140 },
+  { key: 'status',                 label: 'Status',      w: 140 },
 ]
 
 export function FlipkartReconTable({ summary, items, onBack, onNewUpload }) {
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [search,       setSearch]       = useState('')
-  const [sort,         setSort]         = useState({ col: 'reconciliation_status', dir: 'asc' })
+  const [sort,         setSort]         = useState({ col: 'status', dir: 'asc' })
   const [page,         setPage]         = useState(1)
   const PAGE_SIZE = 100
 
   const filtered = items
-    .filter(r => filterStatus === 'ALL' || r.reconciliation_status === filterStatus)
+    .filter(r => filterStatus === 'ALL' || r.status === filterStatus)
     .filter(r => {
       if (!search) return true
       const q = search.toLowerCase()
@@ -253,8 +253,8 @@ export function FlipkartReconTable({ summary, items, onBack, onNewUpload }) {
   }
 
   // Summary KPIs
-  const shortTotal = items.filter(r => r.reconciliation_status === 'SHORT_PAID').reduce((s, r) => s + Math.abs(Number(r.difference) || 0), 0)
-  const overTotal  = items.filter(r => r.reconciliation_status === 'OVER_PAID').reduce((s,  r) => s + Math.abs(Number(r.difference) || 0), 0)
+  const shortTotal = items.filter(r => r.status === 'SHORT_PAID').reduce((s, r) => s + Math.abs(Number(r.difference) || 0), 0)
+  const overTotal  = items.filter(r => r.status === 'OVER_PAID').reduce((s,  r) => s + Math.abs(Number(r.difference) || 0), 0)
   const netLeak    = shortTotal - overTotal
 
   const TABS = [
@@ -348,7 +348,7 @@ export function FlipkartReconTable({ summary, items, onBack, onNewUpload }) {
             {visible.length === 0 ? (
               <tr><td colSpan={COLS.length} style={{ textAlign: 'center', padding: '48px', color: '#9CA3AF', fontSize: 14 }}>No records match your filter</td></tr>
             ) : visible.map((r, i) => {
-              const s    = SC[r.reconciliation_status] || SC.MISSING_ORDER
+              const s    = SC[r.status] || SC.MISSING_ORDER
               const diff = Number(r.difference) || 0
               const rowBg = i % 2 === 0 ? s.rowBg : s.rowBg + 'bb'
 
@@ -358,7 +358,7 @@ export function FlipkartReconTable({ summary, items, onBack, onNewUpload }) {
                     const val = r[c.key]
                     const base = { padding: '8px 12px', textAlign: c.num ? 'right' : 'left', whiteSpace: 'nowrap', color: '#1E293B' }
 
-                    if (c.key === 'reconciliation_status') {
+                    if (c.key === 'status') {
                       return (
                         <td key={c.key} style={base}>
                           <span style={{ background: s.badgeBg, color: s.badge, borderRadius: 6, padding: '3px 9px', fontSize: 11, fontWeight: 700 }}>{s.text}</span>
