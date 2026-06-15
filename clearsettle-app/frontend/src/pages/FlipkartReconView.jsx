@@ -72,8 +72,181 @@ function Spin({ size = 16 }) {
   )
 }
 
+// ── FlipkartDataBrowser ───────────────────────────────────────────────────────
+const BROWSER_TABS = [
+  { key: 'orders',      label: '📦 Orders',      endpoint: 'orders'      },
+  { key: 'fees',        label: '🧾 Fees',         endpoint: 'fees'        },
+  { key: 'settlements', label: '🏦 Settlements',  endpoint: 'settlements' },
+]
+
+const BROWSER_COLS = {
+  orders: [
+    { key: 'order_item_id',     label: 'Order Item ID', w: 160, mono: true  },
+    { key: 'order_id',          label: 'Order ID',      w: 160, mono: true  },
+    { key: 'sku',               label: 'SKU',           w: 130              },
+    { key: 'product_title',     label: 'Product',       w: 220, trunc: true },
+    { key: 'order_date',        label: 'Order Date',    w: 100, date: true  },
+    { key: 'order_item_status', label: 'Status',        w: 120              },
+    { key: 'dispatch_date',     label: 'Dispatch',      w: 100, date: true  },
+    { key: 'delivery_date',     label: 'Delivery',      w: 100, date: true  },
+  ],
+  fees: [
+    { key: 'order_item_id',      label: 'Order Item ID', w: 160, mono: true },
+    { key: 'fee_name',           label: 'Fee Name',      w: 200             },
+    { key: 'fee_amount',         label: 'Fee (₹)',        w: 100, num: true  },
+    { key: 'fee_waiver_amount',  label: 'Waiver (₹)',     w: 100, num: true  },
+    { key: 'tax_amount',         label: 'Tax (₹)',        w: 90,  num: true  },
+    { key: 'fee_date',           label: 'Date',           w: 100, date: true },
+  ],
+  settlements: [
+    { key: 'order_item_id',    label: 'Order Item ID',   w: 160, mono: true },
+    { key: 'order_id',         label: 'Order ID',        w: 160, mono: true },
+    { key: 'settlement_date',  label: 'Settlement Date', w: 120, date: true },
+    { key: 'sale_amount',      label: 'Sale (₹)',         w: 100, num: true  },
+    { key: 'marketplace_fee',  label: 'MP Fee (₹)',       w: 110, num: true  },
+    { key: 'settlement_amount',label: 'Settlement (₹)',   w: 120, num: true  },
+    { key: 'neft_id',          label: 'NEFT ID',         w: 160, mono: true },
+  ],
+}
+
+export function FlipkartDataBrowser({ onBack }) {
+  const [tab, setTab]           = useState('orders')
+  const [batches, setBatches]   = useState({})
+  const [batchId, setBatchId]   = useState(null)
+  const [search, setSearch]     = useState('')
+  const [page, setPage]         = useState(1)
+  const [data, setData]         = useState(null)
+  const [loading, setLoading]   = useState(false)
+  const PAGE_SIZE = 50
+
+  useEffect(() => {
+    axios.get(`${MICRO}/data/batches`).then(r => setBatches(r.data)).catch(() => {})
+  }, [])
+
+  useEffect(() => { setPage(1) }, [tab, batchId, search])
+
+  useEffect(() => {
+    setLoading(true)
+    const params = new URLSearchParams({ page, page_size: PAGE_SIZE })
+    if (batchId) params.set('batch_id', batchId)
+    if (search)  params.set('search', search)
+    axios.get(`${MICRO}/data/${tab}?${params}`)
+      .then(r => { setData(r.data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [tab, batchId, page, search])
+
+  const currentBatches = batches[tab] || []
+  const cols       = BROWSER_COLS[tab]
+  const rows       = data?.data || []
+  const total      = data?.total || 0
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#6B7280', cursor: 'pointer' }}>← Back</button>
+        <span style={{ fontSize: 20 }}>🗂️</span>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#0D1F35' }}>Uploaded Data</div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>Browse all ingested records from uploaded reports</div>
+        </div>
+        {currentBatches.length > 1 && (
+          <select
+            value={batchId || ''}
+            onChange={e => setBatchId(e.target.value || null)}
+            style={{ marginLeft: 'auto', padding: '6px 10px', borderRadius: 8, border: '1.5px solid #E5E7EB', fontSize: 12, color: '#374151', background: '#fff', cursor: 'pointer' }}
+          >
+            <option value=''>Latest batch</option>
+            {currentBatches.map(b => (
+              <option key={b.batch_id} value={b.batch_id}>
+                {b.uploaded_at.slice(0, 16).replace('T', ' ')} — {b.row_count} rows
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Tab strip + search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+        {BROWSER_TABS.map(t => {
+          const active = tab === t.key
+          const bCount = batches[t.key]?.[0]?.row_count
+          return (
+            <button key={t.key} onClick={() => { setTab(t.key); setBatchId(null) }}
+              style={{ padding: '6px 14px', borderRadius: 20, border: `1.5px solid ${active ? '#0ABFCA' : '#E5E7EB'}`, background: active ? 'rgba(10,191,202,.12)' : '#fff', color: active ? '#0ABFCA' : '#6B7280', fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              {t.label}{bCount != null ? <span style={{ opacity: .6, fontSize: 11 }}> ({bCount.toLocaleString()})</span> : ''}
+            </button>
+          )
+        })}
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search IDs, names…"
+          style={{ marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, border: '1.5px solid #E5E7EB', fontSize: 13, outline: 'none', width: 220 }}
+        />
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto', borderRadius: 12, border: '1.5px solid #E8EFF6', boxShadow: '0 2px 12px rgba(0,0,0,.05)', position: 'relative', minHeight: 120 }}>
+        {loading && (
+          <div style={{ position: 'absolute', top: 48, left: 0, right: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, color: '#9CA3AF', fontSize: 13, zIndex: 2, background: 'rgba(255,255,255,.7)', padding: '12px 0' }}>
+            <Spin /> Loading…
+          </div>
+        )}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr>
+              {cols.map(c => (
+                <th key={c.key} style={{ padding: '11px 12px', textAlign: c.num ? 'right' : 'left', background: '#0D1F35', color: '#CBD5E1', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap', minWidth: c.w, borderRight: '1px solid rgba(255,255,255,.07)' }}>
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && !loading ? (
+              <tr><td colSpan={cols.length} style={{ textAlign: 'center', padding: '48px', color: '#9CA3AF', fontSize: 14 }}>No records found</td></tr>
+            ) : rows.map((r, i) => (
+              <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: '1px solid #F1F5F9' }}>
+                {cols.map(c => {
+                  const val = r[c.key]
+                  const base = { padding: '8px 12px', textAlign: c.num ? 'right' : 'left', whiteSpace: c.trunc ? 'normal' : 'nowrap', color: '#1E293B' }
+                  if (c.mono)
+                    return <td key={c.key} style={{ ...base, fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#0D1F35' }}>{val || '—'}</td>
+                  if (c.num)
+                    return <td key={c.key} style={base}>{val != null && val !== '' ? '₹' + Number(val).toFixed(2) : '—'}</td>
+                  if (c.date)
+                    return <td key={c.key} style={base}>{val ? fmtDate(val) : '—'}</td>
+                  if (c.trunc)
+                    return <td key={c.key} style={{ ...base, maxWidth: c.w, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val || ''}>{val || '—'}</td>
+                  return <td key={c.key} style={base}>{val || '—'}</td>
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+        <div style={{ fontSize: 12, color: '#9CA3AF' }}>
+          {total > 0 ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total.toLocaleString()} records` : ''}
+        </div>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #E5E7EB', background: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer', color: page === 1 ? '#CBD5E1' : '#374151', fontSize: 12 }}>‹ Prev</button>
+            <span style={{ padding: '5px 12px', fontSize: 12, color: '#6B7280' }}>Page {page} / {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #E5E7EB', background: '#fff', cursor: page === totalPages ? 'not-allowed' : 'pointer', color: page === totalPages ? '#CBD5E1' : '#374151', fontSize: 12 }}>Next ›</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── FlipkartReconGate ─────────────────────────────────────────────────────────
-export function FlipkartReconGate({ onBack, onResults }) {
+export function FlipkartReconGate({ onBack, onResults, onBrowse }) {
   const INIT = { status: 'idle', filename: null, error: null }
   const [uploads, setUploads] = useState({ orders: INIT, fees: INIT, settlements: INIT })
   const [running, setRunning] = useState(false)
@@ -119,8 +292,15 @@ export function FlipkartReconGate({ onBack, onResults }) {
           <div style={{ fontSize: 17, fontWeight: 800, color: '#0D1F35' }}>Flipkart — Upload Reports</div>
           <div style={{ fontSize: 12, color: '#6B7280' }}>Upload all 3 report files to run the reconciliation engine</div>
         </div>
-        <div style={{ marginLeft: 'auto', background: allDone ? 'rgba(16,185,129,.12)' : 'rgba(233,147,13,.1)', color: allDone ? '#10B981' : '#E9930D', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
-          {doneCount} / 3 uploaded
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+          {onBrowse && (
+            <button onClick={onBrowse} style={{ padding: '6px 14px', borderRadius: 8, border: '1.5px solid #0ABFCA', background: 'rgba(10,191,202,.08)', color: '#0ABFCA', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              🗂️ Browse Uploaded Data
+            </button>
+          )}
+          <div style={{ background: allDone ? 'rgba(16,185,129,.12)' : 'rgba(233,147,13,.1)', color: allDone ? '#10B981' : '#E9930D', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
+            {doneCount} / 3 uploaded
+          </div>
         </div>
       </div>
 
