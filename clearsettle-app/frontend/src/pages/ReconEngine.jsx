@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import api from '../utils/api'
-import { FlipkartReconGate, FlipkartReconTable } from './FlipkartReconView'
+import { FlipkartDataBrowser, FlipkartReconGate, FlipkartReconTable } from './FlipkartReconView'
 
 // ── Palette ────────────────────────────────────────────────────────────────────
 const P = {
@@ -1531,11 +1531,18 @@ function ReconEngine() {
         {view === 'fk_gate' && platform?.id === 'flipkart' && (
           <FlipkartReconGate
             onBack={function() { setView('platform_landing') }}
+            onBrowse={function() { setView('fk_browse') }}
             onResults={function(summary, items) {
               setFkReconSummary(summary)
               setFkReconItems(items)
               setView('fk_results')
             }}
+          />
+        )}
+
+        {view === 'fk_browse' && platform?.id === 'flipkart' && (
+          <FlipkartDataBrowser
+            onBack={function() { setView('fk_gate') }}
           />
         )}
 
