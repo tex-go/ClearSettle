@@ -1240,7 +1240,7 @@ function AnalyticsView({ platform, reports, selectedReport, onSelectReport, onNe
 // Shows after selecting a marketplace: list of previous reports + "Upload New" CTA.
 // User explicitly picks a report to view or chooses to upload a new one.
 // This prevents auto-jumping straight to the last uploaded report's analysis.
-function PlatformLanding({ platform, reports, loading, onSelectReport, onNewUpload, onManageDocs, onBack }) {
+function PlatformLanding({ platform, reports, loading, onSelectReport, onNewUpload, onManageDocs, onBrowse, onBack }) {
   const primaryKey = getPrimaryDocKey(platform.id)
   const doneReports = reports
     .filter(function(r) { return r.status === 'done' && (r.report_type === primaryKey || !r.report_type) })
@@ -1265,6 +1265,14 @@ function PlatformLanding({ platform, reports, loading, onSelectReport, onNewUplo
           <div style={{ fontSize: 12, color: '#6B7280' }}>Select a previous report or upload a new one</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexShrink: 0 }}>
+          {onBrowse && (
+            <button
+              onClick={onBrowse}
+              style={{ padding: '8px 14px', borderRadius: 8, background: 'rgba(10,191,202,.08)', border: '1.5px solid #0ABFCA', color: '#0ABFCA', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              🗂️ Browse Uploaded Data
+            </button>
+          )}
           {doneReports.length > 0 && (
             <button
               onClick={onManageDocs}
@@ -1524,6 +1532,7 @@ function ReconEngine() {
               if (platform.id === 'flipkart') { setView('fk_gate') }
               else { setManagingDocs(true); setView('docs_gate') }
             }}
+            onBrowse={platform.id === 'flipkart' ? function() { setView('fk_browse') } : null}
             onBack={function() { setPlatform(null); setView('platform_select') }}
           />
         )}
@@ -1542,7 +1551,7 @@ function ReconEngine() {
 
         {view === 'fk_browse' && platform?.id === 'flipkart' && (
           <FlipkartDataBrowser
-            onBack={function() { setView('fk_gate') }}
+            onBack={function() { setView('platform_landing') }}
           />
         )}
 
