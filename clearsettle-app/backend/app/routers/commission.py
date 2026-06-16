@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
+from app.db.flipkart_db import fk_session
 from app.db.models.discrepancy_event import (
     DiscrepancyEvent,
     SOURCE_LEAKAGE_AUDIT,
@@ -21,6 +22,7 @@ from app.db.models.discrepancy_event import (
 )
 from app.db.models.fee import Fee
 from app.db.models.settlement_transaction import SettlementTransaction
+from app.services import flipkart_queries
 
 router = APIRouter()
 
@@ -73,7 +75,8 @@ async def get_commissions(
     fee_rows = (await db.execute(fee_q)).all()
 
     if not fee_rows:
-        return {"items": [], "summary": _empty_summary}
+        async with fk_session() as fk_db:
+            return await flipkart_queries.get_commission_data(fk_db)
 
     rev_q = (
         select(

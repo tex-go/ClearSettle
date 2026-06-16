@@ -15,12 +15,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
+from app.db.flipkart_db import fk_session
 from app.db.models.discrepancy_event import (
     DiscrepancyEvent,
     SOURCE_LEAKAGE_AUDIT,
     STATE_DETECTED,
 )
 from app.db.models.settlement_transaction import SettlementTransaction
+from app.services import flipkart_queries
 
 router = APIRouter()
 
@@ -87,7 +89,8 @@ async def get_returns(
         fk_result = await get_flipkart_returns(db, cid)
         if fk_result:
             return fk_result
-        return {"items": [], "summary": _empty_summary}
+        async with fk_session() as fk_db:
+            return await flipkart_queries.get_returns_data(fk_db)
 
     items = [_tx_to_return(tx, i + 1) for i, tx in enumerate(rows)]
     total_deducted = sum(r["total"] for r in items)
