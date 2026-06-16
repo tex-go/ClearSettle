@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import Settlements from './pages/Settlements'
+import PaymentReconciliation from './pages/PaymentReconciliation'
 import BankRecon from './pages/BankRecon'
 import Disputes from './pages/Disputes'
 import Returns from './pages/Returns'
@@ -117,7 +118,8 @@ function App() {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/admin"      element={<ProtectedRoute adminOnly><AppLayout><AdminPanel /></AppLayout></ProtectedRoute>} />
         <Route path="/"           element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
-        <Route path="/settlements" element={<ProtectedRoute><AppLayout><Settlements /></AppLayout></ProtectedRoute>} />
+        <Route path="/settlements" element={<Navigate to="/payment-reconciliation" replace />} />
+        <Route path="/payment-reconciliation" element={<ProtectedRoute><AppLayout><PaymentReconciliation /></AppLayout></ProtectedRoute>} />
         <Route path="/bank"        element={<ProtectedRoute><AppLayout><BankRecon /></AppLayout></ProtectedRoute>} />
         {/* Canonical pages */}
         <Route path="/disputes"         element={<Navigate to="/recovery-center" replace />} />

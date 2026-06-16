@@ -12,9 +12,14 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import os as _os
+
+# Inside Docker the PostgreSQL container is reachable via service name "postgres".
+# Outside Docker (microservice on Windows host) localhost:5432 works.
+_FK_HOST = _os.environ.get("FK_DB_HOST", "postgres")
 _FK_DSN = (
-    "postgresql+asyncpg://clearsettle_user:clearsettle_pass"
-    "@localhost:5432/flipkart_recon"
+    f"postgresql+asyncpg://clearsettle_user:clearsettle_pass"
+    f"@{_FK_HOST}:5432/flipkart_recon"
 )
 
 _engine = create_async_engine(

@@ -16,7 +16,7 @@ var ALL_NAV = [
   {
     group: 'Finance',
     items: [
-      { path: '/settlements',  label: 'Settlements',      icon: '💳', badge: 3, bc: 'rd', permission: 'settlements.view' },
+      { path: '/payment-reconciliation', label: 'Payment Reconciliation', icon: '💳', permission: 'settlements.view' },
       { path: '/returns',      label: 'Returns',          icon: '↩️', permission: 'settlements.view' },
       { path: '/commission',   label: 'Commission Audit', icon: '🔍', badge: 2, bc: 'am', permission: 'reconciliation.view' },
       { path: '/gst',          label: 'GST / TCS',        icon: '🧾', permission: 'gst.view' },
