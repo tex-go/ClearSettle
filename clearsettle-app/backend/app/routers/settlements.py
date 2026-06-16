@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db_optional
 from app.data.mock_data import SETTLEMENTS
+from app.db.flipkart_db import fk_session
 from app.schemas.settlements import (
     FeeBreakdownOut,
     PayoutListResponse,
@@ -34,6 +35,7 @@ from app.schemas.settlements import (
     TransactionListResponse,
 )
 from app.services.settlements import queries as settlement_queries
+from app.services import flipkart_queries
 
 router = APIRouter()
 
@@ -166,6 +168,73 @@ def _mock_detail(s: dict) -> dict:
     }
 
 
+# ── flipkart_recon → SettlementListResponse adapter ──────────────────────────
+
+def _fk_to_settlement_list(
+    fk_data: dict,
+    page: int,
+    page_size: int,
+) -> SettlementListResponse:
+    """Convert flipkart_queries.get_settlements() output to SettlementListResponse."""
+    import uuid as _uuid_mod
+    import datetime as _dt
+    from app.schemas.settlements import SettlementListItemOut, SettlementSummaryOut
+
+    raw_items = fk_data["items"]
+    total = len(raw_items)
+    start = (page - 1) * page_size
+    page_items = raw_items[start: start + page_size]
+
+    def _to_item(s: dict) -> SettlementListItemOut:
+        sid = _uuid_mod.uuid5(_uuid_mod.NAMESPACE_DNS, s["id"])
+        fees = -(s["comm"] + s["ret"] + s["tcs"])
+        return SettlementListItemOut(
+            id=sid,
+            external_id=s["id"],
+            platform="flipkart",
+            platform_label="Flipkart",
+            status="closed" if s["status"] == "paid" else "open",
+            status_label=s["status"],
+            period_start=None,
+            period_end=None,
+            period_label=s["period"],
+            currency="INR",
+            total_amount=float(s["base"]),
+            fees_total=float(fees),
+            fund_transfer_amount=float(s["net"]),
+            net_amount=float(s["net"]),
+            transactions_count=int(s["orders"]),
+            fund_transfer_date=None,
+            account_tail=None,
+            payout_status="transferred" if s["status"] == "paid" else "pending",
+            reconciliation_status=None,
+            created_at=_dt.datetime.utcnow(),
+        )
+
+    summary_data = fk_data["summary"]
+    paid_items  = [s for s in raw_items if s["status"] == "paid"]
+    pend_items  = [s for s in raw_items if s["status"] != "paid"]
+
+    return SettlementListResponse(
+        items=[_to_item(s) for s in page_items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=max(1, math.ceil(total / page_size)),
+        summary=SettlementSummaryOut(
+            total_settlements=total,
+            closed_count=len(paid_items),
+            open_count=len(pend_items),
+            processing_count=0,
+            total_gross=sum(s["base"] for s in raw_items),
+            total_fees=-sum(s["comm"] + s["ret"] + s["tcs"] for s in raw_items),
+            total_net=float(summary_data["total_net"]),
+            pending_amount=float(summary_data["pending_net"]),
+            total_transactions=sum(s["orders"] for s in raw_items),
+        ),
+    )
+
+
 # ── GET /settlements/ ─────────────────────────────────────────────────────────
 
 @router.get("/", response_model=SettlementListResponse)
@@ -195,7 +264,7 @@ async def list_settlements(
             summary=SettlementSummaryOut(total_settlements=0, closed_count=0, open_count=0, processing_count=0, total_gross=0, total_fees=0, total_net=0, pending_amount=0, total_transactions=0),
         )
 
-    return await settlement_queries.list_settlements(
+    result = await settlement_queries.list_settlements(
         db,
         company_id=_company_id(user),
         platform=platform,
@@ -208,6 +277,13 @@ async def list_settlements(
         page=page,
         page_size=page_size,
     )
+
+    if result.total == 0:
+        async with fk_session() as fk_db:
+            fk_data = await flipkart_queries.get_settlements(fk_db)
+            return _fk_to_settlement_list(fk_data, page, page_size)
+
+    return result
 
 
 # ── GET /settlements/payouts ──────────────────────────────────────────────────

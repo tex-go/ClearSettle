@@ -15,11 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db_optional
 from app.data.mock_data import DASHBOARD_TREND, PLATFORM_SHARE, SETTLEMENTS
+from app.db.flipkart_db import fk_session
 from app.db.models.discrepancy_event import DiscrepancyEvent
 from app.db.models.flipkart_report import (
     FlipkartReport, FlipkartReconIssue, FlipkartSkuPL, FlipkartSummary,
 )
 from app.services.analytics import queries as analytics_queries
+from app.services import flipkart_queries
 
 router = APIRouter()
 
@@ -132,10 +134,15 @@ async def get_summary(
         if ledger_result:
             return ledger_result
 
-        # Last resort: Flipkart P&L legacy tables
+        # Legacy Flipkart P&L tables
         fk_result = await analytics_queries.get_flipkart_dashboard_summary(db, cid)
         if fk_result:
             return fk_result
+
+        # Final fallback: read directly from flipkart_recon ETL database
+        async with fk_session() as fk_db:
+            fk_data = await flipkart_queries.get_dashboard_summary(fk_db)
+            return {"cache_ttl_seconds": 0, **fk_data}
 
     return result
 

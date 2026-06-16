@@ -31,6 +31,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user, get_db, get_db_optional
 from app.core.rbac import require_db_permission
 from app.data.mock_data import GST
+from app.db.flipkart_db import fk_session
+from app.services import flipkart_queries
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -134,6 +136,11 @@ async def get_gst_overview(
 
     total_tcs = sum(i["tcs"] for i in items)
     total_itc = sum(i["itc"] for i in items)
+
+    if not items:
+        async with fk_session() as fk_db:
+            return await flipkart_queries.get_gst_data(fk_db)
+
     return {
         "items": items,
         "summary": {
